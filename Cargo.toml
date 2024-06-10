@@ -1,0 +1,13 @@
+[package]
+name = "protols"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-lsp = { version = "0.2.0", features = ["tokio"] }
+futures = "0.3.30"
+tokio = { version = "1.38.0", features = ["time", "full"] }
+tokio-util = { version = "0.7.11", features = ["compat"] }
+tower = "0.4.13"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
