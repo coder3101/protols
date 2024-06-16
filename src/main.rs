@@ -10,9 +10,9 @@ use tower::ServiceBuilder;
 use tracing::Level;
 
 mod lsp;
+mod parser;
 mod server;
 mod utils;
-mod parser;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -39,7 +39,8 @@ async fn main() {
             .service(ServerState::new_router(client))
     });
 
-    let file_appender = tracing_appender::rolling::daily("/Users/ashar/Developer/protols/logs", "lsp.log");
+    let file_appender =
+        tracing_appender::rolling::daily("/Users/ashar/Developer/protols/logs", "lsp.log");
     let (non_blocking, _gaurd) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::fmt()

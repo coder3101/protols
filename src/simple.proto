@@ -25,6 +25,7 @@ message GetBookViaAuthor {
     string author = 1;
 }
 
+
 // It is a BookService Implementation
 service BookService {
     // This is GetBook RPC that takes a book request
@@ -36,9 +37,11 @@ service BookService {
 }
 
 message BookStore {
+    reserved 1;
+    Book book = 0;
     string name = 1;
-    EnumSample sample = 3;
     map<int64, string> books = 2;
+    EnumSample sample = 3;
 }
 
 // These are enum options representing some operation in the proto

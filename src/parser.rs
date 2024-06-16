@@ -1,4 +1,7 @@
-use async_lsp::lsp_types::{Location, MarkedString, Position, Range, Url};
+use async_lsp::lsp_types::{
+    Diagnostic, DiagnosticSeverity, Location, MarkedString, Position, PublishDiagnosticsParams,
+    Range, Url,
+};
 use tracing::info;
 use tree_sitter::{Node, Tree, TreeCursor};
 
@@ -29,18 +32,6 @@ impl ProtoParser {
 }
 
 impl ParsedTree {
-    pub fn get_node_text_at_position<'a>(
-        &'a self,
-        pos: &Position,
-        content: &'a [u8],
-    ) -> Option<&'a str> {
-        let pos = lsp_to_ts_point(pos);
-        self.tree
-            .root_node()
-            .descendant_for_point_range(pos, pos)
-            .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
-    }
-
     fn walk_and_collect_kinds<'a>(
         &self,
         cursor: &mut TreeCursor<'a>,
@@ -124,6 +115,20 @@ impl ParsedTree {
             None
         };
     }
+}
+
+impl ParsedTree {
+    pub fn get_node_text_at_position<'a>(
+        &'a self,
+        pos: &Position,
+        content: &'a [u8],
+    ) -> Option<&'a str> {
+        let pos = lsp_to_ts_point(pos);
+        self.tree
+            .root_node()
+            .descendant_for_point_range(pos, pos)
+            .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
+    }
 
     pub fn find_childrens_by_kinds(&self, kinds: &[&str]) -> Vec<Node> {
         let mut cursor = self.tree.root_node().walk();
@@ -168,6 +173,28 @@ impl ParsedTree {
                 .map(|s| MarkedString::String(s))
                 .collect(),
             None => vec![],
+        }
+    }
+
+    pub fn collect_parse_errors(&self, uri: &Url) -> PublishDiagnosticsParams {
+        let diagnostics = self
+            .find_childrens_by_kinds(&["ERROR"])
+            .into_iter()
+            .map(|n| Diagnostic {
+                range: Range {
+                    start: ts_to_lsp_position(&n.start_position()),
+                    end: ts_to_lsp_position(&n.end_position()),
+                },
+                severity: Some(DiagnosticSeverity::ERROR),
+                source: Some("protols".to_string()),
+                message: "Syntax error".to_string(),
+                ..Default::default()
+            })
+            .collect();
+        PublishDiagnosticsParams {
+            uri: uri.clone(),
+            diagnostics,
+            version: None,
         }
     }
 }

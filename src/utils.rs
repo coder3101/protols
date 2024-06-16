@@ -1,5 +1,5 @@
 use async_lsp::lsp_types::Position;
-use tree_sitter::{Node, Point, TreeCursor};
+use tree_sitter::Point;
 
 pub fn ts_to_lsp_position(p: &Point) -> Position {
     Position {

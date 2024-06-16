@@ -1,14 +1,13 @@
 use std::ops::ControlFlow;
-use std::time::Duration;
 use tracing::{debug, info};
 
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, MarkedString, OneOf,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, ServerCapabilities,
+    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
-use async_lsp::{ErrorCode, LanguageServer, ResponseError};
+use async_lsp::{ErrorCode, LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
 use crate::server::ServerState;
@@ -138,14 +137,34 @@ impl LanguageServer for ServerState {
         let uri = params.text_document.uri;
         let contents = params.text_document.text;
         info!("Opened file at: {:}", uri);
-        self.documents.insert(uri, contents);
+        self.documents.insert(uri.clone(), contents.clone());
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            tracing::error!("failed to parse content");
+            return ControlFlow::Continue(());
+        };
+
+        let diagnostics = parsed.collect_parse_errors(&uri);
+        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+            tracing::error!("failed to publish diagnostics. {:?}", e)
+        }
         ControlFlow::Continue(())
     }
 
     fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
         let contents = params.content_changes[0].text.clone();
-        self.documents.insert(uri, contents);
+        self.documents.insert(uri.clone(), contents.clone());
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            tracing::error!("failed to parse content");
+            return ControlFlow::Continue(());
+        };
+
+        let diagnostics = parsed.collect_parse_errors(&uri);
+        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+            tracing::error!("failed to publish diagnostics. {:?}", e)
+        }
         ControlFlow::Continue(())
     }
 }
