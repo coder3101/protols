@@ -12,10 +12,15 @@ message GetBookRequest {
     int64 isbn = 1;
 }
 
+message GotoBookRequest {
+    bool flag = 1;
+}
+
 message GetBookViaAuthor {
     string author = 1;
 }
 
+// It is a BookService Implementation
 service BookService {
     rpc GetBook (GetBookRequest) returns (Book) {}
     rpc GetBooksViaAuthor (GetBookViaAuthor) returns (stream Book) {}

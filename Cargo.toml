@@ -11,3 +11,6 @@ tokio-util = { version = "0.7.11", features = ["compat"] }
 tower = "0.4.13"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+tree-sitter-proto = { git = "https://github.com/mitchellh/tree-sitter-proto", rev = "42d82fa18f8afe59b5fc0b16c207ee4f84cb185f" }
+tree-sitter = "0.19.3"
+tracing-appender = "0.2.3"
