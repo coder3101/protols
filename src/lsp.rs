@@ -1,15 +1,13 @@
-use async_lsp::LanguageClient;
 use std::ops::ControlFlow;
-use std::time::Duration;
 use tracing::{debug, info};
 
 use async_lsp::lsp_types::{
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents,
-    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, MarkedString,
-    MessageType, OneOf, ServerCapabilities, ServerInfo, ShowMessageParams,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, ServerCapabilities,
+    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
-use async_lsp::{LanguageServer, ResponseError};
+use async_lsp::{ErrorCode, LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
 use crate::server::ServerState;
@@ -33,56 +31,140 @@ impl LanguageServer for ServerState {
         info!("Connected with client {cname} {cversion}");
         debug!("Initialize with {params:?}");
 
-        Box::pin(async move {
-            Ok(InitializeResult {
-                capabilities: ServerCapabilities {
-                    hover_provider: Some(HoverProviderCapability::Simple(true)),
-                    ..ServerCapabilities::default()
-                },
-                server_info: Some(ServerInfo {
-                    name: env!("CARGO_PKG_NAME").to_string(),
-                    version: Some(env!("CARGO_PKG_VERSION").to_string()),
-                }),
-            })
-        })
+        let response = InitializeResult {
+            capabilities: ServerCapabilities {
+                // todo(): We might prefer incremental sync at some later stage
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(
+                    TextDocumentSyncKind::FULL,
+                )),
+                definition_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
+                ..ServerCapabilities::default()
+            },
+            server_info: Some(ServerInfo {
+                name: env!("CARGO_PKG_NAME").to_string(),
+                version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            }),
+        };
+
+        Box::pin(async move { Ok(response) })
     }
 
-    fn hover(&mut self, _: HoverParams) -> BoxFuture<'static, Result<Option<Hover>, Self::Error>> {
-        let mut client = self.client.clone();
-        let counter = self.counter;
-        Box::pin(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            client
-                .show_message(ShowMessageParams {
-                    typ: MessageType::INFO,
-                    message: "Hello LSP".into(),
-                })
-                .unwrap();
-            Ok(Some(Hover {
-                contents: HoverContents::Scalar(MarkedString::String(format!(
-                    "I am a hover text {counter}!"
-                ))),
+    fn hover(
+        &mut self,
+        param: HoverParams,
+    ) -> BoxFuture<'static, Result<Option<Hover>, Self::Error>> {
+        let uri = param.text_document_position_params.text_document.uri;
+        let pos = param.text_document_position_params.position;
+
+        let Some(contents) = self.documents.get(&uri) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "uri was never opened",
+                ))
+            });
+        };
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::REQUEST_FAILED,
+                    "ts failed to parse contents",
+                ))
+            });
+        };
+
+        let comments = parsed.hover(&pos, contents.as_bytes());
+        info!("Found {} node comments in the document", comments.len());
+        let response = match comments.len() {
+            0 => None,
+            1 => Some(Hover {
+                contents: HoverContents::Scalar(comments[0].clone()),
                 range: None,
-            }))
-        })
+            }),
+            2.. => Some(Hover {
+                contents: HoverContents::Array(comments),
+                range: None,
+            }),
+        };
+
+        Box::pin(async move { Ok(response) })
     }
 
-    // fn definition(
-    //     &mut self,
-    //     _: GotoDefinitionParams,
-    // ) -> BoxFuture<'static, Result<Option<GotoDefinitionResponse>, ResponseError>> {
-    //     unimplemented!("Not yet implemented!");
-    // }
+    fn definition(
+        &mut self,
+        param: GotoDefinitionParams,
+    ) -> BoxFuture<'static, Result<Option<GotoDefinitionResponse>, ResponseError>> {
+        let uri = param.text_document_position_params.text_document.uri;
+        let pos = param.text_document_position_params.position;
+
+        let Some(contents) = self.documents.get(&uri) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "uri was never opened",
+                ))
+            });
+        };
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::REQUEST_FAILED,
+                    "ts failed to parse contents",
+                ))
+            });
+        };
+
+        let locations = parsed.definition(&pos, &uri, contents.as_bytes());
+        info!("Found {} matching nodes in the document", locations.len());
+
+        let response = match locations.len() {
+            0 => None,
+            1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
+            2.. => Some(GotoDefinitionResponse::Array(locations)),
+        };
+
+        Box::pin(async move { Ok(response) })
+    }
 
     fn did_save(&mut self, _: DidSaveTextDocumentParams) -> Self::NotifyResult {
-        todo!("to implement")
+        ControlFlow::Continue(())
     }
 
-    fn did_open(&mut self, _: DidOpenTextDocumentParams) -> Self::NotifyResult {
-        todo!("to implement")
+    fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {
+        let uri = params.text_document.uri;
+        let contents = params.text_document.text;
+        info!("Opened file at: {:}", uri);
+        self.documents.insert(uri.clone(), contents.clone());
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            tracing::error!("failed to parse content");
+            return ControlFlow::Continue(());
+        };
+
+        let diagnostics = parsed.collect_parse_errors(&uri);
+        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+            tracing::error!("failed to publish diagnostics. {:?}", e)
+        }
+        ControlFlow::Continue(())
     }
 
-    fn did_change(&mut self, _: DidChangeTextDocumentParams) -> Self::NotifyResult {
-        todo!("to implement")
+    fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Self::NotifyResult {
+        let uri = params.text_document.uri;
+        let contents = params.content_changes[0].text.clone();
+        self.documents.insert(uri.clone(), contents.clone());
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            tracing::error!("failed to parse content");
+            return ControlFlow::Continue(());
+        };
+
+        let diagnostics = parsed.collect_parse_errors(&uri);
+        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+            tracing::error!("failed to publish diagnostics. {:?}", e)
+        }
+        ControlFlow::Continue(())
     }
 }

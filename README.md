@@ -1,11 +1,20 @@
 # protols
-Language server for proto files
+A Language Server for **proto3** files. It only uses tree-sitter parser for all operations and always runs in **single file mode**.
 
-## Testing with neovim
+## Features 
+- [x] Hover
+- [x] Go to definition
+- [x] Diagnostics
+
+ 
+## Installation and testing
+
+Clone the repository and run `cargo install --path .` to install locally in your `~/.cargo/bin` and the below to your `init.lua` until we start shipping this via Mason.
+
 ```lua
 local client = vim.lsp.start_client({
 	name = "protols",
-	cmd = { "<absolute path to protols binary>" },
+	cmd = { vim.fn.expand("$HOME/.cargo/bin/protols") },
 })
 
 if not client then

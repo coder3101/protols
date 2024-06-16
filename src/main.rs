@@ -7,10 +7,12 @@ use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
 use server::{ServerState, TickEvent};
 use tower::ServiceBuilder;
-use tracing::Level;
+use tracing::{info, Level};
 
 mod lsp;
+mod parser;
 mod server;
+mod utils;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -37,10 +39,19 @@ async fn main() {
             .service(ServerState::new_router(client))
     });
 
+    let mut dir = std::env::temp_dir();
+    dir.push("protols.log");
+
+    eprintln!("Logs are being written to {:?}", dir);
+
+    let file_appender =
+        tracing_appender::rolling::daily(std::env::temp_dir().as_path(), "protols.log");
+    let (non_blocking, _gaurd) = tracing_appender::non_blocking(file_appender);
+
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
         .with_ansi(false)
-        .with_writer(std::io::stderr)
+        .with_writer(non_blocking)
         .init();
 
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
