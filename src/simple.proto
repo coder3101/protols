@@ -3,12 +3,17 @@ syntax = "proto3";
 package com.book;
 
 message Book {
+    // This is a multi line comment on the field name
+    // Of a message called Book
     int64 isbn = 1;
     string title = 2;
     string author = 3;
 }
 
+// This is a comment on message
 message GetBookRequest {
+    
+    // This is a sigle line comment on the field of a message
     int64 isbn = 1;
 }
 
@@ -22,6 +27,8 @@ message GetBookViaAuthor {
 
 // It is a BookService Implementation
 service BookService {
+    // This is GetBook RPC that takes a book request
+    // and returns a Book, simple and sweet
     rpc GetBook (GetBookRequest) returns (Book) {}
     rpc GetBooksViaAuthor (GetBookViaAuthor) returns (stream Book) {}
     rpc GetGreatestBook (stream GetBookRequest) returns (Book) {}
@@ -30,9 +37,14 @@ service BookService {
 
 message BookStore {
     string name = 1;
+    EnumSample sample = 3;
     map<int64, string> books = 2;
 }
 
+// These are enum options representing some operation in the proto
+// these are meant to be ony called from one place,
+
+// Note: Please set only to started or running
 enum EnumSample {
     option allow_alias = true;
     UNKNOWN = 0;

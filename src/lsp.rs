@@ -5,8 +5,8 @@ use tracing::{debug, info};
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    InitializeParams, InitializeResult, MarkedString, OneOf, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind,
+    HoverProviderCapability, InitializeParams, InitializeResult, MarkedString, OneOf,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use async_lsp::{ErrorCode, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -39,6 +39,7 @@ impl LanguageServer for ServerState {
                     TextDocumentSyncKind::FULL,
                 )),
                 definition_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -50,17 +51,46 @@ impl LanguageServer for ServerState {
         Box::pin(async move { Ok(response) })
     }
 
-    fn hover(&mut self, _: HoverParams) -> BoxFuture<'static, Result<Option<Hover>, Self::Error>> {
-        let counter = self.counter;
-        Box::pin(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            Ok(Some(Hover {
-                contents: HoverContents::Scalar(MarkedString::String(format!(
-                    "I am a hover text {counter}!"
-                ))),
+    fn hover(
+        &mut self,
+        param: HoverParams,
+    ) -> BoxFuture<'static, Result<Option<Hover>, Self::Error>> {
+        let uri = param.text_document_position_params.text_document.uri;
+        let pos = param.text_document_position_params.position;
+
+        let Some(contents) = self.documents.get(&uri) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "uri was never opened",
+                ))
+            });
+        };
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::REQUEST_FAILED,
+                    "ts failed to parse contents",
+                ))
+            });
+        };
+
+        let comments = parsed.hover(&pos, contents.as_bytes());
+        info!("Found {} node comments in the document", comments.len());
+        let response = match comments.len() {
+            0 => None,
+            1 => Some(Hover {
+                contents: HoverContents::Scalar(comments[0].clone()),
                 range: None,
-            }))
-        })
+            }),
+            2.. => Some(Hover {
+                contents: HoverContents::Array(comments),
+                range: None,
+            }),
+        };
+
+        Box::pin(async move { Ok(response) })
     }
 
     fn definition(
@@ -88,7 +118,7 @@ impl LanguageServer for ServerState {
             });
         };
 
-        let locations = parsed.definition_for(&pos, &uri, contents.as_bytes());
+        let locations = parsed.definition(&pos, &uri, contents.as_bytes());
         info!("Found {} matching nodes in the document", locations.len());
 
         let response = match locations.len() {
