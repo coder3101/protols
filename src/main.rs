@@ -7,7 +7,7 @@ use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
 use server::{ServerState, TickEvent};
 use tower::ServiceBuilder;
-use tracing::{info, Level};
+use tracing::Level;
 
 mod lsp;
 mod parser;
