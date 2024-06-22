@@ -6,10 +6,11 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 - [x] Go to definition
 - [x] Diagnostics
 
+![](./assets/protols.mov)
  
 ## Installation and testing
 
-Clone the repository and run `cargo install protols` to install locally in your `~/.cargo/bin` and the below to your `init.lua` until we start shipping this via Mason.
+Run `cargo install protols` to install and add below to your `init.lua` until we start shipping this via Mason.
 
 ```lua
 local client = vim.lsp.start_client({
