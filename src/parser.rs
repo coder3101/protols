@@ -33,7 +33,6 @@ impl ProtoParser {
 
 impl ParsedTree {
     fn walk_and_collect_kinds<'a>(
-        &self,
         cursor: &mut TreeCursor<'a>,
         kinds: &[&str],
     ) -> Vec<Node<'a>> {
@@ -47,7 +46,7 @@ impl ParsedTree {
             }
 
             if cursor.goto_first_child() {
-                v.extend(self.walk_and_collect_kinds(cursor, kinds));
+                v.extend(Self::walk_and_collect_kinds(cursor, kinds));
                 cursor.goto_parent();
             }
 
@@ -59,14 +58,14 @@ impl ParsedTree {
         v
     }
 
-    fn advance_cursor_to<'a>(&self, cursor: &mut TreeCursor<'a>, nid: usize) -> bool {
+    fn advance_cursor_to(cursor: &mut TreeCursor<'_>, nid: usize) -> bool {
         loop {
             let node = cursor.node();
             if node.id() == nid {
                 return true;
             }
             if cursor.goto_first_child() {
-                if self.advance_cursor_to(cursor, nid) {
+                if Self::advance_cursor_to(cursor, nid) {
                     return true;
                 }
                 cursor.goto_parent();
@@ -83,7 +82,7 @@ impl ParsedTree {
 
         info!("Looking for node with id: {nid}");
 
-        self.advance_cursor_to(&mut cursor, nid);
+        Self::advance_cursor_to(&mut cursor, nid);
         if !cursor.goto_parent() {
             return None;
         }
@@ -108,12 +107,12 @@ impl ParsedTree {
                 break;
             }
         }
-        return if comments.len() != 0 {
+        if !comments.is_empty() {
             comments.reverse();
             Some(comments.join("\n"))
         } else {
             None
-        };
+        }
     }
 }
 
@@ -132,7 +131,7 @@ impl ParsedTree {
 
     pub fn find_childrens_by_kinds(&self, kinds: &[&str]) -> Vec<Node> {
         let mut cursor = self.tree.root_node().walk();
-        self.walk_and_collect_kinds(&mut cursor, kinds)
+        Self::walk_and_collect_kinds(&mut cursor, kinds)
     }
 
     pub fn definition(
@@ -170,7 +169,7 @@ impl ParsedTree {
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .filter_map(|n| self.find_preceeding_comments(n.id(), content.as_ref()))
-                .map(|s| MarkedString::String(s))
+                .map(MarkedString::String)
                 .collect(),
             None => vec![],
         }
