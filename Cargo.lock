@@ -439,6 +439,7 @@ version = "0.1.0"
 dependencies = [
  "async-lsp",
  "futures",
+ "protols-tree-sitter-proto",
  "tokio",
  "tokio-util",
  "tower",
@@ -446,7 +447,16 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "tree-sitter",
- "tree-sitter-proto",
+]
+
+[[package]]
+name = "protols-tree-sitter-proto"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7a9a34535297796f4cdc57420231ac17a1e526512a320ca37f51d35f5d13f10"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]
@@ -844,15 +854,6 @@ checksum = "df7cc499ceadd4dcdf7ec6d4cbc34ece92c3fa07821e287aedecd4416c516dca"
 dependencies = [
  "cc",
  "regex",
-]
-
-[[package]]
-name = "tree-sitter-proto"
-version = "0.0.1"
-source = "git+https://github.com/coder3101/tree-sitter-proto?branch=main#9f702d2b9544662bf2f9ff0035fc71c0172c6b64"
-dependencies = [
- "cc",
- "tree-sitter",
 ]
 
 [[package]]
