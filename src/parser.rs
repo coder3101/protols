@@ -18,7 +18,7 @@ pub struct ParsedTree {
 impl ProtoParser {
     pub fn new() -> Self {
         let mut parser = tree_sitter::Parser::new();
-        if let Err(e) = parser.set_language(&tree_sitter_proto::language()) {
+        if let Err(e) = parser.set_language(&protols_tree_sitter_proto::language()) {
             panic!("failed to set ts language parser {:?}", e);
         }
         Self { parser }
@@ -33,7 +33,6 @@ impl ProtoParser {
 
 impl ParsedTree {
     fn walk_and_collect_kinds<'a>(
-        &self,
         cursor: &mut TreeCursor<'a>,
         kinds: &[&str],
     ) -> Vec<Node<'a>> {
@@ -47,7 +46,7 @@ impl ParsedTree {
             }
 
             if cursor.goto_first_child() {
-                v.extend(self.walk_and_collect_kinds(cursor, kinds));
+                v.extend(Self::walk_and_collect_kinds(cursor, kinds));
                 cursor.goto_parent();
             }
 
@@ -59,14 +58,14 @@ impl ParsedTree {
         v
     }
 
-    fn advance_cursor_to<'a>(&self, cursor: &mut TreeCursor<'a>, nid: usize) -> bool {
+    fn advance_cursor_to(cursor: &mut TreeCursor<'_>, nid: usize) -> bool {
         loop {
             let node = cursor.node();
             if node.id() == nid {
                 return true;
             }
             if cursor.goto_first_child() {
-                if self.advance_cursor_to(cursor, nid) {
+                if Self::advance_cursor_to(cursor, nid) {
                     return true;
                 }
                 cursor.goto_parent();
@@ -83,7 +82,7 @@ impl ParsedTree {
 
         info!("Looking for node with id: {nid}");
 
-        self.advance_cursor_to(&mut cursor, nid);
+        Self::advance_cursor_to(&mut cursor, nid);
         if !cursor.goto_parent() {
             return None;
         }
@@ -108,12 +107,12 @@ impl ParsedTree {
                 break;
             }
         }
-        return if comments.len() != 0 {
+        if !comments.is_empty() {
             comments.reverse();
             Some(comments.join("\n"))
         } else {
             None
-        };
+        }
     }
 }
 
@@ -132,7 +131,7 @@ impl ParsedTree {
 
     pub fn find_childrens_by_kinds(&self, kinds: &[&str]) -> Vec<Node> {
         let mut cursor = self.tree.root_node().walk();
-        self.walk_and_collect_kinds(&mut cursor, kinds)
+        Self::walk_and_collect_kinds(&mut cursor, kinds)
     }
 
     pub fn definition(
@@ -170,7 +169,7 @@ impl ParsedTree {
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .filter_map(|n| self.find_preceeding_comments(n.id(), content.as_ref()))
-                .map(|s| MarkedString::String(s))
+                .map(MarkedString::String)
                 .collect(),
             None => vec![],
         }
@@ -196,5 +195,193 @@ impl ParsedTree {
             diagnostics,
             version: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use async_lsp::lsp_types::{DiagnosticSeverity, MarkedString, Position, Range, Url};
+
+    use super::ProtoParser;
+
+    #[test]
+    fn test_find_children_by_kind() {
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+message Book {
+    
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+    // This is a multi line comment on the field name
+    // Of a message called Book
+    int64 isbn = 1;
+    string title = 2;
+    Author author = 3;
+}
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let nodes = tree.find_childrens_by_kinds(&["message_name"]);
+
+        assert_eq!(nodes.len(), 2);
+
+        let names: Vec<_> = nodes
+            .into_iter()
+            .map(|n| n.utf8_text(contents.as_ref()).unwrap())
+            .collect();
+        assert_eq!(names[0], "Book");
+        assert_eq!(names[1], "Author");
+    }
+
+    #[test]
+    fn test_collect_parse_error() {
+        let url = "file://foo/bar.proto";
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+message Book {
+    message Author {
+        string name;
+        string country = 2;
+    };
+}
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let diagnostics = tree.collect_parse_errors(&url.parse().unwrap());
+
+        assert_eq!(diagnostics.uri, Url::parse(url).unwrap());
+        assert_eq!(diagnostics.diagnostics.len(), 1);
+
+        let error = &diagnostics.diagnostics[0];
+        assert_eq!(error.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(error.source, Some("protols".to_owned()));
+        assert_eq!(error.message, "Syntax error");
+        assert_eq!(
+            error.range,
+            Range {
+                start: Position {
+                    line: 6,
+                    character: 8
+                },
+                end: Position {
+                    line: 6,
+                    character: 19
+                }
+            }
+        );
+    }
+
+    #[test]
+    fn test_hover() {
+        let posbook = Position {
+            line: 5,
+            character: 9,
+        };
+        let posinvalid = Position {
+            line: 0,
+            character: 1,
+        };
+        let posauthor = Position {
+            line: 11,
+            character: 14,
+        };
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+// A Book is book
+message Book {
+
+    // This is represents author
+    // A author is a someone who writes books
+    //
+    // Author has a name and a country where they were born
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+}
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let res = tree.hover(&posbook, contents);
+
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0], MarkedString::String("A Book is book".to_owned()));
+
+        let res = tree.hover(&posinvalid, contents);
+        assert_eq!(res.len(), 0);
+
+        let res = tree.hover(&posauthor, contents);
+        assert_eq!(res.len(), 1);
+        assert_eq!(
+            res[0],
+            MarkedString::String(
+                r#"This is represents author
+A author is a someone who writes books
+
+Author has a name and a country where they were born"#
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn test_goto_definition() {
+        let url = "file://foo/bar.proto";
+        let posinvalid = Position {
+            line: 0,
+            character: 1,
+        };
+        let posauthor = Position {
+            line: 10,
+            character: 5,
+        };
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+message Book {
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+
+    Author author = 1;
+    string isbn = 2;
+}
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let res = tree.definition(&posauthor, &url.parse().unwrap(), contents);
+
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].uri, Url::parse(url).unwrap());
+        assert_eq!(
+            res[0].range,
+            Range {
+                start: Position {
+                    line: 5,
+                    character: 12
+                },
+                end: Position {
+                    line: 5,
+                    character: 18
+                },
+            }
+        );
+
+        let res = tree.definition(&posinvalid, &url.parse().unwrap(), contents);
+        assert_eq!(res.len(), 0);
     }
 }

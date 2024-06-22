@@ -1,5 +1,5 @@
 # protols
-A Language Server for **proto3** files. It only uses tree-sitter parser for all operations and always runs in **single file mode**.
+A Language Server for **proto3** files. It uses tree-sitter parser for all operations and always runs in **single file mode**.
 
 ## Features 
 - [x] Hover
@@ -9,7 +9,7 @@ A Language Server for **proto3** files. It only uses tree-sitter parser for all 
  
 ## Installation and testing
 
-Clone the repository and run `cargo install --path .` to install locally in your `~/.cargo/bin` and the below to your `init.lua` until we start shipping this via Mason.
+Clone the repository and run `cargo install protols` to install locally in your `~/.cargo/bin` and the below to your `init.lua` until we start shipping this via Mason.
 
 ```lua
 local client = vim.lsp.start_client({

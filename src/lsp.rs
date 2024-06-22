@@ -23,7 +23,7 @@ impl LanguageServer for ServerState {
         let (cname, version) = params
             .client_info
             .as_ref()
-            .map(|c| (c.name.as_str(), c.version.as_ref().map(|x| x.as_str())))
+            .map(|c| (c.name.as_str(), c.version.as_deref()))
             .unwrap_or(("<unknown>", None));
 
         let cversion = version.unwrap_or("<unknown>");
