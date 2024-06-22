@@ -1,13 +1,13 @@
 # protols
 A Language Server for **proto3** files. It uses tree-sitter parser for all operations and always runs in **single file mode**.
 
+![](./assets/protols.mov)
+
 ## Features 
 - [x] Hover
 - [x] Go to definition
 - [x] Diagnostics
 
-![](./assets/protols.mov)
- 
 ## Installation and testing
 
 Run `cargo install protols` to install and add below to your `init.lua` until we start shipping this via Mason.
