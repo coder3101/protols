@@ -8,9 +8,9 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 - [x] Go to definition
 - [x] Diagnostics
 
-## Installation and testing
+## Installation
 
-Run `cargo install protols` to install and add below to setup using `nvim-lspconfig` until we start shipping this via Mason.
+Run `cargo install protols` to install and add below to setup using [`nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#protols) until we start shipping this via Mason.
 
 ```lua
 require'lspconfig'.protols.setup{}
