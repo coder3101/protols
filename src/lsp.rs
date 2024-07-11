@@ -3,9 +3,9 @@ use tracing::{debug, info};
 
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, ServerCapabilities,
-    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
+    OneOf, ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use async_lsp::{ErrorCode, LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -39,6 +39,7 @@ impl LanguageServer for ServerState {
                 )),
                 definition_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                document_symbol_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -166,5 +167,36 @@ impl LanguageServer for ServerState {
             tracing::error!("failed to publish diagnostics. {:?}", e)
         }
         ControlFlow::Continue(())
+    }
+
+    fn document_symbol(
+        &mut self,
+        params: DocumentSymbolParams,
+    ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
+        let uri = params.text_document.uri;
+
+        let Some(contents) = self.documents.get(&uri) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "uri was never opened",
+                ))
+            });
+        };
+
+        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
+            return Box::pin(async move {
+                Err(ResponseError::new(
+                    ErrorCode::REQUEST_FAILED,
+                    "ts failed to parse contents",
+                ))
+            });
+        };
+
+        let locations = parsed.find_document_locations(contents.as_bytes());
+
+        let response = DocumentSymbolResponse::Nested(locations);
+
+        Box::pin(async move { Ok(Some(response)) })
     }
 }
