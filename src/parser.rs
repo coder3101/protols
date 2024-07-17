@@ -24,6 +24,7 @@ struct DocumentSymbolTreeBuilder {
     // The found are things we've finished processing/parsing, at the top level of the stack.
     found: Vec<DocumentSymbol>,
 }
+
 impl DocumentSymbolTreeBuilder {
     fn push(&mut self, node: usize, symbol: DocumentSymbol) {
         self.stack.push((node, symbol));
@@ -165,7 +166,6 @@ impl ParsedTree {
         let content = content.as_ref();
 
         let mut cursor = self.tree.root_node().walk();
-
         self.find_document_locations_inner(&mut builder, &mut cursor, content);
 
         builder.build()
@@ -191,6 +191,8 @@ impl ParsedTree {
                 let detail = self.find_preceding_comments(node.id(), content);
                 let message = node.parent().unwrap();
 
+                // https://github.com/rust-lang/rust/issues/102777
+                #[allow(deprecated)]
                 let new_symbol = DocumentSymbol {
                     name: name.to_string(),
                     detail,
@@ -252,6 +254,7 @@ impl ParsedTree {
     pub fn hover(&self, pos: &Position, content: impl AsRef<[u8]>) -> Vec<MarkedString> {
         let text = self.get_node_text_at_position(pos, content.as_ref());
         info!("Looking for hover response on: {:?}", text);
+
         match text {
             Some(text) => self
                 .find_childrens_by_kinds(&["message_name", "enum_name", "service_name", "rpc_name"])
@@ -427,6 +430,7 @@ Author has a name and a country where they were born"#
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_document_symbols() {
         let contents = r#"syntax = "proto3";
 
