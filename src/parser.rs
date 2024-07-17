@@ -1,3 +1,5 @@
+use std::unreachable;
+
 use async_lsp::lsp_types::{
     Diagnostic, DiagnosticSeverity, DocumentSymbol, Location, MarkedString, Position,
     PublishDiagnosticsParams, Range, SymbolKind, Url,
@@ -40,10 +42,6 @@ impl DocumentSymbolTreeBuilder {
     }
 
     fn build(self) -> Vec<DocumentSymbol> {
-        assert!(
-            self.stack.is_empty(),
-            "The symbol stack isn't empty which is a bug :("
-        );
         self.found
     }
 }
@@ -65,10 +63,7 @@ impl ProtoParser {
 }
 
 impl ParsedTree {
-    fn walk_and_collect_kinds<'a>(
-        cursor: &mut TreeCursor<'a>,
-        kinds: &[&str],
-    ) -> Vec<Node<'a>> {
+    fn walk_and_collect_kinds<'a>(cursor: &mut TreeCursor<'a>, kinds: &[&str]) -> Vec<Node<'a>> {
         let mut v = vec![];
 
         loop {
@@ -191,7 +186,7 @@ impl ParsedTree {
                 let kind = match node.kind() {
                     "message_name" => SymbolKind::STRUCT,
                     "enum_name" => SymbolKind::ENUM,
-                    _ => panic!("Should be impossible"),
+                    _ => unreachable!("unsupported symbol kind"),
                 };
                 let detail = self.find_preceding_comments(node.id(), content);
                 let message = node.parent().unwrap();
@@ -570,25 +565,6 @@ message Outer2 {
                 },
             )
         );
-        /*
-        assert_eq!(res[0].uri, Url::parse(url).unwrap());
-        assert_eq!(
-            res[0].range,
-            Range {
-                start: Position {
-                    line: 5,
-                    character: 12
-                },
-                end: Position {
-                    line: 5,
-                    character: 18
-                },
-            }
-        );
-
-        let res = tree.definition(&posinvalid, &url.parse().unwrap(), contents);
-        assert_eq!(res.len(), 0);
-        */
     }
 
     #[test]
