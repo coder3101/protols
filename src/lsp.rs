@@ -2,10 +2,11 @@ use std::ops::ControlFlow;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    OneOf, ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, OneOf, ServerCapabilities, ServerInfo,
+    TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -110,7 +111,7 @@ impl LanguageServer for ServerState {
         let uri = params.text_document.uri;
         let contents = params.text_document.text;
 
-        info!("opened file at: {:}", uri);
+        info!("opened file at: {uri}");
         self.documents.insert(uri.clone(), contents.clone());
 
         let Some(tree) = self.parser.parse(contents.as_bytes()) else {
@@ -122,6 +123,15 @@ impl LanguageServer for ServerState {
         if let Err(e) = self.client.publish_diagnostics(diagnostics) {
             error!(error=%e, "failed to publish diagnostics")
         }
+        ControlFlow::Continue(())
+    }
+
+    fn did_close(&mut self, params: DidCloseTextDocumentParams) -> Self::NotifyResult {
+        let uri = params.text_document.uri;
+
+        info!("closed file at {uri}");
+        self.documents.remove(&uri);
+
         ControlFlow::Continue(())
     }
 
