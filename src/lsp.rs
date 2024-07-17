@@ -1,13 +1,14 @@
 use std::ops::ControlFlow;
-use tracing::{debug, info};
+use tracing::{error, info};
 
 use async_lsp::lsp_types::{
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    OneOf, ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, OneOf, ServerCapabilities, ServerInfo,
+    TextDocumentSyncCapability, TextDocumentSyncKind,
 };
-use async_lsp::{ErrorCode, LanguageClient, LanguageServer, ResponseError};
+use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
 use crate::server::ServerState;
@@ -29,7 +30,6 @@ impl LanguageServer for ServerState {
         let cversion = version.unwrap_or("<unknown>");
 
         info!("Connected with client {cname} {cversion}");
-        debug!("Initialize with {params:?}");
 
         let response = InitializeResult {
             capabilities: ServerCapabilities {
@@ -58,39 +58,26 @@ impl LanguageServer for ServerState {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let Some(contents) = self.documents.get(&uri) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "uri was never opened",
-                ))
-            });
-        };
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, content)) => {
+                let comments = tree.hover(&pos, content.as_bytes());
 
-        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::REQUEST_FAILED,
-                    "ts failed to parse contents",
-                ))
-            });
-        };
+                let response = match comments.len() {
+                    0 => None,
+                    1 => Some(Hover {
+                        contents: HoverContents::Scalar(comments[0].clone()),
+                        range: None,
+                    }),
+                    2.. => Some(Hover {
+                        contents: HoverContents::Array(comments),
+                        range: None,
+                    }),
+                };
 
-        let comments = parsed.hover(&pos, contents.as_bytes());
-        info!("Found {} node comments in the document", comments.len());
-        let response = match comments.len() {
-            0 => None,
-            1 => Some(Hover {
-                contents: HoverContents::Scalar(comments[0].clone()),
-                range: None,
-            }),
-            2.. => Some(Hover {
-                contents: HoverContents::Array(comments),
-                range: None,
-            }),
-        };
-
-        Box::pin(async move { Ok(response) })
+                Box::pin(async move { Ok(response) })
+            }
+        }
     }
 
     fn definition(
@@ -100,34 +87,20 @@ impl LanguageServer for ServerState {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let Some(contents) = self.documents.get(&uri) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "uri was never opened",
-                ))
-            });
-        };
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, content)) => {
+                let locations = tree.definition(&pos, &uri, content.as_bytes());
 
-        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::REQUEST_FAILED,
-                    "ts failed to parse contents",
-                ))
-            });
-        };
+                let response = match locations.len() {
+                    0 => None,
+                    1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
+                    2.. => Some(GotoDefinitionResponse::Array(locations)),
+                };
 
-        let locations = parsed.definition(&pos, &uri, contents.as_bytes());
-        info!("Found {} matching nodes in the document", locations.len());
-
-        let response = match locations.len() {
-            0 => None,
-            1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
-            2.. => Some(GotoDefinitionResponse::Array(locations)),
-        };
-
-        Box::pin(async move { Ok(response) })
+                Box::pin(async move { Ok(response) })
+            }
+        }
     }
 
     fn did_save(&mut self, _: DidSaveTextDocumentParams) -> Self::NotifyResult {
@@ -137,34 +110,45 @@ impl LanguageServer for ServerState {
     fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
         let contents = params.text_document.text;
-        info!("Opened file at: {:}", uri);
+
+        info!("opened file at: {uri}");
         self.documents.insert(uri.clone(), contents.clone());
 
-        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
-            tracing::error!("failed to parse content");
+        let Some(tree) = self.parser.parse(contents.as_bytes()) else {
+            error!("failed to parse content at {uri}");
             return ControlFlow::Continue(());
         };
 
-        let diagnostics = parsed.collect_parse_errors(&uri);
+        let diagnostics = tree.collect_parse_errors(&uri);
         if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-            tracing::error!("failed to publish diagnostics. {:?}", e)
+            error!(error=%e, "failed to publish diagnostics")
         }
+        ControlFlow::Continue(())
+    }
+
+    fn did_close(&mut self, params: DidCloseTextDocumentParams) -> Self::NotifyResult {
+        let uri = params.text_document.uri;
+
+        info!("closed file at {uri}");
+        self.documents.remove(&uri);
+
         ControlFlow::Continue(())
     }
 
     fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
         let contents = params.content_changes[0].text.clone();
+
         self.documents.insert(uri.clone(), contents.clone());
 
-        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
-            tracing::error!("failed to parse content");
+        let Some(tree) = self.parser.parse(contents.as_bytes()) else {
+            error!("failed to parse content at {uri}");
             return ControlFlow::Continue(());
         };
 
-        let diagnostics = parsed.collect_parse_errors(&uri);
+        let diagnostics = tree.collect_parse_errors(&uri);
         if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-            tracing::error!("failed to publish diagnostics. {:?}", e)
+            error!(error=%e, "failed to publish diagnostics")
         }
         ControlFlow::Continue(())
     }
@@ -175,28 +159,14 @@ impl LanguageServer for ServerState {
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
         let uri = params.text_document.uri;
 
-        let Some(contents) = self.documents.get(&uri) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "uri was never opened",
-                ))
-            });
-        };
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, content)) => {
+                let locations = tree.find_document_locations(content.as_bytes());
+                let response = DocumentSymbolResponse::Nested(locations);
 
-        let Some(parsed) = self.parser.parse(contents.as_bytes()) else {
-            return Box::pin(async move {
-                Err(ResponseError::new(
-                    ErrorCode::REQUEST_FAILED,
-                    "ts failed to parse contents",
-                ))
-            });
-        };
-
-        let locations = parsed.find_document_locations(contents.as_bytes());
-
-        let response = DocumentSymbolResponse::Nested(locations);
-
-        Box::pin(async move { Ok(Some(response)) })
+                Box::pin(async move { Ok(Some(response)) })
+            }
+        }
     }
 }
