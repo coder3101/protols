@@ -1,6 +1,8 @@
+use std::unreachable;
+
 use async_lsp::lsp_types::{
-    Diagnostic, DiagnosticSeverity, Location, MarkedString, Position, PublishDiagnosticsParams,
-    Range, Url,
+    Diagnostic, DiagnosticSeverity, DocumentSymbol, Location, MarkedString, Position,
+    PublishDiagnosticsParams, Range, SymbolKind, Url,
 };
 use tracing::info;
 use tree_sitter::{Node, Tree, TreeCursor};
@@ -13,6 +15,35 @@ pub struct ProtoParser {
 
 pub struct ParsedTree {
     tree: Tree,
+}
+
+#[derive(Default)]
+struct DocumentSymbolTreeBuilder {
+    // The stack are things we're still in the process of building/parsing.
+    stack: Vec<(usize, DocumentSymbol)>,
+    // The found are things we've finished processing/parsing, at the top level of the stack.
+    found: Vec<DocumentSymbol>,
+}
+impl DocumentSymbolTreeBuilder {
+    fn push(&mut self, node: usize, symbol: DocumentSymbol) {
+        self.stack.push((node, symbol));
+    }
+
+    fn maybe_pop(&mut self, node: usize) {
+        let should_pop = self.stack.last().map_or(false, |(n, _)| *n == node);
+        if should_pop {
+            let (_, explored) = self.stack.pop().unwrap();
+            if let Some((_, parent)) = self.stack.last_mut() {
+                parent.children.as_mut().unwrap().push(explored);
+            } else {
+                self.found.push(explored);
+            }
+        }
+    }
+
+    fn build(self) -> Vec<DocumentSymbol> {
+        self.found
+    }
 }
 
 impl ProtoParser {
@@ -32,10 +63,7 @@ impl ProtoParser {
 }
 
 impl ParsedTree {
-    fn walk_and_collect_kinds<'a>(
-        cursor: &mut TreeCursor<'a>,
-        kinds: &[&str],
-    ) -> Vec<Node<'a>> {
+    fn walk_and_collect_kinds<'a>(cursor: &mut TreeCursor<'a>, kinds: &[&str]) -> Vec<Node<'a>> {
         let mut v = vec![];
 
         loop {
@@ -76,11 +104,9 @@ impl ParsedTree {
         }
     }
 
-    fn find_preceeding_comments(&self, nid: usize, content: impl AsRef<[u8]>) -> Option<String> {
+    fn find_preceding_comments(&self, nid: usize, content: impl AsRef<[u8]>) -> Option<String> {
         let root = self.tree.root_node();
         let mut cursor = root.walk();
-
-        info!("Looking for node with id: {nid}");
 
         Self::advance_cursor_to(&mut cursor, nid);
         if !cursor.goto_parent() {
@@ -134,6 +160,69 @@ impl ParsedTree {
         Self::walk_and_collect_kinds(&mut cursor, kinds)
     }
 
+    pub fn find_document_locations(&self, content: impl AsRef<[u8]>) -> Vec<DocumentSymbol> {
+        let mut builder = DocumentSymbolTreeBuilder::default();
+        let content = content.as_ref();
+
+        let mut cursor = self.tree.root_node().walk();
+
+        self.find_document_locations_inner(&mut builder, &mut cursor, content);
+
+        builder.build()
+    }
+
+    fn find_document_locations_inner(
+        &self,
+        builder: &mut DocumentSymbolTreeBuilder,
+        cursor: &'_ mut TreeCursor,
+        content: &[u8],
+    ) {
+        let kinds = &["message_name", "enum_name"];
+        loop {
+            let node = cursor.node();
+
+            if kinds.contains(&node.kind()) {
+                let name = node.utf8_text(content).unwrap();
+                let kind = match node.kind() {
+                    "message_name" => SymbolKind::STRUCT,
+                    "enum_name" => SymbolKind::ENUM,
+                    _ => unreachable!("unsupported symbol kind"),
+                };
+                let detail = self.find_preceding_comments(node.id(), content);
+                let message = node.parent().unwrap();
+
+                let new_symbol = DocumentSymbol {
+                    name: name.to_string(),
+                    detail,
+                    kind,
+                    tags: None,
+                    deprecated: None,
+                    range: Range {
+                        start: ts_to_lsp_position(&message.start_position()),
+                        end: ts_to_lsp_position(&message.end_position()),
+                    },
+                    selection_range: Range {
+                        start: ts_to_lsp_position(&node.start_position()),
+                        end: ts_to_lsp_position(&node.end_position()),
+                    },
+                    children: Some(vec![]),
+                };
+
+                builder.push(message.id(), new_symbol);
+            }
+
+            if cursor.goto_first_child() {
+                self.find_document_locations_inner(builder, cursor, content);
+                builder.maybe_pop(node.id());
+                cursor.goto_parent();
+            }
+
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+
     pub fn definition(
         &self,
         pos: &Position,
@@ -168,7 +257,7 @@ impl ParsedTree {
                 .find_childrens_by_kinds(&["message_name", "enum_name", "service_name", "rpc_name"])
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
-                .filter_map(|n| self.find_preceeding_comments(n.id(), content.as_ref()))
+                .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
                 .map(MarkedString::String)
                 .collect(),
             None => vec![],
@@ -200,7 +289,9 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{DiagnosticSeverity, MarkedString, Position, Range, Url};
+    use async_lsp::lsp_types::{
+        DiagnosticSeverity, DocumentSymbol, MarkedString, Position, Range, SymbolKind, Url,
+    };
 
     use super::ProtoParser;
 
@@ -331,6 +422,147 @@ A author is a someone who writes books
 
 Author has a name and a country where they were born"#
                     .to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn test_document_symbols() {
+        let contents = r#"syntax = "proto3";
+
+package com.symbols;
+
+// outer 1 comment
+message Outer1 {
+    message Inner1 {
+        string name = 1;
+    };
+
+    Inner1 i = 1;
+}
+
+message Outer2 {
+    message Inner2 {
+        string name = 1;
+    };
+    // Inner 3 comment here
+    message Inner3 {
+        string name = 1;
+
+        enum X {
+            a = 1;
+            b = 2;
+        }
+    }
+    Inner1 i = 1;
+    Inner2 y = 2;
+}
+
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let res = tree.find_document_locations(contents);
+
+        assert_eq!(res.len(), 2);
+        assert_eq!(
+            res,
+            vec!(
+                DocumentSymbol {
+                    name: "Outer1".to_string(),
+                    detail: Some("outer 1 comment".to_string()),
+                    kind: SymbolKind::STRUCT,
+                    tags: None,
+                    range: Range {
+                        start: Position::new(5, 0),
+                        end: Position::new(11, 1),
+                    },
+                    selection_range: Range {
+                        start: Position::new(5, 8),
+                        end: Position::new(5, 14),
+                    },
+                    children: Some(vec!(DocumentSymbol {
+                        name: "Inner1".to_string(),
+                        detail: None,
+                        kind: SymbolKind::STRUCT,
+                        tags: None,
+                        deprecated: None,
+                        range: Range {
+                            start: Position::new(6, 4),
+                            end: Position::new(8, 5),
+                        },
+                        selection_range: Range {
+                            start: Position::new(6, 12),
+                            end: Position::new(6, 18),
+                        },
+                        children: Some(vec!()),
+                    },)),
+                    deprecated: None,
+                },
+                DocumentSymbol {
+                    name: "Outer2".to_string(),
+                    detail: None,
+                    kind: SymbolKind::STRUCT,
+                    tags: None,
+                    range: Range {
+                        start: Position::new(13, 0),
+                        end: Position::new(28, 1),
+                    },
+                    selection_range: Range {
+                        start: Position::new(13, 8),
+                        end: Position::new(13, 14),
+                    },
+                    children: Some(vec!(
+                        DocumentSymbol {
+                            name: "Inner2".to_string(),
+                            detail: None,
+                            kind: SymbolKind::STRUCT,
+                            tags: None,
+                            deprecated: None,
+                            range: Range {
+                                start: Position::new(14, 4),
+                                end: Position::new(16, 5),
+                            },
+                            selection_range: Range {
+                                start: Position::new(14, 12),
+                                end: Position::new(14, 18),
+                            },
+                            children: Some(vec!()),
+                        },
+                        DocumentSymbol {
+                            name: "Inner3".to_string(),
+                            detail: Some("Inner 3 comment here".to_string()),
+                            kind: SymbolKind::STRUCT,
+                            tags: None,
+                            deprecated: None,
+                            range: Range {
+                                start: Position::new(18, 4),
+                                end: Position::new(25, 5),
+                            },
+                            selection_range: Range {
+                                start: Position::new(18, 12),
+                                end: Position::new(18, 18),
+                            },
+                            children: Some(vec!(DocumentSymbol {
+                                name: "X".to_string(),
+                                detail: None,
+                                kind: SymbolKind::ENUM,
+                                tags: None,
+                                deprecated: None,
+                                range: Range {
+                                    start: Position::new(21, 8),
+                                    end: Position::new(24, 9),
+                                },
+                                selection_range: Range {
+                                    start: Position::new(21, 13),
+                                    end: Position::new(21, 14),
+                                },
+                                children: Some(vec!()),
+                            })),
+                        }
+                    )),
+                    deprecated: None,
+                },
             )
         );
     }

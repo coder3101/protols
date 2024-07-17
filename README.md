@@ -7,6 +7,7 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 - [x] Hover
 - [x] Go to definition
 - [x] Diagnostics
+- [x] Document symbols outline for message and enums
 
 ## Installation
 
