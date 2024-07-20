@@ -54,4 +54,3 @@ enum EnumSample {
     STARTED = 1;
     RUNNING = 1;
 }
-
