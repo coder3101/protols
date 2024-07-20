@@ -6,7 +6,7 @@ use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, InsertTextFormat, OneOf, ServerCapabilities, ServerInfo,
+    InitializeParams, InitializeResult, OneOf, ServerCapabilities, ServerInfo,
     TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -95,7 +95,6 @@ impl LanguageServer for ServerState {
             .map(|w| CompletionItem {
                 label: w.to_string(),
                 kind: Some(CompletionItemKind::KEYWORD),
-                insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..CompletionItem::default()
             })
             .collect();
