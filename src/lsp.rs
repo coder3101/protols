@@ -2,10 +2,11 @@ use std::ops::ControlFlow;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, OneOf, ServerCapabilities, ServerInfo,
+    InitializeParams, InitializeResult, InsertTextFormat, OneOf, ServerCapabilities, ServerInfo,
     TextDocumentSyncCapability, TextDocumentSyncKind,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -40,6 +41,7 @@ impl LanguageServer for ServerState {
                 definition_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                completion_provider: Some(CompletionOptions::default()),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -79,6 +81,27 @@ impl LanguageServer for ServerState {
             }
         }
     }
+    fn completion(
+        &mut self,
+        _params: CompletionParams,
+    ) -> BoxFuture<'static, Result<Option<CompletionResponse>, Self::Error>> {
+        let keywords = vec![
+            "syntax", "package", "option", "import", "service", "rpc", "returns", "message",
+            "enum", "oneof", "repeated", "reserved", "to",
+        ];
+
+        let keywords = keywords
+            .into_iter()
+            .map(|w| CompletionItem {
+                label: w.to_string(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..CompletionItem::default()
+            })
+            .collect();
+
+        Box::pin(async move { Ok(Some(CompletionResponse::Array(keywords))) })
+    }
 
     fn definition(
         &mut self,
@@ -99,6 +122,23 @@ impl LanguageServer for ServerState {
                 };
 
                 Box::pin(async move { Ok(response) })
+            }
+        }
+    }
+
+    fn document_symbol(
+        &mut self,
+        params: DocumentSymbolParams,
+    ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
+        let uri = params.text_document.uri;
+
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, content)) => {
+                let locations = tree.find_document_locations(content.as_bytes());
+                let response = DocumentSymbolResponse::Nested(locations);
+
+                Box::pin(async move { Ok(Some(response)) })
             }
         }
     }
@@ -151,22 +191,5 @@ impl LanguageServer for ServerState {
             error!(error=%e, "failed to publish diagnostics")
         }
         ControlFlow::Continue(())
-    }
-
-    fn document_symbol(
-        &mut self,
-        params: DocumentSymbolParams,
-    ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
-        let uri = params.text_document.uri;
-
-        match self.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, content)) => {
-                let locations = tree.find_document_locations(content.as_bytes());
-                let response = DocumentSymbolResponse::Nested(locations);
-
-                Box::pin(async move { Ok(Some(response)) })
-            }
-        }
     }
 }

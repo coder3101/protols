@@ -352,7 +352,6 @@ message Foo {
         assert_eq!(diagnostics.uri, Url::parse(url).unwrap());
         assert_eq!(diagnostics.diagnostics.len(), 0);
 
-
         let url = "file://foo/bar.proto";
         let contents = r#"syntax = "proto3";
 
