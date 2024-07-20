@@ -337,6 +337,25 @@ message Book {
         let url = "file://foo/bar.proto";
         let contents = r#"syntax = "proto3";
 
+package test;
+
+message Foo {
+	reserved 1;
+	reserved "baz";
+	int bar = 2;
+}"#;
+
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let diagnostics = tree.collect_parse_errors(&url.parse().unwrap());
+        assert_eq!(diagnostics.uri, Url::parse(url).unwrap());
+        assert_eq!(diagnostics.diagnostics.len(), 0);
+
+
+        let url = "file://foo/bar.proto";
+        let contents = r#"syntax = "proto3";
+
 package com.book;
 
 message Book {
@@ -344,8 +363,7 @@ message Book {
         string name;
         string country = 2;
     };
-}
-"#;
+}"#;
         let parsed = ProtoParser::new().parse(contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
