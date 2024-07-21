@@ -8,6 +8,8 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 - [x] Go to definition
 - [x] Diagnostics
 - [x] Document Symbols for message and enums
+- [x] Rename message, enum and rpc
+- [x] Completion for proto3 keywords
 
 ## Installation
 
