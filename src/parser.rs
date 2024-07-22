@@ -1,8 +1,8 @@
-use std::unreachable;
+use std::{collections::HashMap, unreachable};
 
 use async_lsp::lsp_types::{
     Diagnostic, DiagnosticSeverity, DocumentSymbol, Location, MarkedString, Position,
-    PublishDiagnosticsParams, Range, SymbolKind, Url,
+    PublishDiagnosticsParams, Range, SymbolKind, TextEdit, Url, WorkspaceEdit,
 };
 use tracing::info;
 use tree_sitter::{Node, Tree, TreeCursor};
@@ -16,6 +16,17 @@ pub struct ProtoParser {
 pub struct ParsedTree {
     tree: Tree,
 }
+
+// Adding any new kind to USER_DEFINED_KINDS must be accompanied with a change in DocumentSymbol
+// handler match statement.
+const USER_DEFINED_KINDS: &[&str] = &["message_name", "enum_name"];
+const ACTIONABLE_KINDS: &[&str] = &[
+    "message_name",
+    "enum_name",
+    "message_or_enum_type",
+    "rpc_name",
+    "service_name",
+];
 
 #[derive(Default)]
 struct DocumentSymbolTreeBuilder {
@@ -149,11 +160,13 @@ impl ParsedTree {
         pos: &Position,
         content: &'a [u8],
     ) -> Option<&'a str> {
-        let pos = lsp_to_ts_point(pos);
-        self.tree
-            .root_node()
-            .descendant_for_point_range(pos, pos)
+        self.get_node_at_position(pos)
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
+    }
+
+    pub fn get_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
+        let pos = lsp_to_ts_point(pos);
+        self.tree.root_node().descendant_for_point_range(pos, pos)
     }
 
     pub fn find_childrens_by_kinds(&self, kinds: &[&str]) -> Vec<Node> {
@@ -177,11 +190,10 @@ impl ParsedTree {
         cursor: &'_ mut TreeCursor,
         content: &[u8],
     ) {
-        let kinds = &["message_name", "enum_name"];
         loop {
             let node = cursor.node();
 
-            if kinds.contains(&node.kind()) {
+            if USER_DEFINED_KINDS.contains(&node.kind()) {
                 let name = node.utf8_text(content).unwrap();
                 let kind = match node.kind() {
                     "message_name" => SymbolKind::STRUCT,
@@ -236,7 +248,7 @@ impl ParsedTree {
 
         match text {
             Some(text) => self
-                .find_childrens_by_kinds(&["message_name", "enum_name"])
+                .find_childrens_by_kinds(USER_DEFINED_KINDS)
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .map(|n| Location {
@@ -257,7 +269,7 @@ impl ParsedTree {
 
         match text {
             Some(text) => self
-                .find_childrens_by_kinds(&["message_name", "enum_name", "service_name", "rpc_name"])
+                .find_childrens_by_kinds(ACTIONABLE_KINDS)
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
@@ -265,6 +277,55 @@ impl ParsedTree {
                 .collect(),
             None => vec![],
         }
+    }
+
+    pub fn can_rename(&self, pos: &Position) -> Option<Range> {
+        self.get_node_at_position(pos)
+            .filter(|n| n.kind() == "identifier")
+            .map(|n| n.parent().unwrap()) // Safety: Identifier must have a parent node
+            .filter(|n| ACTIONABLE_KINDS.contains(&n.kind()))
+            .map(|n| Range {
+                start: ts_to_lsp_position(&n.start_position()),
+                end: ts_to_lsp_position(&n.end_position()),
+            })
+    }
+
+    pub fn rename(
+        &self,
+        uri: &Url,
+        pos: &Position,
+        new_text: &str,
+        content: impl AsRef<[u8]>,
+    ) -> Option<WorkspaceEdit> {
+        let old_text = self
+            .get_node_text_at_position(pos, content.as_ref())
+            .unwrap_or_default();
+
+        let mut changes = HashMap::new();
+
+        let mut cursor = self.tree.root_node().walk();
+        let diff: Vec<_> = Self::walk_and_collect_kinds(&mut cursor, &["identifier"])
+            .into_iter()
+            .filter(|n| n.utf8_text(content.as_ref()).unwrap() == old_text)
+            .map(|n| TextEdit {
+                new_text: new_text.to_string(),
+                range: Range {
+                    start: ts_to_lsp_position(&n.start_position()),
+                    end: ts_to_lsp_position(&n.end_position()),
+                },
+            })
+            .collect();
+
+        if diff.is_empty() {
+            return None;
+        }
+
+        changes.insert(uri.clone(), diff);
+
+        Some(WorkspaceEdit {
+            changes: Some(changes),
+            ..Default::default()
+        })
     }
 
     pub fn collect_parse_errors(&self, uri: &Url) -> PublishDiagnosticsParams {
@@ -292,8 +353,10 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
+
     use async_lsp::lsp_types::{
-        DiagnosticSeverity, DocumentSymbol, MarkedString, Position, Range, SymbolKind, Url,
+        DiagnosticSeverity, DocumentSymbol, MarkedString, Position, Range, SymbolKind, TextEdit,
+        Url,
     };
 
     use super::ProtoParser;
@@ -305,7 +368,7 @@ mod test {
 package com.book;
 
 message Book {
-    
+
     message Author {
         string name = 1;
         string country = 2;
@@ -388,6 +451,228 @@ message Book {
                 }
             }
         );
+    }
+
+    #[test]
+    fn test_rename() {
+        let uri = "file://foo/bar.proto".parse().unwrap();
+        let pos_book_rename = Position {
+            line: 5,
+            character: 9,
+        };
+        let pos_author_rename = Position {
+            line: 21,
+            character: 10,
+        };
+        let pos_non_renamble = Position {
+            line: 24,
+            character: 4,
+        };
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+// A Book is book
+message Book {
+
+    // This is represents author
+    // A author is a someone who writes books
+    //
+    // Author has a name and a country where they were born
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+    Author author = 1;
+    int price_usd = 2;
+}
+
+message Library {
+    repeated Book books = 1;
+    Book.Author collection = 2;
+}
+
+service Myservice {
+    rpc GetBook(Empty) returns (Book);
+}
+"#;
+
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+
+        let res = tree.rename(&uri, &pos_book_rename, "Kitab", contents);
+        assert!(res.is_some());
+        let changes = res.unwrap().changes;
+        assert!(changes.is_some());
+        let changes = changes.unwrap();
+        assert!(changes.contains_key(&uri));
+        let edits = changes.get(&uri).unwrap();
+
+        assert_eq!(
+            *edits,
+            vec![
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 5,
+                            character: 8,
+                        },
+                        end: Position {
+                            line: 5,
+                            character: 12,
+                        },
+                    },
+                    new_text: "Kitab".to_string(),
+                },
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 20,
+                            character: 13,
+                        },
+                        end: Position {
+                            line: 20,
+                            character: 17,
+                        },
+                    },
+                    new_text: "Kitab".to_string(),
+                },
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 21,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 21,
+                            character: 8,
+                        },
+                    },
+                    new_text: "Kitab".to_string(),
+                },
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 25,
+                            character: 32,
+                        },
+                        end: Position {
+                            line: 25,
+                            character: 36,
+                        },
+                    },
+                    new_text: "Kitab".to_string(),
+                },
+            ],
+        );
+
+        let res = tree.rename(&uri, &pos_author_rename, "Writer", contents);
+        assert!(res.is_some());
+        let changes = res.unwrap().changes;
+        assert!(changes.is_some());
+        let changes = changes.unwrap();
+        assert!(changes.contains_key(&uri));
+        let edits = changes.get(&uri).unwrap();
+
+        assert_eq!(
+            *edits,
+            vec![
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 11,
+                            character: 12,
+                        },
+                        end: Position {
+                            line: 11,
+                            character: 18,
+                        },
+                    },
+                    new_text: "Writer".to_string(),
+                },
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 15,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 15,
+                            character: 10,
+                        },
+                    },
+                    new_text: "Writer".to_string(),
+                },
+                TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 21,
+                            character: 9,
+                        },
+                        end: Position {
+                            line: 21,
+                            character: 15,
+                        },
+                    },
+                    new_text: "Writer".to_string(),
+                },
+            ],
+        );
+
+        let res = tree.rename(&uri, &pos_non_renamble, "Doesn't matter", contents);
+        assert!(res.is_none());
+    }
+
+    #[test]
+    fn test_can_rename() {
+        let pos_rename = Position {
+            line: 5,
+            character: 9,
+        };
+        let pos_non_rename = Position {
+            line: 2,
+            character: 2,
+        };
+        let contents = r#"syntax = "proto3";
+
+package com.book;
+
+// A Book is book
+message Book {
+
+    // This is represents author
+    // A author is a someone who writes books
+    //
+    // Author has a name and a country where they were born
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+}
+"#;
+        let parsed = ProtoParser::new().parse(contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+        let res = tree.can_rename(&pos_rename);
+
+        assert!(res.is_some());
+        assert_eq!(
+            res.unwrap(),
+            Range {
+                start: Position {
+                    line: 5,
+                    character: 8
+                },
+                end: Position {
+                    line: 5,
+                    character: 12
+                },
+            },
+        );
+
+        let res = tree.can_rename(&pos_non_rename);
+        assert!(res.is_none());
     }
 
     #[test]

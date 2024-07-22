@@ -6,8 +6,9 @@ use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, OneOf, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind,
+    InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, RenameParams,
+    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkspaceEdit,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -42,6 +43,7 @@ impl LanguageServer for ServerState {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
+                rename_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -100,6 +102,46 @@ impl LanguageServer for ServerState {
             .collect();
 
         Box::pin(async move { Ok(Some(CompletionResponse::Array(keywords))) })
+    }
+
+    fn prepare_rename(
+        &mut self,
+        params: TextDocumentPositionParams,
+    ) -> BoxFuture<'static, Result<Option<PrepareRenameResponse>, Self::Error>> {
+        let uri = params.text_document.uri;
+        let pos = params.position;
+
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, _)) => {
+                let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
+
+                Box::pin(async move { Ok(response) })
+            }
+        }
+    }
+
+    fn rename(
+        &mut self,
+        params: RenameParams,
+    ) -> BoxFuture<'static, Result<Option<WorkspaceEdit>, Self::Error>> {
+        let uri = params.text_document_position.text_document.uri;
+        let pos = params.text_document_position.position;
+
+        let new_name = params.new_name;
+
+        match self.get_parsed_tree_and_content(&uri) {
+            Err(e) => Box::pin(async move { Err(e) }),
+            Ok((tree, content)) => {
+                let response = if tree.can_rename(&pos).is_some() {
+                    tree.rename(&uri, &pos, &new_name, content)
+                } else {
+                    None
+                };
+
+                Box::pin(async move { Ok(response) })
+            }
+        }
     }
 
     fn definition(
