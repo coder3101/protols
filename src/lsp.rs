@@ -6,10 +6,9 @@ use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, OneOf, PrepareRenameResponse,
-    RegularExpressionsClientCapabilities, RenameOptions, RenameParams, ServerCapabilities,
-    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    WorkspaceEdit,
+    InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, RenameParams,
+    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkspaceEdit,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -115,9 +114,7 @@ impl LanguageServer for ServerState {
         match self.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, _)) => {
-                let response = tree
-                    .can_rename(&pos)
-                    .map(|(r, _)| PrepareRenameResponse::Range(r));
+                let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
 
                 Box::pin(async move { Ok(response) })
             }
@@ -136,8 +133,8 @@ impl LanguageServer for ServerState {
         match self.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
-                let response = if let Some((_, kind)) = tree.can_rename(&pos) {
-                    tree.rename_kind(&uri, &pos, kind, &new_name, content)
+                let response = if tree.can_rename(&pos).is_some() {
+                    tree.rename(&uri, &pos, &new_name, content)
                 } else {
                     None
                 };
