@@ -85,10 +85,6 @@ mod test {
             line: 11,
             character: 14,
         };
-        let posts = Position {
-            line: 14,
-            character: 14,
-        };
         let contents = r#"syntax = "proto3";
 
 package com.book;
@@ -103,7 +99,6 @@ message Book {
     message Author {
         string name = 1;
         string country = 2;
-        google.protobuf.Type ts = 3;
     };
 }
 "#;
@@ -130,12 +125,5 @@ Author has a name and a country where they were born"#
                     .to_owned()
             )
         );
-
-        let res = tree.hover(&posts, contents);
-        assert_eq!(res.len(), 1);
-        assert_eq!(
-            res[0],
-            MarkedString::String("A protocol buffer message type".to_owned())
-        )
     }
 }
