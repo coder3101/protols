@@ -8,7 +8,8 @@ use async_lsp::lsp_types::{
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, RenameParams,
     ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkspaceEdit,
+    TextDocumentSyncKind, WorkspaceEdit, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -33,17 +34,34 @@ impl LanguageServer for ServerState {
 
         info!("Connected with client {cname} {cversion}");
 
+        let mut workspace_capabilities = None;
+        if let Some(folders) = params.workspace_folders {
+            for workspace in folders {
+                info!("Workspace folder: {workspace:?}");
+                self.add_workspace_folder(workspace)
+            }
+            workspace_capabilities = Some(WorkspaceServerCapabilities {
+                workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                    supported: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+        }
+
         let response = InitializeResult {
             capabilities: ServerCapabilities {
                 // todo(): We might prefer incremental sync at some later stage
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                workspace: workspace_capabilities,
                 definition_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
                 rename_provider: Some(OneOf::Left(true)),
+
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -188,6 +206,10 @@ impl LanguageServer for ServerState {
         ControlFlow::Continue(())
     }
 
+    fn did_close(&mut self, _params: DidCloseTextDocumentParams) -> Self::NotifyResult {
+        ControlFlow::Continue(())
+    }
+
     fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
         let contents = params.text_document.text;
@@ -204,15 +226,8 @@ impl LanguageServer for ServerState {
         if let Err(e) = self.client.publish_diagnostics(diagnostics) {
             error!(error=%e, "failed to publish diagnostics")
         }
-        ControlFlow::Continue(())
-    }
 
-    fn did_close(&mut self, params: DidCloseTextDocumentParams) -> Self::NotifyResult {
-        let uri = params.text_document.uri;
-
-        info!("closed file at {uri}");
-        self.documents.remove(&uri);
-
+        self.trees.insert(uri.clone(), tree);
         ControlFlow::Continue(())
     }
 
@@ -231,6 +246,8 @@ impl LanguageServer for ServerState {
         if let Err(e) = self.client.publish_diagnostics(diagnostics) {
             error!(error=%e, "failed to publish diagnostics")
         }
+
+        self.trees.insert(uri.clone(), tree);
         ControlFlow::Continue(())
     }
 }
