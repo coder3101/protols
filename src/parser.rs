@@ -7,7 +7,10 @@ use async_lsp::lsp_types::{
 use tracing::info;
 use tree_sitter::{Node, Tree, TreeCursor};
 
-use crate::utils::{lsp_to_ts_point, ts_to_lsp_position};
+use crate::{
+    utils::{lsp_to_ts_point, ts_to_lsp_position},
+    wellknown,
+};
 
 pub struct ProtoParser {
     parser: tree_sitter::Parser,
@@ -164,6 +167,27 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
+    pub fn get_actionable_node_text_at_position<'a>(
+        &'a self,
+        pos: &Position,
+        content: &'a [u8],
+    ) -> Option<&'a str> {
+        self.get_actionable_node_at_position(pos)
+            .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
+    }
+
+    pub fn get_actionable_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
+        self.get_node_at_position(pos)
+            .map(|n| {
+                if ACTIONABLE_KINDS.contains(&n.kind()) {
+                    n
+                } else {
+                    n.parent().unwrap()
+                }
+            })
+            .filter(|n| ACTIONABLE_KINDS.contains(&n.kind()))
+    }
+
     pub fn get_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         let pos = lsp_to_ts_point(pos);
         self.tree.root_node().descendant_for_point_range(pos, pos)
@@ -264,7 +288,7 @@ impl ParsedTree {
     }
 
     pub fn hover(&self, pos: &Position, content: impl AsRef<[u8]>) -> Vec<MarkedString> {
-        let text = self.get_node_text_at_position(pos, content.as_ref());
+        let text = self.get_actionable_node_text_at_position(pos, content.as_ref());
         info!("Looking for hover response on: {:?}", text);
 
         match text {
@@ -272,7 +296,15 @@ impl ParsedTree {
                 .find_childrens_by_kinds(ACTIONABLE_KINDS)
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
-                .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
+                .filter_map(|n| {
+                    self.find_preceding_comments(n.id(), content.as_ref())
+                        .or_else(|| {
+                            wellknown::hover_on(
+                                n.utf8_text(content.as_ref()).expect("utf-8 parse error"),
+                            )
+                            .map(ToOwned::to_owned)
+                        })
+                })
                 .map(MarkedString::String)
                 .collect(),
             None => vec![],
@@ -689,6 +721,10 @@ message Book {
             line: 11,
             character: 14,
         };
+        let posts = Position {
+            line: 14,
+            character: 14,
+        };
         let contents = r#"syntax = "proto3";
 
 package com.book;
@@ -703,6 +739,7 @@ message Book {
     message Author {
         string name = 1;
         string country = 2;
+        google.protobuf.Type ts = 3;
     };
 }
 "#;
@@ -729,6 +766,13 @@ Author has a name and a country where they were born"#
                     .to_owned()
             )
         );
+
+        let res = tree.hover(&posts, contents);
+        assert_eq!(res.len(), 1);
+        assert_eq!(
+            res[0],
+            MarkedString::String("A protocol buffer message type".to_owned())
+        )
     }
 
     #[test]
