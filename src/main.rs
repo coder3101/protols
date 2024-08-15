@@ -13,7 +13,6 @@ mod lsp;
 mod parser;
 mod server;
 mod utils;
-mod wellknown;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
