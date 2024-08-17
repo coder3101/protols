@@ -11,10 +11,10 @@ use tracing::Level;
 
 mod lsp;
 mod parser;
-mod workspace;
 mod server;
 mod state;
 mod utils;
+mod workspace;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {

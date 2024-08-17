@@ -214,7 +214,22 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let locations = tree.definition(&pos, content.as_bytes());
+        let identifier = tree.get_actionable_node_text_at_position(&pos, content.as_bytes());
+        let current_package_name = tree.get_package_name(content.as_bytes());
+
+        let Some(identifier) = identifier else {
+            error!(uri=%uri, "failed to get identifier");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let Some(current_package_name) = current_package_name else {
+            error!(uri=%uri, "failed to get package name");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let locations = self
+            .state
+            .definition(current_package_name.as_ref(), identifier.as_ref());
 
         let response = match locations.len() {
             0 => None,
