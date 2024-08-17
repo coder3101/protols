@@ -20,8 +20,6 @@ impl ProtoLanguageState {
 
 #[cfg(test)]
 mod test {
-    use crate::state::ProtoLanguageState;
-
     #[test]
     fn workspace_test_hover() {
     }

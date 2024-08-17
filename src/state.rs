@@ -1,18 +1,15 @@
 use std::{collections::HashMap, fs::read_to_string};
 use tracing::{error, info};
 
-use async_lsp::{
-    lsp_types::{PublishDiagnosticsParams, Url, WorkspaceFolder},
-    ErrorCode, ResponseError,
-};
+use async_lsp::lsp_types::{PublishDiagnosticsParams, Url, WorkspaceFolder};
 use walkdir::WalkDir;
 
 use crate::parser::{ParsedTree, ProtoParser};
 
 pub struct ProtoLanguageState {
-    pub documents: HashMap<Url, String>,
+    documents: HashMap<Url, String>,
     pub trees: HashMap<Url, ParsedTree>,
-    pub parser: ProtoParser,
+    parser: ProtoParser,
 }
 
 impl ProtoLanguageState {
@@ -31,38 +28,31 @@ impl ProtoLanguageState {
             .unwrap_or_default()
     }
 
-    pub fn get_trees_for_package(&self, package: &str) -> Vec<&ParsedTree> {
-        self.trees.values().filter(|tree| {
-            let content = self.get_content(&tree.uri);
-            tree.get_package_name(content.as_bytes()).unwrap_or_default() == package
-        }).collect()
+    pub fn get_tree(&self, uri: &Url) -> Option<&ParsedTree> {
+        self.trees.get(uri)
     }
 
-    pub fn get_parsed_tree_and_content(
-        &mut self,
-        uri: &Url,
-    ) -> Result<(&ParsedTree, &str), ResponseError> {
-        let Some(content) = self.documents.get(uri) else {
-            error!("failed to get document at {uri}");
-            return Err(ResponseError::new(
-                ErrorCode::INVALID_REQUEST,
-                "uri was never opened",
-            ));
-        };
+    pub fn get_trees_for_package(&self, package: &str) -> Vec<&ParsedTree> {
+        self.trees
+            .values()
+            .filter(|tree| {
+                let content = self.get_content(&tree.uri);
+                tree.get_package_name(content.as_bytes())
+                    .unwrap_or_default()
+                    == package
+            })
+            .collect()
+    }
 
-        if !self.trees.contains_key(uri) {
-            let Some(parsed) = self.parser.parse(uri.clone(), content.as_bytes()) else {
-                error!("failed to parse content at {uri}");
-                return Err(ResponseError::new(
-                    ErrorCode::REQUEST_FAILED,
-                    "ts failed to parse contents",
-                ));
-            };
+    pub fn upsert_content(&mut self, uri: &Url, content: String) -> bool {
+        if let Some(parsed) = self.parser.parse(uri.clone(), content.as_bytes()) {
             self.trees.insert(uri.clone(), parsed);
+            self.documents.insert(uri.clone(), content);
+            true
+        } else {
+            error!(uri=%uri, "failed to parse content");
+            false
         }
-
-        let parsed = self.trees.get(uri).unwrap(); // Safety: already inserted above
-        Ok((parsed, content))
     }
 
     pub fn add_workspace_folder(&mut self, workspace: WorkspaceFolder) {
@@ -85,14 +75,8 @@ impl ProtoLanguageState {
                 };
 
                 if ext == "proto" {
-                    self.documents.insert(uri.clone(), content);
-                    let r = self.get_parsed_tree_and_content(&uri);
-
-                    info!(
-                        "workspace parse file: {}, result: {}",
-                        path.display(),
-                        r.is_ok()
-                    );
+                    let r = self.upsert_content(&uri, content);
+                    info!("workspace parse file: {}, result: {}", path.display(), r);
                 }
             }
         }
@@ -100,22 +84,12 @@ impl ProtoLanguageState {
 
     pub fn upsert_file(&mut self, uri: &Url, content: String) -> Option<PublishDiagnosticsParams> {
         info!(uri=%uri, "upserting file");
-
-        let Some(tree) = self.parser.parse(uri.clone(), &content) else {
-            error!(uri=%uri, "failed to parse content");
-            return None;
-        };
-
-        self.documents.insert(uri.clone(), content);
-        let diagnostics = tree.collect_parse_errors();
-
-        self.trees.insert(uri.clone(), tree);
-        Some(diagnostics)
+        self.upsert_content(uri, content);
+        self.get_tree(uri).map(|tree| tree.collect_parse_errors())
     }
 
     pub fn delete_file(&mut self, uri: &Url) {
         info!(uri=%uri, "deleting file");
-
         self.documents.remove(uri);
         self.trees.remove(uri);
     }

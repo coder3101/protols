@@ -102,23 +102,14 @@ impl LanguageServer for ProtoLanguageServer {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let identifier;
-        let current_package_name;
-
-        match self.state.get_parsed_tree_and_content(&uri) {
-            Err(e) => {
-                return Box::pin(async move { Err(e) });
-            }
-            Ok((tree, content)) => {
-                identifier = tree
-                    .get_actionable_node_text_at_position(&pos, content.as_ref())
-                    .map(ToOwned::to_owned);
-
-                current_package_name = tree
-                    .get_package_name(content.as_ref())
-                    .map(ToOwned::to_owned);
-            }
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
         };
+
+        let content = self.state.get_content(&uri);
+        let identifier = tree.get_actionable_node_text_at_position(&pos, content.as_bytes());
+        let current_package_name = tree.get_package_name(content.as_bytes());
 
         let Some(identifier) = identifier else {
             error!(uri=%uri, "failed to get identifier");
@@ -176,14 +167,13 @@ impl LanguageServer for ProtoLanguageServer {
         let uri = params.text_document.uri;
         let pos = params.position;
 
-        match self.state.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, _)) => {
-                let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
 
-                Box::pin(async move { Ok(response) })
-            }
-        }
+        let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
+        Box::pin(async move { Ok(response) })
     }
 
     fn rename(
@@ -195,18 +185,20 @@ impl LanguageServer for ProtoLanguageServer {
 
         let new_name = params.new_name;
 
-        match self.state.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, content)) => {
-                let response = if tree.can_rename(&pos).is_some() {
-                    tree.rename(&pos, &new_name, content)
-                } else {
-                    None
-                };
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
 
-                Box::pin(async move { Ok(response) })
-            }
-        }
+        let content = self.state.get_content(&uri);
+
+        let response = if tree.can_rename(&pos).is_some() {
+            tree.rename(&pos, &new_name, content)
+        } else {
+            None
+        };
+
+        Box::pin(async move { Ok(response) })
     }
 
     fn definition(
@@ -216,20 +208,21 @@ impl LanguageServer for ProtoLanguageServer {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        match self.state.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, content)) => {
-                let locations = tree.definition(&pos, content.as_bytes());
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
 
-                let response = match locations.len() {
-                    0 => None,
-                    1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
-                    2.. => Some(GotoDefinitionResponse::Array(locations)),
-                };
+        let content = self.state.get_content(&uri);
+        let locations = tree.definition(&pos, content.as_bytes());
 
-                Box::pin(async move { Ok(response) })
-            }
-        }
+        let response = match locations.len() {
+            0 => None,
+            1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
+            2.. => Some(GotoDefinitionResponse::Array(locations)),
+        };
+
+        Box::pin(async move { Ok(response) })
     }
 
     fn document_symbol(
@@ -238,15 +231,16 @@ impl LanguageServer for ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
         let uri = params.text_document.uri;
 
-        match self.state.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, content)) => {
-                let locations = tree.find_document_locations(content.as_bytes());
-                let response = DocumentSymbolResponse::Nested(locations);
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
 
-                Box::pin(async move { Ok(Some(response)) })
-            }
-        }
+        let content = self.state.get_content(&uri);
+        let locations = tree.find_document_locations(content.as_bytes());
+        let response = DocumentSymbolResponse::Nested(locations);
+
+        Box::pin(async move { Ok(Some(response)) })
     }
 
     fn did_save(&mut self, _: DidSaveTextDocumentParams) -> Self::NotifyResult {
@@ -286,7 +280,7 @@ impl LanguageServer for ProtoLanguageServer {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 // Safety: The uri is always a file type
                 let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
-                self.state.upsert_file(&uri, content);
+                self.state.upsert_content(&uri, content);
             } else {
                 error!(uri=%file.uri, "failed parse uri");
             }
