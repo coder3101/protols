@@ -5,14 +5,15 @@ use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
-use server::{ServerState, TickEvent};
+use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
 
 mod lsp;
 mod parser;
-mod registry;
+mod workspace;
 mod server;
+mod state;
 mod utils;
 
 #[tokio::main(flavor = "current_thread")]
@@ -37,7 +38,7 @@ async fn main() {
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(ServerState::new_router(client))
+            .service(ProtoLanguageServer::new_router(client))
     });
 
     let dir = std::env::temp_dir();

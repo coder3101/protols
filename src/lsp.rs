@@ -17,9 +17,9 @@ use async_lsp::lsp_types::{
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
-use crate::server::ServerState;
+use crate::server::ProtoLanguageServer;
 
-impl LanguageServer for ServerState {
+impl LanguageServer for ProtoLanguageServer {
     type Error = ResponseError;
     type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
@@ -54,7 +54,7 @@ impl LanguageServer for ServerState {
         if let Some(folders) = params.workspace_folders {
             for workspace in folders {
                 info!("Workspace folder: {workspace:?}");
-                self.add_workspace_folder(workspace)
+                self.state.add_workspace_folder(workspace)
             }
             workspace_capabilities = Some(WorkspaceServerCapabilities {
                 workspace_folders: Some(WorkspaceFoldersServerCapabilities {
@@ -105,7 +105,7 @@ impl LanguageServer for ServerState {
         let identifier;
         let current_package_name;
 
-        match self.get_parsed_tree_and_content(&uri) {
+        match self.state.get_parsed_tree_and_content(&uri) {
             Err(e) => {
                 return Box::pin(async move { Err(e) });
             }
@@ -130,7 +130,10 @@ impl LanguageServer for ServerState {
             return Box::pin(async move { Ok(None) });
         };
 
-        let comments = self.registry_hover(current_package_name.as_ref(), identifier.as_ref());
+        let comments = self
+            .state
+            .hover(current_package_name.as_ref(), identifier.as_ref());
+
         let response = match comments.len() {
             0 => None,
             1 => Some(Hover {
@@ -173,7 +176,7 @@ impl LanguageServer for ServerState {
         let uri = params.text_document.uri;
         let pos = params.position;
 
-        match self.get_parsed_tree_and_content(&uri) {
+        match self.state.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, _)) => {
                 let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
@@ -192,7 +195,7 @@ impl LanguageServer for ServerState {
 
         let new_name = params.new_name;
 
-        match self.get_parsed_tree_and_content(&uri) {
+        match self.state.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
                 let response = if tree.can_rename(&pos).is_some() {
@@ -213,7 +216,7 @@ impl LanguageServer for ServerState {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        match self.get_parsed_tree_and_content(&uri) {
+        match self.state.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
                 let locations = tree.definition(&pos, content.as_bytes());
@@ -235,7 +238,7 @@ impl LanguageServer for ServerState {
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
         let uri = params.text_document.uri;
 
-        match self.get_parsed_tree_and_content(&uri) {
+        match self.state.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
                 let locations = tree.find_document_locations(content.as_bytes());
@@ -258,7 +261,7 @@ impl LanguageServer for ServerState {
         let uri = params.text_document.uri;
         let content = params.text_document.text;
 
-        if let Some(diagnostics) = self.upsert_file(&uri, content) {
+        if let Some(diagnostics) = self.state.upsert_file(&uri, content) {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }
@@ -270,7 +273,7 @@ impl LanguageServer for ServerState {
         let uri = params.text_document.uri;
         let content = params.content_changes[0].text.clone();
 
-        if let Some(diagnostics) = self.upsert_file(&uri, content) {
+        if let Some(diagnostics) = self.state.upsert_file(&uri, content) {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }
@@ -283,7 +286,7 @@ impl LanguageServer for ServerState {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 // Safety: The uri is always a file type
                 let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
-                self.upsert_file(&uri, content);
+                self.state.upsert_file(&uri, content);
             } else {
                 error!(uri=%file.uri, "failed parse uri");
             }
@@ -303,7 +306,7 @@ impl LanguageServer for ServerState {
                 continue;
             };
 
-            self.rename_file(&new_uri, &old_uri);
+            self.state.rename_file(&new_uri, &old_uri);
         }
         ControlFlow::Continue(())
     }
@@ -311,7 +314,7 @@ impl LanguageServer for ServerState {
     fn did_delete_files(&mut self, params: DeleteFilesParams) -> Self::NotifyResult {
         for file in params.files {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
-                self.delete_file(&uri);
+                self.state.delete_file(&uri);
             } else {
                 error!(uri = file.uri, "failed to parse uri");
             }
