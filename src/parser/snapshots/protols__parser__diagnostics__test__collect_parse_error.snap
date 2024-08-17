@@ -1,0 +1,6 @@
+---
+source: src/parser/diagnostics.rs
+expression: parsed.unwrap().collect_parse_errors()
+---
+uri: "file://foo/bar.proto"
+diagnostics: []

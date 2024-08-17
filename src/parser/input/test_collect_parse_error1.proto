@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package test;
+
+message Foo {
+	reserved 1;
+	reserved "baz";
+	int bar = 2;
+}

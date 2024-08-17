@@ -30,13 +30,14 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{Position, Range, Url};
+    use async_lsp::lsp_types::{Position, Url};
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_goto_definition() {
-        let url = "file://foo/bar.proto";
+        let url: Url = "file://foo/bar.proto".parse().unwrap();
         let posinvalid = Position {
             line: 0,
             character: 1,
@@ -45,42 +46,12 @@ mod test {
             line: 10,
             character: 5,
         };
-        let contents = r#"syntax = "proto3";
+        let contents = include_str!("input/test_goto_definition.proto");
+        let parsed = ProtoParser::new().parse(url, contents);
 
-package com.book;
-
-message Book {
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-
-    Author author = 1;
-    string isbn = 2;
-}
-"#;
-        let parsed = ProtoParser::new().parse(url.parse().unwrap(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let res = tree.definition(&posauthor, contents);
-
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].uri, Url::parse(url).unwrap());
-        assert_eq!(
-            res[0].range,
-            Range {
-                start: Position {
-                    line: 5,
-                    character: 12
-                },
-                end: Position {
-                    line: 5,
-                    character: 18
-                },
-            }
-        );
-
-        let res = tree.definition(&posinvalid, contents);
-        assert_eq!(res.len(), 0);
+        assert_yaml_snapshot!(tree.definition(&posauthor, contents));
+        assert_yaml_snapshot!(tree.definition(&posinvalid, contents));
     }
 }

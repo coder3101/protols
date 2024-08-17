@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package com.book;
+
+message Book {
+    message Author {
+        string name;
+        string country = 2;
+    };
+}

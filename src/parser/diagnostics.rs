@@ -30,64 +30,24 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{DiagnosticSeverity, Position, Range, Url};
+    use async_lsp::lsp_types::Url;
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_collect_parse_error() {
         let url: Url = "file://foo/bar.proto".parse().unwrap();
-        let contents = r#"syntax = "proto3";
-
-package test;
-
-message Foo {
-	reserved 1;
-	reserved "baz";
-	int bar = 2;
-}"#;
+        let contents = include_str!("input/test_collect_parse_error1.proto");
 
         let parsed = ProtoParser::new().parse(url.clone(), contents);
         assert!(parsed.is_some());
-        let tree = parsed.unwrap();
-        let diagnostics = tree.collect_parse_errors();
-        assert_eq!(diagnostics.uri, url);
-        assert_eq!(diagnostics.diagnostics.len(), 0);
+        assert_yaml_snapshot!(parsed.unwrap().collect_parse_errors());
 
-        let contents = r#"syntax = "proto3";
+        let contents = include_str!("input/test_collect_parse_error2.proto");
 
-package com.book;
-
-message Book {
-    message Author {
-        string name;
-        string country = 2;
-    };
-}"#;
         let parsed = ProtoParser::new().parse(url.clone(), contents);
         assert!(parsed.is_some());
-        let tree = parsed.unwrap();
-        let diagnostics = tree.collect_parse_errors();
-
-        assert_eq!(diagnostics.uri, url);
-        assert_eq!(diagnostics.diagnostics.len(), 1);
-
-        let error = &diagnostics.diagnostics[0];
-        assert_eq!(error.severity, Some(DiagnosticSeverity::ERROR));
-        assert_eq!(error.source, Some("protols".to_owned()));
-        assert_eq!(error.message, "Syntax error");
-        assert_eq!(
-            error.range,
-            Range {
-                start: Position {
-                    line: 6,
-                    character: 8
-                },
-                end: Position {
-                    line: 6,
-                    character: 19
-                }
-            }
-        );
+        assert_yaml_snapshot!(parsed.unwrap().collect_parse_errors());
     }
 }

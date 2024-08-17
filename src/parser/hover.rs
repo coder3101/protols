@@ -48,9 +48,9 @@ impl ParsedTree {
     }
 
     pub fn hover(&self, identifier: &str, content: impl AsRef<[u8]>) -> Vec<MarkedString> {
-        let mut v = vec![];
-        self.hover_impl(identifier, self.tree.root_node(), &mut v, content);
-        v
+        let mut results = vec![];
+        self.hover_impl(identifier, self.tree.root_node(), &mut results, content);
+        results
     }
 
     fn hover_impl(
@@ -83,7 +83,7 @@ impl ParsedTree {
             .filter_nodes_from(n, NodeKind::is_userdefined)
             .into_iter()
             .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent_identifier)
-            .map(|n| n.parent().unwrap()); // Safety: All userdefined types would have a parent
+            .and_then(|n| n.parent());
 
         if let Some(inner) = child_node {
             self.hover_impl(remaining, inner, v, content);
@@ -93,71 +93,33 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{MarkedString, Url};
+    use async_lsp::lsp_types::Url;
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_hover() {
         let uri: Url = "file://foo.bar/p.proto".parse().unwrap();
-        let contents = r#"syntax = "proto3";
-
-package com.book;
-
-// A Book is book
-message Book {
-
-    // This is represents author
-    // A author is a someone who writes books
-    //
-    // Author has a name and a country where they were born
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-}
-
-// Comic is a type of book but who cares
-message Comic {
-    // Author of a comic is different from others
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-}
-"#;
+        let contents = include_str!("input/test_hover.proto");
         let parsed = ProtoParser::new().parse(uri.clone(), contents);
+
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let res = tree.hover("Book", contents);
 
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0], MarkedString::String("A Book is book".to_owned()));
+        let res = tree.hover("Book", contents);
+        assert_yaml_snapshot!(res);
 
         let res = tree.hover("", contents);
-        assert_eq!(res.len(), 0);
+        assert_yaml_snapshot!(res);
 
         let res = tree.hover("Book.Author", contents);
-        assert_eq!(res.len(), 1);
-        assert_eq!(
-            res[0],
-            MarkedString::String(
-                r#"This is represents author
-A author is a someone who writes books
-
-Author has a name and a country where they were born"#
-                    .to_owned()
-            )
-        );
+        assert_yaml_snapshot!(res);
 
         let res = tree.hover("Comic.Author", contents);
-        assert_eq!(res.len(), 1);
-        assert_eq!(
-            res[0],
-            MarkedString::String("Author of a comic is different from others".to_owned())
-        );
+        assert_yaml_snapshot!(res);
 
         let res = tree.hover("Author", contents);
-        assert_eq!(res.len(), 2);
+        assert_yaml_snapshot!(res);
     }
 }

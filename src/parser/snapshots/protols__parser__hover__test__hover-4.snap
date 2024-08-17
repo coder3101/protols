@@ -1,0 +1,5 @@
+---
+source: src/parser/hover.rs
+expression: res
+---
+- Author of a comic is different from others

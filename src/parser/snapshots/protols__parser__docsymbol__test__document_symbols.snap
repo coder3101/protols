@@ -1,0 +1,109 @@
+---
+source: src/parser/docsymbol.rs
+expression: tree.find_document_locations(contents)
+---
+- name: Outer1
+  detail: outer 1 comment
+  kind: 23
+  range:
+    start:
+      line: 5
+      character: 0
+    end:
+      line: 12
+      character: 1
+  selectionRange:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14
+  children:
+    - name: Inner1
+      detail: Inner 1
+      kind: 23
+      range:
+        start:
+          line: 7
+          character: 4
+        end:
+          line: 9
+          character: 5
+      selectionRange:
+        start:
+          line: 7
+          character: 12
+        end:
+          line: 7
+          character: 18
+      children: []
+- name: Outer2
+  kind: 23
+  range:
+    start:
+      line: 14
+      character: 0
+    end:
+      line: 29
+      character: 1
+  selectionRange:
+    start:
+      line: 14
+      character: 8
+    end:
+      line: 14
+      character: 14
+  children:
+    - name: Inner2
+      kind: 23
+      range:
+        start:
+          line: 15
+          character: 4
+        end:
+          line: 17
+          character: 5
+      selectionRange:
+        start:
+          line: 15
+          character: 12
+        end:
+          line: 15
+          character: 18
+      children: []
+    - name: Inner3
+      detail: Inner 3 comment here
+      kind: 23
+      range:
+        start:
+          line: 19
+          character: 4
+        end:
+          line: 26
+          character: 5
+      selectionRange:
+        start:
+          line: 19
+          character: 12
+        end:
+          line: 19
+          character: 18
+      children:
+        - name: X
+          kind: 10
+          range:
+            start:
+              line: 22
+              character: 8
+            end:
+              line: 25
+              character: 9
+          selectionRange:
+            start:
+              line: 22
+              character: 13
+            end:
+              line: 22
+              character: 14
+          children: []

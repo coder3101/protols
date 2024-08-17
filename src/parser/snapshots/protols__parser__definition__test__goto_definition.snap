@@ -1,0 +1,12 @@
+---
+source: src/parser/definition.rs
+expression: "tree.definition(&posauthor, contents)"
+---
+- uri: "file://foo/bar.proto"
+  range:
+    start:
+      line: 5
+      character: 12
+    end:
+      line: 5
+      character: 18

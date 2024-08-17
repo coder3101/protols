@@ -98,17 +98,17 @@ impl ParsedTree {
         Self::walk_and_collect_filter(&mut cursor, f, false)
     }
 
-    pub fn filter_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
-        self.filter_node_from(self.tree.root_node(), f)
+    pub fn find_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+        self.find_node_from(self.tree.root_node(), f)
     }
 
-    pub fn filter_node_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+    pub fn find_node_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
         let mut cursor = n.walk();
         Self::walk_and_collect_filter(&mut cursor, f, true)
     }
 
     pub fn get_package_name<'a>(&self, content: &'a [u8]) -> Option<&'a str> {
-        self.filter_node(NodeKind::is_package_name)
+        self.find_node(NodeKind::is_package_name)
             .first()
             .map(|n| n.utf8_text(content).expect("utf-8 parse error"))
     }
@@ -117,6 +117,7 @@ impl ParsedTree {
 #[cfg(test)]
 mod test {
     use async_lsp::lsp_types::Url;
+    use insta::assert_yaml_snapshot;
     use tree_sitter::Node;
 
     use crate::parser::ProtoParser;
@@ -128,24 +129,9 @@ mod test {
     #[test]
     fn test_filter() {
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
-        let contents = r#"syntax = "proto3";
-
-package com.book;
-
-message Book {
-
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-    // This is a multi line comment on the field name
-    // Of a message called Book
-    int64 isbn = 1;
-    string title = 2;
-    Author author = 3;
-}
-"#;
+        let contents = include_str!("input/test_filter.proto");
         let parsed = ProtoParser::new().parse(uri, contents);
+
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
         let nodes = tree.filter_nodes(is_message);
@@ -156,11 +142,10 @@ message Book {
             .into_iter()
             .map(|n| n.utf8_text(contents.as_ref()).unwrap())
             .collect();
-        assert_eq!(names[0], "Book");
-        assert_eq!(names[1], "Author");
+
+        assert_yaml_snapshot!(names);
 
         let package_name = tree.get_package_name(contents.as_ref());
-        assert!(package_name.is_some());
-        assert_eq!(package_name.unwrap(), "com.book");
+        assert_yaml_snapshot!(package_name);
     }
 }

@@ -1,0 +1,6 @@
+---
+source: src/parser/hover.rs
+expression: res
+---
+- "This is represents author\nA author is a someone who writes books\n\nAuthor has a name and a country where they were born"
+- Author of a comic is different from others

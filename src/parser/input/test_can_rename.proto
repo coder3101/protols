@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package com.book;
+
+// A Book is book
+message Book {
+
+    // This is represents author
+    // A author is a someone who writes books
+    //
+    // Author has a name and a country where they were born
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+}

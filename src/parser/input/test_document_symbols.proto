@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package com.symbols;
+
+// outer 1 comment
+message Outer1 {
+    // Inner 1
+    message Inner1 {
+        string name = 1;
+    };
+
+    Inner1 i = 1;
+}
+
+message Outer2 {
+    message Inner2 {
+        string name = 1;
+    };
+    // Inner 3 comment here
+    message Inner3 {
+        string name = 1;
+
+        enum X {
+            a = 1;
+            b = 2;
+        }
+    }
+    Inner1 i = 1;
+    Inner2 y = 2;
+}
