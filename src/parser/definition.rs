@@ -12,7 +12,7 @@ impl ParsedTree {
 
         match text {
             Some(text) => self
-                .filter_node(NodeKind::is_userdefined)
+                .filter_nodes(NodeKind::is_userdefined)
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .map(|n| Location {

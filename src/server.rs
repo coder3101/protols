@@ -36,6 +36,13 @@ impl ServerState {
         ControlFlow::Continue(())
     }
 
+    pub fn get_content(&self, uri: &Url) -> &str {
+        self.documents
+            .get(uri)
+            .map(|s| s.as_str())
+            .unwrap_or_default()
+    }
+
     pub fn get_parsed_tree_and_content(
         &mut self,
         uri: &Url,

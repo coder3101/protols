@@ -1,7 +1,6 @@
 use async_lsp::lsp_types::SymbolKind;
 use tree_sitter::Node;
 
-#[allow(unused)]
 pub enum NodeKind {
     Identifier,
     Error,
@@ -24,34 +23,42 @@ impl NodeKind {
             NodeKind::FieldName => "message_or_enum_type",
             NodeKind::ServiceName => "service_name",
             NodeKind::RpcName => "rpc_name",
-            NodeKind::PackageName => "package_name",
+            NodeKind::PackageName => "full_ident",
         }
     }
 
     pub fn is_identifier(n: &Node) -> bool {
-        n.kind() == "identifier"
+        n.kind() == Self::Identifier.as_str()
     }
 
     pub fn is_error(n: &Node) -> bool {
-        n.kind() == "ERROR"
+        n.kind() == Self::Error.as_str()
+    }
+
+    pub fn is_package_name(n: &Node) -> bool {
+        n.kind() == Self::PackageName.as_str()
     }
 
     pub fn is_userdefined(n: &Node) -> bool {
-        matches!(n.kind(), "message_name" | "enum_name")
+        n.kind() == Self::EnumName.as_str() || n.kind() == Self::MessageName.as_str()
     }
 
     pub fn is_actionable(n: &Node) -> bool {
-        matches!(
-            n.kind(),
-            "message_name" | "enum_name" | "message_or_enum_type" | "rpc_name" | "service_name"
-        )
+        n.kind() == Self::MessageName.as_str()
+            || n.kind() == Self::EnumName.as_str()
+            || n.kind() == Self::FieldName.as_str()
+            || n.kind() == Self::PackageName.as_str()
+            || n.kind() == Self::ServiceName.as_str()
+            || n.kind() == Self::RpcName.as_str()
     }
 
     pub fn to_symbolkind(n: &Node) -> SymbolKind {
-        match n.kind() {
-            "message_name" => SymbolKind::STRUCT,
-            "enum_name" => SymbolKind::ENUM,
-            _ => SymbolKind::NULL,
+        if n.kind() == Self::MessageName.as_str() {
+            SymbolKind::STRUCT
+        } else if n.kind() == Self::EnumName.as_str() {
+            SymbolKind::ENUM
+        } else {
+            SymbolKind::NULL
         }
     }
 }

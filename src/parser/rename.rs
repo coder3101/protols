@@ -31,7 +31,7 @@ impl ParsedTree {
         let mut changes = HashMap::new();
 
         let diff: Vec<_> = self
-            .filter_node(NodeKind::is_identifier)
+            .filter_nodes(NodeKind::is_identifier)
             .into_iter()
             .filter(|n| n.utf8_text(content.as_ref()).unwrap() == old_text)
             .map(|n| TextEdit {

@@ -9,6 +9,7 @@ impl ParsedTree {
     pub(super) fn walk_and_collect_filter<'a>(
         cursor: &mut TreeCursor<'a>,
         f: fn(&Node) -> bool,
+        early: bool,
     ) -> Vec<Node<'a>> {
         let mut v = vec![];
 
@@ -16,11 +17,14 @@ impl ParsedTree {
             let node = cursor.node();
 
             if f(&node) {
-                v.push(node)
+                v.push(node);
+                if early {
+                    break;
+                }
             }
 
             if cursor.goto_first_child() {
-                v.extend(Self::walk_and_collect_filter(cursor, f));
+                v.extend(Self::walk_and_collect_filter(cursor, f, early));
                 cursor.goto_parent();
             }
 
@@ -50,7 +54,7 @@ impl ParsedTree {
         }
     }
 
-    pub(super) fn get_node_text_at_position<'a>(
+    pub fn get_node_text_at_position<'a>(
         &'a self,
         pos: &Position,
         content: &'a [u8],
@@ -59,7 +63,7 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
-    pub(super) fn get_actionable_node_text_at_position<'a>(
+    pub fn get_actionable_node_text_at_position<'a>(
         &'a self,
         pos: &Position,
         content: &'a [u8],
@@ -68,10 +72,7 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
-    pub(super) fn get_actionable_node_at_position<'a>(
-        &'a self,
-        pos: &Position,
-    ) -> Option<Node<'a>> {
+    pub fn get_actionable_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         self.get_node_at_position(pos)
             .map(|n| {
                 if NodeKind::is_actionable(&n) {
@@ -83,14 +84,33 @@ impl ParsedTree {
             .filter(NodeKind::is_actionable)
     }
 
-    pub(super) fn get_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
+    pub fn get_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         let pos = lsp_to_ts_point(pos);
         self.tree.root_node().descendant_for_point_range(pos, pos)
     }
 
-    pub(super) fn filter_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
-        let mut cursor = self.tree.root_node().walk();
-        Self::walk_and_collect_filter(&mut cursor, f)
+    pub fn filter_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+        self.filter_nodes_from(self.tree.root_node(), f)
+    }
+
+    pub fn filter_nodes_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+        let mut cursor = n.walk();
+        Self::walk_and_collect_filter(&mut cursor, f, false)
+    }
+
+    pub fn filter_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+        self.filter_node_from(self.tree.root_node(), f)
+    }
+
+    pub fn filter_node_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+        let mut cursor = n.walk();
+        Self::walk_and_collect_filter(&mut cursor, f, true)
+    }
+
+    pub fn get_package_name<'a>(&self, content: &'a [u8]) -> Option<&'a str> {
+        self.filter_node(NodeKind::is_package_name)
+            .first()
+            .map(|n| n.utf8_text(content).expect("utf-8 parse error"))
     }
 }
 
@@ -106,7 +126,7 @@ mod test {
     }
 
     #[test]
-    fn test_find_children_by_kind() {
+    fn test_filter() {
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = r#"syntax = "proto3";
 
@@ -128,7 +148,7 @@ message Book {
         let parsed = ProtoParser::new().parse(uri, contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let nodes = tree.filter_node(is_message);
+        let nodes = tree.filter_nodes(is_message);
 
         assert_eq!(nodes.len(), 2);
 
@@ -138,5 +158,9 @@ message Book {
             .collect();
         assert_eq!(names[0], "Book");
         assert_eq!(names[1], "Author");
+
+        let package_name = tree.get_package_name(contents.as_ref());
+        assert!(package_name.is_some());
+        assert_eq!(package_name.unwrap(), "com.book");
     }
 }

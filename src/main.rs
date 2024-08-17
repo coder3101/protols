@@ -11,6 +11,7 @@ use tracing::Level;
 
 mod lsp;
 mod parser;
+mod registry;
 mod server;
 mod utils;
 
@@ -39,13 +40,10 @@ async fn main() {
             .service(ServerState::new_router(client))
     });
 
-    let mut dir = std::env::temp_dir();
-    dir.push("protols.log");
+    let dir = std::env::temp_dir();
+    eprintln!("Logs are being written to directory {:?}", dir);
 
-    eprintln!("Logs are being written to {:?}", dir);
-
-    let file_appender =
-        tracing_appender::rolling::daily(std::env::temp_dir().as_path(), "protols.log");
+    let file_appender = tracing_appender::rolling::daily(dir, "protols.log");
     let (non_blocking, _gaurd) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::fmt()

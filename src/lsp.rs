@@ -102,26 +102,48 @@ impl LanguageServer for ServerState {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
+        let identifier;
+        let current_package_name;
+
         match self.get_parsed_tree_and_content(&uri) {
-            Err(e) => Box::pin(async move { Err(e) }),
-            Ok((tree, content)) => {
-                let comments = tree.hover(&pos, content.as_bytes());
-
-                let response = match comments.len() {
-                    0 => None,
-                    1 => Some(Hover {
-                        contents: HoverContents::Scalar(comments[0].clone()),
-                        range: None,
-                    }),
-                    2.. => Some(Hover {
-                        contents: HoverContents::Array(comments),
-                        range: None,
-                    }),
-                };
-
-                Box::pin(async move { Ok(response) })
+            Err(e) => {
+                return Box::pin(async move { Err(e) });
             }
-        }
+            Ok((tree, content)) => {
+                identifier = tree
+                    .get_actionable_node_text_at_position(&pos, content.as_ref())
+                    .map(ToOwned::to_owned);
+
+                current_package_name = tree
+                    .get_package_name(content.as_ref())
+                    .map(ToOwned::to_owned);
+            }
+        };
+
+        let Some(identifier) = identifier else {
+            error!(uri=%uri, "failed to get identifier");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let Some(current_package_name) = current_package_name else {
+            error!(uri=%uri, "failed to get package name");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let comments = self.registry_hover(current_package_name.as_ref(), identifier.as_ref());
+        let response = match comments.len() {
+            0 => None,
+            1 => Some(Hover {
+                contents: HoverContents::Scalar(comments[0].clone()),
+                range: None,
+            }),
+            2.. => Some(Hover {
+                contents: HoverContents::Array(comments),
+                range: None,
+            }),
+        };
+
+        Box::pin(async move { Ok(response) })
     }
     fn completion(
         &mut self,
