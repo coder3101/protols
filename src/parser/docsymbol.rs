@@ -3,7 +3,7 @@ use tree_sitter::TreeCursor;
 
 use crate::utils::ts_to_lsp_position;
 
-use super::{ nodekind::NodeKind, ParsedTree};
+use super::{nodekind::NodeKind, ParsedTree};
 
 #[derive(Default)]
 pub(super) struct DocumentSymbolTreeBuilder {
@@ -98,13 +98,14 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
+    use async_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind, Url};
 
     use crate::parser::ProtoParser;
 
     #[test]
     #[allow(deprecated)]
     fn test_document_symbols() {
+        let uri: Url = "file://foo/bar/pro.proto".parse().unwrap();
         let contents = r#"syntax = "proto3";
 
 package com.symbols;
@@ -136,7 +137,7 @@ message Outer2 {
 }
 
 "#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
         let res = tree.find_document_locations(contents);

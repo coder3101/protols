@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use async_lsp::lsp_types::{Position, Range, TextEdit, Url, WorkspaceEdit};
+use async_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
 
 use crate::utils::ts_to_lsp_position;
 
-use super::{nodekind::NodeKind, ParsedTree };
+use super::{nodekind::NodeKind, ParsedTree};
 
 impl ParsedTree {
     pub fn can_rename(&self, pos: &Position) -> Option<Range> {
@@ -20,7 +20,6 @@ impl ParsedTree {
 
     pub fn rename(
         &self,
-        uri: &Url,
         pos: &Position,
         new_text: &str,
         content: impl AsRef<[u8]>,
@@ -48,7 +47,7 @@ impl ParsedTree {
             return None;
         }
 
-        changes.insert(uri.clone(), diff);
+        changes.insert(self.uri.clone(), diff);
 
         Some(WorkspaceEdit {
             changes: Some(changes),
@@ -59,13 +58,13 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{Position, Range, TextEdit};
+    use async_lsp::lsp_types::{Position, Range, TextEdit, Url};
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_rename() {
-        let uri = "file://foo/bar.proto".parse().unwrap();
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let pos_book_rename = Position {
             line: 5,
             character: 9,
@@ -107,11 +106,11 @@ service Myservice {
 }
 "#;
 
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let res = tree.rename(&uri, &pos_book_rename, "Kitab", contents);
+        let res = tree.rename(&pos_book_rename, "Kitab", contents);
         assert!(res.is_some());
         let changes = res.unwrap().changes;
         assert!(changes.is_some());
@@ -177,7 +176,7 @@ service Myservice {
             ],
         );
 
-        let res = tree.rename(&uri, &pos_author_rename, "Writer", contents);
+        let res = tree.rename(&pos_author_rename, "Writer", contents);
         assert!(res.is_some());
         let changes = res.unwrap().changes;
         assert!(changes.is_some());
@@ -230,12 +229,13 @@ service Myservice {
             ],
         );
 
-        let res = tree.rename(&uri, &pos_non_renamble, "Doesn't matter", contents);
+        let res = tree.rename(&pos_non_renamble, "Doesn't matter", contents);
         assert!(res.is_none());
     }
 
     #[test]
     fn test_can_rename() {
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let pos_rename = Position {
             line: 5,
             character: 9,
@@ -261,7 +261,7 @@ message Book {
     };
 }
 "#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
         let res = tree.can_rename(&pos_rename);

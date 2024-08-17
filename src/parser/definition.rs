@@ -1,4 +1,4 @@
-use async_lsp::lsp_types::{Location, Position, Range, Url};
+use async_lsp::lsp_types::{Location, Position, Range};
 use tracing::info;
 
 use crate::{parser::nodekind::NodeKind, utils::ts_to_lsp_position};
@@ -6,12 +6,7 @@ use crate::{parser::nodekind::NodeKind, utils::ts_to_lsp_position};
 use super::ParsedTree;
 
 impl ParsedTree {
-    pub fn definition(
-        &self,
-        pos: &Position,
-        uri: &Url,
-        content: impl AsRef<[u8]>,
-    ) -> Vec<Location> {
+    pub fn definition(&self, pos: &Position, content: impl AsRef<[u8]>) -> Vec<Location> {
         let text = self.get_node_text_at_position(pos, content.as_ref());
         info!("Looking for definition of: {:?}", text);
 
@@ -21,7 +16,7 @@ impl ParsedTree {
                 .into_iter()
                 .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
                 .map(|n| Location {
-                    uri: uri.clone(),
+                    uri: self.uri.clone(),
                     range: Range {
                         start: ts_to_lsp_position(&n.start_position()),
                         end: ts_to_lsp_position(&n.end_position()),
@@ -64,10 +59,10 @@ message Book {
     string isbn = 2;
 }
 "#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(url.parse().unwrap(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let res = tree.definition(&posauthor, &url.parse().unwrap(), contents);
+        let res = tree.definition(&posauthor, contents);
 
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].uri, Url::parse(url).unwrap());
@@ -85,7 +80,7 @@ message Book {
             }
         );
 
-        let res = tree.definition(&posinvalid, &url.parse().unwrap(), contents);
+        let res = tree.definition(&posinvalid, contents);
         assert_eq!(res.len(), 0);
     }
 }

@@ -1,7 +1,6 @@
 use async_lsp::lsp_types::{MarkedString, Position};
 use tracing::info;
 
-
 use crate::parser::nodekind::NodeKind;
 
 use super::ParsedTree;
@@ -67,12 +66,13 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{MarkedString, Position};
+    use async_lsp::lsp_types::{MarkedString, Position, Url};
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_hover() {
+        let uri: Url = "file://foo.bar/p.proto".parse().unwrap();
         let posbook = Position {
             line: 5,
             character: 9,
@@ -102,7 +102,7 @@ message Book {
     };
 }
 "#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
         let res = tree.hover(&posbook, contents);

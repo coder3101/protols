@@ -1,5 +1,5 @@
 use async_lsp::{
-    lsp_types::{Url, WorkspaceFolder},
+    lsp_types::{PublishDiagnosticsParams, Url, WorkspaceFolder},
     router::Router,
     ClientSocket, ErrorCode, ResponseError,
 };
@@ -49,7 +49,7 @@ impl ServerState {
         };
 
         if !self.trees.contains_key(uri) {
-            let Some(parsed) = self.parser.parse(content.as_bytes()) else {
+            let Some(parsed) = self.parser.parse(uri.clone(), content.as_bytes()) else {
                 error!("failed to parse content at {uri}");
                 return Err(ResponseError::new(
                     ErrorCode::REQUEST_FAILED,
@@ -93,6 +93,41 @@ impl ServerState {
                     );
                 }
             }
+        }
+    }
+
+    pub fn upsert_file(&mut self, uri: &Url, content: String) -> Option<PublishDiagnosticsParams> {
+        info!(uri=%uri, "upserting file");
+
+        let Some(tree) = self.parser.parse(uri.clone(), &content) else {
+            error!(uri=%uri, "failed to parse content");
+            return None;
+        };
+
+        self.documents.insert(uri.clone(), content);
+        let diagnostics = tree.collect_parse_errors();
+
+        self.trees.insert(uri.clone(), tree);
+        Some(diagnostics)
+    }
+
+    pub fn delete_file(&mut self, uri: &Url) {
+        info!(uri=%uri, "deleting file");
+
+        self.documents.remove(uri);
+        self.trees.remove(uri);
+    }
+
+    pub fn rename_file(&mut self, new_uri: &Url, old_uri: &Url) {
+        info!(new_uri=%new_uri, old_uri=%new_uri, "renaming file");
+
+        if let Some(v) = self.documents.remove(old_uri) {
+            self.documents.insert(new_uri.clone(), v);
+        }
+
+        if let Some(mut v) = self.trees.remove(old_uri) {
+            v.uri = new_uri.clone();
+            self.trees.insert(new_uri.clone(), v);
         }
     }
 }

@@ -1,13 +1,13 @@
 # protols
-A Language Server for **proto3** files. It uses tree-sitter parser for all operations and always runs in **single file mode**.
+A Language Server for **proto3** files. It uses tree-sitter parser for all operations.
 
 ![](./assets/protols.mov)
 
 ## Features 
-- [x] Hover
+- [x] Hover 
 - [x] Go to definition
 - [x] Diagnostics
-- [x] Document Symbols for message and enums
+- [x] Document Symbols for message and enums in current document
 - [x] Rename message, enum and rpc
 - [x] Completion for proto3 keywords
 

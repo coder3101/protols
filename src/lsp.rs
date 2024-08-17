@@ -1,14 +1,17 @@
+use std::fs::read_to_string;
 use std::ops::ControlFlow;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, RenameParams,
-    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkspaceEdit, WorkspaceFoldersServerCapabilities,
+    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
+    PrepareRenameResponse, RenameFilesParams, RenameParams, ServerCapabilities, ServerInfo,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -34,6 +37,19 @@ impl LanguageServer for ServerState {
 
         info!("Connected with client {cname} {cversion}");
 
+        let file_operation_filers = vec![FileOperationFilter {
+            scheme: Some(String::from("file")),
+            pattern: FileOperationPattern {
+                glob: String::from("**/*.{proto}"),
+                matches: Some(FileOperationPatternKind::File),
+                ..Default::default()
+            },
+        }];
+
+        let file_registration_option = FileOperationRegistrationOptions {
+            filters: file_operation_filers.clone(),
+        };
+
         let mut workspace_capabilities = None;
         if let Some(folders) = params.workspace_folders {
             for workspace in folders {
@@ -45,7 +61,13 @@ impl LanguageServer for ServerState {
                     supported: Some(true),
                     ..Default::default()
                 }),
-                ..Default::default()
+
+                file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+                    did_create: Some(file_registration_option.clone()),
+                    did_rename: Some(file_registration_option.clone()),
+                    did_delete: Some(file_registration_option.clone()),
+                    ..Default::default()
+                }),
             })
         }
 
@@ -152,7 +174,7 @@ impl LanguageServer for ServerState {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
                 let response = if tree.can_rename(&pos).is_some() {
-                    tree.rename(&uri, &pos, &new_name, content)
+                    tree.rename(&pos, &new_name, content)
                 } else {
                     None
                 };
@@ -172,7 +194,7 @@ impl LanguageServer for ServerState {
         match self.get_parsed_tree_and_content(&uri) {
             Err(e) => Box::pin(async move { Err(e) }),
             Ok((tree, content)) => {
-                let locations = tree.definition(&pos, &uri, content.as_bytes());
+                let locations = tree.definition(&pos, content.as_bytes());
 
                 let response = match locations.len() {
                     0 => None,
@@ -212,42 +234,66 @@ impl LanguageServer for ServerState {
 
     fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
-        let contents = params.text_document.text;
+        let content = params.text_document.text;
 
-        info!("opened file at: {uri}");
-        self.documents.insert(uri.clone(), contents.clone());
-
-        let Some(tree) = self.parser.parse(contents.as_bytes()) else {
-            error!("failed to parse content at {uri}");
-            return ControlFlow::Continue(());
-        };
-
-        let diagnostics = tree.collect_parse_errors(&uri);
-        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-            error!(error=%e, "failed to publish diagnostics")
+        if let Some(diagnostics) = self.upsert_file(&uri, content) {
+            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+                error!(error=%e, "failed to publish diagnostics")
+            }
         }
-
-        self.trees.insert(uri.clone(), tree);
         ControlFlow::Continue(())
     }
 
     fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Self::NotifyResult {
         let uri = params.text_document.uri;
-        let contents = params.content_changes[0].text.clone();
+        let content = params.content_changes[0].text.clone();
 
-        self.documents.insert(uri.clone(), contents.clone());
-
-        let Some(tree) = self.parser.parse(contents.as_bytes()) else {
-            error!("failed to parse content at {uri}");
-            return ControlFlow::Continue(());
-        };
-
-        let diagnostics = tree.collect_parse_errors(&uri);
-        if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-            error!(error=%e, "failed to publish diagnostics")
+        if let Some(diagnostics) = self.upsert_file(&uri, content) {
+            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+                error!(error=%e, "failed to publish diagnostics")
+            }
         }
+        ControlFlow::Continue(())
+    }
 
-        self.trees.insert(uri.clone(), tree);
+    fn did_create_files(&mut self, params: CreateFilesParams) -> Self::NotifyResult {
+        for file in params.files {
+            if let Ok(uri) = Url::from_file_path(&file.uri) {
+                // Safety: The uri is always a file type
+                let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
+                self.upsert_file(&uri, content);
+            } else {
+                error!(uri=%file.uri, "failed parse uri");
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn did_rename_files(&mut self, params: RenameFilesParams) -> Self::NotifyResult {
+        for file in params.files {
+            let Ok(new_uri) = Url::from_file_path(&file.new_uri) else {
+                error!(uri = file.new_uri, "failed to parse uri");
+                continue;
+            };
+
+            let Ok(old_uri) = Url::from_file_path(&file.old_uri) else {
+                error!(uri = file.old_uri, "failed to parse uri");
+                continue;
+            };
+
+            self.rename_file(&new_uri, &old_uri);
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn did_delete_files(&mut self, params: DeleteFilesParams) -> Self::NotifyResult {
+        for file in params.files {
+            if let Ok(uri) = Url::from_file_path(&file.uri) {
+                self.delete_file(&uri);
+            } else {
+                error!(uri = file.uri, "failed to parse uri");
+            }
+        }
         ControlFlow::Continue(())
     }
 }

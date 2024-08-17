@@ -96,6 +96,7 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
+    use async_lsp::lsp_types::Url;
     use tree_sitter::Node;
 
     use crate::parser::ProtoParser;
@@ -106,6 +107,7 @@ mod test {
 
     #[test]
     fn test_find_children_by_kind() {
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = r#"syntax = "proto3";
 
 package com.book;
@@ -123,7 +125,7 @@ message Book {
     Author author = 3;
 }
 "#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri, contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
         let nodes = tree.filter_node(is_message);
