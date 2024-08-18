@@ -13,3 +13,4 @@ message Foobar {
    Baz a = 2;
 }
 
+

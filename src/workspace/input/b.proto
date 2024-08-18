@@ -13,3 +13,4 @@ message Author {
 
    Address foo = 2;
 }
+

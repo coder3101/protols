@@ -1,0 +1,12 @@
+---
+source: src/workspace/definition.rs
+expression: "state.definition(\"com.library\", \"Author\")"
+---
+- uri: "file://input/b.proto"
+  range:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14

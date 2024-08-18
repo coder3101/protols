@@ -10,3 +10,4 @@ message Book {
    Author.Address foo = 2;
    com.utility.FooBar.Baz z = 3;
 }
+

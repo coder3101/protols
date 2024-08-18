@@ -1,0 +1,12 @@
+---
+source: src/workspace/definition.rs
+expression: "state.definition(\"com.library\", \"com.utility.Foobar.Baz\")"
+---
+- uri: "file://input/c.proto"
+  range:
+    start:
+      line: 8
+      character: 11
+    end:
+      line: 8
+      character: 14
