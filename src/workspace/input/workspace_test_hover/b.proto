@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package com.library;
+
+// A author is a author
+message Author {
+   string name = 1;
+
+   // Address is a Address
+   message Address {
+      int64 zip = 1;
+   }
+
+   Address foo = 2;
+}

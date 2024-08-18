@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.library;
+
+import "c.proto";
+
+// A Book is a book
+message Book {
+   Author author = 1;
+   Author.Address foo = 2;
+   com.utility.FooBar.Baz z = 3;
+}

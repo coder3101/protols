@@ -20,6 +20,28 @@ impl ProtoLanguageState {
 
 #[cfg(test)]
 mod test {
+    use insta::assert_yaml_snapshot;
+
+    use crate::state::ProtoLanguageState;
+
     #[test]
-    fn workspace_test_hover() {}
+    fn workspace_test_hover() {
+        let a_uri = "file://input/workspace_test_hover/a.proto".parse().unwrap();
+        let b_uri = "file://input/workspace_test_hover/b.proto".parse().unwrap();
+        let c_uri = "file://input/workspace_test_hover/c.proto".parse().unwrap();
+
+        let a = include_str!("input/workspace_test_hover/a.proto");
+        let b = include_str!("input/workspace_test_hover/b.proto");
+        let c = include_str!("input/workspace_test_hover/c.proto");
+
+        let mut state = ProtoLanguageState::new();
+        state.upsert_file(&a_uri, a.to_owned());
+        state.upsert_file(&b_uri, b.to_owned());
+        state.upsert_file(&c_uri, c.to_owned());
+
+        assert_yaml_snapshot!(state.hover("com.library", "Author"));
+        assert_yaml_snapshot!(state.hover("com.library", "Author.Address"));
+        assert_yaml_snapshot!(state.hover("com.library", "com.utility.Foobar.Baz"));
+        assert_yaml_snapshot!(state.hover("com.utility", "com.library.Baz"));
+    }
 }
