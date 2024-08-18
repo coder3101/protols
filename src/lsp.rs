@@ -9,8 +9,8 @@ use async_lsp::lsp_types::{
     DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
-    PrepareRenameResponse, RenameFilesParams, RenameParams, ServerCapabilities, ServerInfo,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    PrepareRenameResponse, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities,
+    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
     WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
@@ -71,6 +71,21 @@ impl LanguageServer for ProtoLanguageServer {
             })
         }
 
+        let mut rename_provider: OneOf<bool, RenameOptions> = OneOf::Left(true);
+
+        if params
+            .capabilities
+            .text_document
+            .and_then(|cap| cap.rename)
+            .and_then(|r| r.prepare_support)
+            .unwrap_or_default()
+        {
+            rename_provider = OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            })
+        }
+
         let response = InitializeResult {
             capabilities: ServerCapabilities {
                 // todo(): We might prefer incremental sync at some later stage
@@ -82,7 +97,7 @@ impl LanguageServer for ProtoLanguageServer {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
-                rename_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(rename_provider),
 
                 ..ServerCapabilities::default()
             },
@@ -173,6 +188,7 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
+
         Box::pin(async move { Ok(response) })
     }
 

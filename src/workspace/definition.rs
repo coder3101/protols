@@ -42,6 +42,5 @@ mod test {
         assert_yaml_snapshot!(state.definition("com.library", "Author.Address"));
         assert_yaml_snapshot!(state.definition("com.library", "com.utility.Foobar.Baz"));
         assert_yaml_snapshot!(state.definition("com.utility", "Baz"));
-
     }
 }
