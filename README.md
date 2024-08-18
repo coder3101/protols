@@ -1,4 +1,5 @@
 # protols
+[![Crates](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
 A Language Server for **proto3** files. It uses tree-sitter parser for all operations.
