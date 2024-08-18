@@ -125,7 +125,7 @@ impl ProtoLanguageState {
                         ..Default::default()
                     });
                     v.extend(t);
-                    return v;
+                    v
                 })
         };
 
