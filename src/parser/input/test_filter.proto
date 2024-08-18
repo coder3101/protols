@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package com.parser;
+
+message Book {
+
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+    // This is a multi line comment on the field name
+    // Of a message called Book
+    int64 isbn = 1;
+    string title = 2;
+    Author author = 3;
+}

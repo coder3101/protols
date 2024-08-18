@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package com.utility;
+
+// A foobar is a dummy message
+message Foobar {
+
+   // What is baz?
+   message Baz {
+      int64 b = 1;
+   }
+
+   Baz a = 2;
+}
+
+

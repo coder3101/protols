@@ -1,10 +1,10 @@
+use async_lsp::lsp_types::Url;
 use tree_sitter::Tree;
 
 mod definition;
 mod diagnostics;
 mod docsymbol;
 mod hover;
-mod nodekind;
 mod rename;
 mod tree;
 
@@ -13,6 +13,7 @@ pub struct ProtoParser {
 }
 
 pub struct ParsedTree {
+    pub uri: Url,
     tree: Tree,
 }
 
@@ -25,9 +26,9 @@ impl ProtoParser {
         Self { parser }
     }
 
-    pub fn parse(&mut self, contents: impl AsRef<[u8]>) -> Option<ParsedTree> {
+    pub fn parse(&mut self, uri: Url, contents: impl AsRef<[u8]>) -> Option<ParsedTree> {
         self.parser
             .parse(contents, None)
-            .map(|t| ParsedTree { tree: t })
+            .map(|t| ParsedTree { tree: t, uri })
     }
 }

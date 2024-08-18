@@ -1,26 +1,29 @@
 use std::collections::HashMap;
 
-use async_lsp::lsp_types::{Position, Range, TextEdit, Url, WorkspaceEdit};
+use async_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
 
-use crate::utils::ts_to_lsp_position;
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
-use super::{nodekind::NodeKind, ParsedTree };
+use super::ParsedTree;
 
 impl ParsedTree {
     pub fn can_rename(&self, pos: &Position) -> Option<Range> {
         self.get_node_at_position(pos)
             .filter(NodeKind::is_identifier)
-            .map(|n| n.parent().unwrap()) // Safety: Identifier must have a parent node
-            .filter(NodeKind::is_actionable)
-            .map(|n| Range {
-                start: ts_to_lsp_position(&n.start_position()),
-                end: ts_to_lsp_position(&n.end_position()),
+            .and_then(|n| {
+                if n.parent().is_some() && NodeKind::is_userdefined(&n.parent().unwrap()) {
+                    Some(Range {
+                        start: ts_to_lsp_position(&n.start_position()),
+                        end: ts_to_lsp_position(&n.end_position()),
+                    })
+                } else {
+                    None
+                }
             })
     }
 
     pub fn rename(
         &self,
-        uri: &Url,
         pos: &Position,
         new_text: &str,
         content: impl AsRef<[u8]>,
@@ -32,7 +35,7 @@ impl ParsedTree {
         let mut changes = HashMap::new();
 
         let diff: Vec<_> = self
-            .filter_node(NodeKind::is_identifier)
+            .filter_nodes(NodeKind::is_identifier)
             .into_iter()
             .filter(|n| n.utf8_text(content.as_ref()).unwrap() == old_text)
             .map(|n| TextEdit {
@@ -48,7 +51,7 @@ impl ParsedTree {
             return None;
         }
 
-        changes.insert(uri.clone(), diff);
+        changes.insert(self.uri.clone(), diff);
 
         Some(WorkspaceEdit {
             changes: Some(changes),
@@ -59,13 +62,14 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{Position, Range, TextEdit};
+    use async_lsp::lsp_types::{Position, Url};
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_rename() {
-        let uri = "file://foo/bar.proto".parse().unwrap();
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let pos_book_rename = Position {
             line: 5,
             character: 9,
@@ -78,164 +82,20 @@ mod test {
             line: 24,
             character: 4,
         };
-        let contents = r#"syntax = "proto3";
+        let contents = include_str!("input/test_rename.proto");
 
-package com.book;
-
-// A Book is book
-message Book {
-
-    // This is represents author
-    // A author is a someone who writes books
-    //
-    // Author has a name and a country where they were born
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-    Author author = 1;
-    int price_usd = 2;
-}
-
-message Library {
-    repeated Book books = 1;
-    Book.Author collection = 2;
-}
-
-service Myservice {
-    rpc GetBook(Empty) returns (Book);
-}
-"#;
-
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let res = tree.rename(&uri, &pos_book_rename, "Kitab", contents);
-        assert!(res.is_some());
-        let changes = res.unwrap().changes;
-        assert!(changes.is_some());
-        let changes = changes.unwrap();
-        assert!(changes.contains_key(&uri));
-        let edits = changes.get(&uri).unwrap();
-
-        assert_eq!(
-            *edits,
-            vec![
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 5,
-                            character: 8,
-                        },
-                        end: Position {
-                            line: 5,
-                            character: 12,
-                        },
-                    },
-                    new_text: "Kitab".to_string(),
-                },
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 20,
-                            character: 13,
-                        },
-                        end: Position {
-                            line: 20,
-                            character: 17,
-                        },
-                    },
-                    new_text: "Kitab".to_string(),
-                },
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 21,
-                            character: 4,
-                        },
-                        end: Position {
-                            line: 21,
-                            character: 8,
-                        },
-                    },
-                    new_text: "Kitab".to_string(),
-                },
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 25,
-                            character: 32,
-                        },
-                        end: Position {
-                            line: 25,
-                            character: 36,
-                        },
-                    },
-                    new_text: "Kitab".to_string(),
-                },
-            ],
-        );
-
-        let res = tree.rename(&uri, &pos_author_rename, "Writer", contents);
-        assert!(res.is_some());
-        let changes = res.unwrap().changes;
-        assert!(changes.is_some());
-        let changes = changes.unwrap();
-        assert!(changes.contains_key(&uri));
-        let edits = changes.get(&uri).unwrap();
-
-        assert_eq!(
-            *edits,
-            vec![
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 11,
-                            character: 12,
-                        },
-                        end: Position {
-                            line: 11,
-                            character: 18,
-                        },
-                    },
-                    new_text: "Writer".to_string(),
-                },
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 15,
-                            character: 4,
-                        },
-                        end: Position {
-                            line: 15,
-                            character: 10,
-                        },
-                    },
-                    new_text: "Writer".to_string(),
-                },
-                TextEdit {
-                    range: Range {
-                        start: Position {
-                            line: 21,
-                            character: 9,
-                        },
-                        end: Position {
-                            line: 21,
-                            character: 15,
-                        },
-                    },
-                    new_text: "Writer".to_string(),
-                },
-            ],
-        );
-
-        let res = tree.rename(&uri, &pos_non_renamble, "Doesn't matter", contents);
-        assert!(res.is_none());
+        assert_yaml_snapshot!(tree.rename(&pos_book_rename, "Kitab", contents));
+        assert_yaml_snapshot!(tree.rename(&pos_author_rename, "Writer", contents));
+        assert_yaml_snapshot!(tree.rename(&pos_non_renamble, "Doesn't matter", contents));
     }
 
     #[test]
     fn test_can_rename() {
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let pos_rename = Position {
             line: 5,
             character: 9,
@@ -244,44 +104,23 @@ service Myservice {
             line: 2,
             character: 2,
         };
-        let contents = r#"syntax = "proto3";
+        let pos_inner_type = Position {
+            line: 19,
+            character: 11,
+        };
+        let pos_outer_type = Position {
+            line: 19,
+            character: 5,
+        };
 
-package com.book;
-
-// A Book is book
-message Book {
-
-    // This is represents author
-    // A author is a someone who writes books
-    //
-    // Author has a name and a country where they were born
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-}
-"#;
-        let parsed = ProtoParser::new().parse(contents);
+        let contents = include_str!("input/test_can_rename.proto");
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
+
         let tree = parsed.unwrap();
-        let res = tree.can_rename(&pos_rename);
-
-        assert!(res.is_some());
-        assert_eq!(
-            res.unwrap(),
-            Range {
-                start: Position {
-                    line: 5,
-                    character: 8
-                },
-                end: Position {
-                    line: 5,
-                    character: 12
-                },
-            },
-        );
-
-        let res = tree.can_rename(&pos_non_rename);
-        assert!(res.is_none());
+        assert_yaml_snapshot!(tree.can_rename(&pos_rename));
+        assert_yaml_snapshot!(tree.can_rename(&pos_non_rename));
+        assert_yaml_snapshot!(tree.can_rename(&pos_inner_type));
+        assert_yaml_snapshot!(tree.can_rename(&pos_outer_type));
     }
 }

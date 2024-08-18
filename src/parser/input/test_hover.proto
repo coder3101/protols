@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package com.parser;
+
+// A Book is book
+message Book {
+
+    // This is represents author
+    // A author is a someone who writes books
+    //
+    // Author has a name and a country where they were born
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+}
+
+// Comic is a type of book but who cares
+message Comic {
+    // Author of a comic is different from others
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+}

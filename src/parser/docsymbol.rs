@@ -1,9 +1,9 @@
 use async_lsp::lsp_types::{DocumentSymbol, Range};
 use tree_sitter::TreeCursor;
 
-use crate::utils::ts_to_lsp_position;
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
-use super::{ nodekind::NodeKind, ParsedTree};
+use super::ParsedTree;
 
 #[derive(Default)]
 pub(super) struct DocumentSymbolTreeBuilder {
@@ -98,149 +98,21 @@ impl ParsedTree {
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
+    use async_lsp::lsp_types::Url;
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     #[allow(deprecated)]
     fn test_document_symbols() {
-        let contents = r#"syntax = "proto3";
+        let uri: Url = "file://foo/bar/pro.proto".parse().unwrap();
+        let contents = include_str!("input/test_document_symbols.proto");
 
-package com.symbols;
-
-// outer 1 comment
-message Outer1 {
-    message Inner1 {
-        string name = 1;
-    };
-
-    Inner1 i = 1;
-}
-
-message Outer2 {
-    message Inner2 {
-        string name = 1;
-    };
-    // Inner 3 comment here
-    message Inner3 {
-        string name = 1;
-
-        enum X {
-            a = 1;
-            b = 2;
-        }
-    }
-    Inner1 i = 1;
-    Inner2 y = 2;
-}
-
-"#;
-        let parsed = ProtoParser::new().parse(contents);
+        let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
-        let tree = parsed.unwrap();
-        let res = tree.find_document_locations(contents);
 
-        assert_eq!(res.len(), 2);
-        assert_eq!(
-            res,
-            vec!(
-                DocumentSymbol {
-                    name: "Outer1".to_string(),
-                    detail: Some("outer 1 comment".to_string()),
-                    kind: SymbolKind::STRUCT,
-                    tags: None,
-                    range: Range {
-                        start: Position::new(5, 0),
-                        end: Position::new(11, 1),
-                    },
-                    selection_range: Range {
-                        start: Position::new(5, 8),
-                        end: Position::new(5, 14),
-                    },
-                    children: Some(vec!(DocumentSymbol {
-                        name: "Inner1".to_string(),
-                        detail: None,
-                        kind: SymbolKind::STRUCT,
-                        tags: None,
-                        deprecated: None,
-                        range: Range {
-                            start: Position::new(6, 4),
-                            end: Position::new(8, 5),
-                        },
-                        selection_range: Range {
-                            start: Position::new(6, 12),
-                            end: Position::new(6, 18),
-                        },
-                        children: Some(vec!()),
-                    },)),
-                    deprecated: None,
-                },
-                DocumentSymbol {
-                    name: "Outer2".to_string(),
-                    detail: None,
-                    kind: SymbolKind::STRUCT,
-                    tags: None,
-                    range: Range {
-                        start: Position::new(13, 0),
-                        end: Position::new(28, 1),
-                    },
-                    selection_range: Range {
-                        start: Position::new(13, 8),
-                        end: Position::new(13, 14),
-                    },
-                    children: Some(vec!(
-                        DocumentSymbol {
-                            name: "Inner2".to_string(),
-                            detail: None,
-                            kind: SymbolKind::STRUCT,
-                            tags: None,
-                            deprecated: None,
-                            range: Range {
-                                start: Position::new(14, 4),
-                                end: Position::new(16, 5),
-                            },
-                            selection_range: Range {
-                                start: Position::new(14, 12),
-                                end: Position::new(14, 18),
-                            },
-                            children: Some(vec!()),
-                        },
-                        DocumentSymbol {
-                            name: "Inner3".to_string(),
-                            detail: Some("Inner 3 comment here".to_string()),
-                            kind: SymbolKind::STRUCT,
-                            tags: None,
-                            deprecated: None,
-                            range: Range {
-                                start: Position::new(18, 4),
-                                end: Position::new(25, 5),
-                            },
-                            selection_range: Range {
-                                start: Position::new(18, 12),
-                                end: Position::new(18, 18),
-                            },
-                            children: Some(vec!(DocumentSymbol {
-                                name: "X".to_string(),
-                                detail: None,
-                                kind: SymbolKind::ENUM,
-                                tags: None,
-                                deprecated: None,
-                                range: Range {
-                                    start: Position::new(21, 8),
-                                    end: Position::new(24, 9),
-                                },
-                                selection_range: Range {
-                                    start: Position::new(21, 13),
-                                    end: Position::new(21, 14),
-                                },
-                                children: Some(vec!()),
-                            })),
-                        }
-                    )),
-                    deprecated: None,
-                },
-            )
-        );
+        let tree = parsed.unwrap();
+        assert_yaml_snapshot!(tree.find_document_locations(contents));
     }
 }

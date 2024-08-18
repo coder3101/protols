@@ -1,91 +1,75 @@
-use async_lsp::lsp_types::{Location, Position, Range, Url};
-use tracing::info;
+use async_lsp::lsp_types::{Location, Range};
+use tree_sitter::Node;
 
-use crate::{parser::nodekind::NodeKind, utils::ts_to_lsp_position};
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
 use super::ParsedTree;
 
 impl ParsedTree {
-    pub fn definition(
+    pub fn definition(&self, identifier: &str, content: impl AsRef<[u8]>) -> Vec<Location> {
+        let mut results = vec![];
+        self.definition_impl(identifier, self.tree.root_node(), &mut results, content);
+        results
+    }
+    fn definition_impl(
         &self,
-        pos: &Position,
-        uri: &Url,
+        identifier: &str,
+        n: Node,
+        v: &mut Vec<Location>,
         content: impl AsRef<[u8]>,
-    ) -> Vec<Location> {
-        let text = self.get_node_text_at_position(pos, content.as_ref());
-        info!("Looking for definition of: {:?}", text);
+    ) {
+        if identifier.is_empty() {
+            return;
+        }
 
-        match text {
-            Some(text) => self
-                .filter_node(NodeKind::is_userdefined)
+        if !identifier.contains(".") {
+            let locations: Vec<Location> = self
+                .filter_nodes_from(n, NodeKind::is_userdefined)
                 .into_iter()
-                .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == text)
+                .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
                 .map(|n| Location {
-                    uri: uri.clone(),
+                    uri: self.uri.clone(),
                     range: Range {
                         start: ts_to_lsp_position(&n.start_position()),
                         end: ts_to_lsp_position(&n.end_position()),
                     },
                 })
-                .collect(),
-            None => vec![],
+                .collect();
+
+            v.extend(locations);
+            return;
+        }
+
+        // Safety: identifier contains a .
+        let (parent_identifier, remaining) = identifier.split_once(".").unwrap();
+        let child_node = self
+            .filter_nodes_from(n, NodeKind::is_userdefined)
+            .into_iter()
+            .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent_identifier)
+            .and_then(|n| n.parent());
+
+        if let Some(inner) = child_node {
+            self.definition_impl(remaining, inner, v, content);
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::{Position, Range, Url};
+    use async_lsp::lsp_types::Url;
+    use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
 
     #[test]
     fn test_goto_definition() {
-        let url = "file://foo/bar.proto";
-        let posinvalid = Position {
-            line: 0,
-            character: 1,
-        };
-        let posauthor = Position {
-            line: 10,
-            character: 5,
-        };
-        let contents = r#"syntax = "proto3";
+        let url: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_goto_definition.proto");
+        let parsed = ProtoParser::new().parse(url, contents);
 
-package com.book;
-
-message Book {
-    message Author {
-        string name = 1;
-        string country = 2;
-    };
-
-    Author author = 1;
-    string isbn = 2;
-}
-"#;
-        let parsed = ProtoParser::new().parse(contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let res = tree.definition(&posauthor, &url.parse().unwrap(), contents);
-
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].uri, Url::parse(url).unwrap());
-        assert_eq!(
-            res[0].range,
-            Range {
-                start: Position {
-                    line: 5,
-                    character: 12
-                },
-                end: Position {
-                    line: 5,
-                    character: 18
-                },
-            }
-        );
-
-        let res = tree.definition(&posinvalid, &url.parse().unwrap(), contents);
-        assert_eq!(res.len(), 0);
+        assert_yaml_snapshot!(tree.definition("Author", contents));
+        assert_yaml_snapshot!(tree.definition("", contents));
     }
 }

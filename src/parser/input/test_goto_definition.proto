@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package com.parser;
+
+message Book {
+    message Author {
+        string name = 1;
+        string country = 2;
+    };
+
+    Author author = 1;
+    string isbn = 2;
+}

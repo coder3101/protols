@@ -5,14 +5,17 @@ use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
-use server::{ServerState, TickEvent};
+use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
 
 mod lsp;
+mod nodekind;
 mod parser;
 mod server;
+mod state;
 mod utils;
+mod workspace;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -36,16 +39,13 @@ async fn main() {
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(ServerState::new_router(client))
+            .service(ProtoLanguageServer::new_router(client))
     });
 
-    let mut dir = std::env::temp_dir();
-    dir.push("protols.log");
+    let dir = std::env::temp_dir();
+    eprintln!("Logs are being written to directory {:?}", dir);
 
-    eprintln!("Logs are being written to {:?}", dir);
-
-    let file_appender =
-        tracing_appender::rolling::daily(std::env::temp_dir().as_path(), "protols.log");
+    let file_appender = tracing_appender::rolling::daily(dir, "protols.log");
     let (non_blocking, _gaurd) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::fmt()

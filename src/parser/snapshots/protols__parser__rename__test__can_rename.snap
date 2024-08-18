@@ -1,0 +1,10 @@
+---
+source: src/parser/rename.rs
+expression: tree.can_rename(&pos_rename)
+---
+start:
+  line: 5
+  character: 8
+end:
+  line: 5
+  character: 12
