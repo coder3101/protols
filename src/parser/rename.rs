@@ -10,11 +10,15 @@ impl ParsedTree {
     pub fn can_rename(&self, pos: &Position) -> Option<Range> {
         self.get_node_at_position(pos)
             .filter(NodeKind::is_identifier)
-            .map(|n| n.parent().unwrap()) // Safety: Identifier must have a parent node
-            .filter(NodeKind::is_actionable)
-            .map(|n| Range {
-                start: ts_to_lsp_position(&n.start_position()),
-                end: ts_to_lsp_position(&n.end_position()),
+            .and_then(|n| {
+                if n.parent().is_some() && NodeKind::is_actionable(&n.parent().unwrap()) {
+                    Some(Range {
+                        start: ts_to_lsp_position(&n.start_position()),
+                        end: ts_to_lsp_position(&n.end_position()),
+                    })
+                } else {
+                    None
+                }
             })
     }
 
@@ -100,6 +104,15 @@ mod test {
             line: 2,
             character: 2,
         };
+        let pos_inner_type = Position {
+            line: 19,
+            character: 11,
+        };
+        let pos_outer_type = Position {
+            line: 19,
+            character: 5,
+        };
+
         let contents = include_str!("input/test_can_rename.proto");
         let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
@@ -107,5 +120,7 @@ mod test {
         let tree = parsed.unwrap();
         assert_yaml_snapshot!(tree.can_rename(&pos_rename));
         assert_yaml_snapshot!(tree.can_rename(&pos_non_rename));
+        assert_yaml_snapshot!(tree.can_rename(&pos_inner_type));
+        assert_yaml_snapshot!(tree.can_rename(&pos_outer_type));
     }
 }

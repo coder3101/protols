@@ -13,4 +13,9 @@ message Book {
         string name = 1;
         string country = 2;
     };
+
+}
+
+message Outer {
+    Book.Author a = 1;
 }
