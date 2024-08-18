@@ -11,7 +11,7 @@ impl ParsedTree {
         self.get_node_at_position(pos)
             .filter(NodeKind::is_identifier)
             .and_then(|n| {
-                if n.parent().is_some() && NodeKind::is_actionable(&n.parent().unwrap()) {
+                if n.parent().is_some() && NodeKind::is_userdefined(&n.parent().unwrap()) {
                     Some(Range {
                         start: ts_to_lsp_position(&n.start_position()),
                         end: ts_to_lsp_position(&n.end_position()),

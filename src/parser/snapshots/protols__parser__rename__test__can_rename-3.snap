@@ -2,9 +2,4 @@
 source: src/parser/rename.rs
 expression: tree.can_rename(&pos_inner_type)
 ---
-start:
-  line: 19
-  character: 9
-end:
-  line: 19
-  character: 15
+~
