@@ -156,14 +156,16 @@ impl LanguageServer for ProtoLanguageServer {
     }
     fn completion(
         &mut self,
-        _params: CompletionParams,
+        params: CompletionParams,
     ) -> BoxFuture<'static, Result<Option<CompletionResponse>, Self::Error>> {
+        let uri = params.text_document_position.text_document.uri;
+
         let keywords = vec![
             "syntax", "package", "option", "import", "service", "rpc", "returns", "message",
             "enum", "oneof", "repeated", "reserved", "to",
         ];
 
-        let keywords = keywords
+        let mut keywords: Vec<CompletionItem> = keywords
             .into_iter()
             .map(|w| CompletionItem {
                 label: w.to_string(),
@@ -172,6 +174,12 @@ impl LanguageServer for ProtoLanguageServer {
             })
             .collect();
 
+        if let Some(tree) = self.state.get_tree(&uri) {
+            let content = self.state.get_content(&uri);
+            if let Some(package_name) = tree.get_package_name(content.as_bytes()) {
+                keywords.extend(self.state.completion_items(package_name));
+            }
+        }
         Box::pin(async move { Ok(Some(CompletionResponse::Array(keywords))) })
     }
 

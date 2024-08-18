@@ -1,9 +1,9 @@
 use async_lsp::lsp_types::Position;
 use tree_sitter::{Node, TreeCursor};
 
-use crate::utils::lsp_to_ts_point;
+use crate::{nodekind::NodeKind, utils::lsp_to_ts_point};
 
-use super::{nodekind::NodeKind, ParsedTree};
+use super::ParsedTree;
 
 impl ParsedTree {
     pub(super) fn walk_and_collect_filter<'a>(

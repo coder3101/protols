@@ -1,8 +1,8 @@
 use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, PublishDiagnosticsParams, Range};
 
-use crate::utils::ts_to_lsp_position;
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
-use super::{nodekind::NodeKind, ParsedTree};
+use super::ParsedTree;
 
 impl ParsedTree {
     pub fn collect_parse_errors(&self) -> PublishDiagnosticsParams {

@@ -1,10 +1,16 @@
 use std::{collections::HashMap, fs::read_to_string};
 use tracing::{error, info};
 
-use async_lsp::lsp_types::{PublishDiagnosticsParams, Url, WorkspaceFolder};
+use async_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, PublishDiagnosticsParams, Url, WorkspaceFolder,
+};
+use tree_sitter::Node;
 use walkdir::WalkDir;
 
-use crate::parser::{ParsedTree, ProtoParser};
+use crate::{
+    nodekind::NodeKind,
+    parser::{ParsedTree, ProtoParser},
+};
 
 pub struct ProtoLanguageState {
     documents: HashMap<Url, String>,
@@ -105,5 +111,32 @@ impl ProtoLanguageState {
             v.uri = new_uri.clone();
             self.trees.insert(new_uri.clone(), v);
         }
+    }
+
+    pub fn completion_items(&self, package: &str) -> Vec<CompletionItem> {
+        let collector = |f: fn(&Node) -> bool, k: CompletionItemKind| {
+            self.get_trees_for_package(package)
+                .into_iter()
+                .fold(vec![], |mut v, tree| {
+                    let content = self.get_content(&tree.uri);
+                    let t = tree.filter_nodes(f).into_iter().map(|n| CompletionItem {
+                        label: n.utf8_text(content.as_bytes()).unwrap().to_string(),
+                        kind: Some(k),
+                        ..Default::default()
+                    });
+                    v.extend(t);
+                    return v;
+                })
+        };
+
+        let mut result = collector(NodeKind::is_enum_name, CompletionItemKind::ENUM);
+        result.extend(collector(
+            NodeKind::is_message_name,
+            CompletionItemKind::STRUCT,
+        ));
+        // Better ways to dedup, but who cares?...
+        result.sort_by_key(|k| k.label.clone());
+        result.dedup_by_key(|k| k.label.clone());
+        result
     }
 }

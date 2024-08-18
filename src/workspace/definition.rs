@@ -38,9 +38,9 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned());
         state.upsert_file(&c_uri, c.to_owned());
 
-        assert_yaml_snapshot!(state.definition("com.library", "Author"));
-        assert_yaml_snapshot!(state.definition("com.library", "Author.Address"));
-        assert_yaml_snapshot!(state.definition("com.library", "com.utility.Foobar.Baz"));
+        assert_yaml_snapshot!(state.definition("com.workspace", "Author"));
+        assert_yaml_snapshot!(state.definition("com.workspace", "Author.Address"));
+        assert_yaml_snapshot!(state.definition("com.workspace", "com.utility.Foobar.Baz"));
         assert_yaml_snapshot!(state.definition("com.utility", "Baz"));
     }
 }

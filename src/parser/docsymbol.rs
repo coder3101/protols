@@ -1,9 +1,9 @@
 use async_lsp::lsp_types::{DocumentSymbol, Range};
 use tree_sitter::TreeCursor;
 
-use crate::utils::ts_to_lsp_position;
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
-use super::{nodekind::NodeKind, ParsedTree};
+use super::ParsedTree;
 
 #[derive(Default)]
 pub(super) struct DocumentSymbolTreeBuilder {

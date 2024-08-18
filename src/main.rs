@@ -10,6 +10,7 @@ use tower::ServiceBuilder;
 use tracing::Level;
 
 mod lsp;
+mod nodekind;
 mod parser;
 mod server;
 mod state;

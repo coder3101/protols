@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use async_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
 
-use crate::utils::ts_to_lsp_position;
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
-use super::{nodekind::NodeKind, ParsedTree};
+use super::ParsedTree;
 
 impl ParsedTree {
     pub fn can_rename(&self, pos: &Position) -> Option<Range> {

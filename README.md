@@ -4,12 +4,12 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 ![](./assets/protols.mov)
 
 ## Features 
-- [x] Hover 
-- [x] Go to definition
-- [x] Diagnostics
-- [x] Document Symbols for message and enums in current document
-- [x] Rename message, enum and rpc
-- [x] Completion for proto3 keywords
+- [x] Completion (keywords, enums and messages of the package)
+- [x] Diagnostics - based on sytax errors
+- [x] Document Symbols for message and enums
+- [x] Go to definition - across packages
+- [x] Hover - across packages
+- [x] Rename - in current buffer only
 
 ## Installation
 

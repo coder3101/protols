@@ -2,4 +2,4 @@
 source: src/parser/tree.rs
 expression: package_name
 ---
-com.book
+com.parser

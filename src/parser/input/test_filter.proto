@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.book;
+package com.parser;
 
 message Book {
 

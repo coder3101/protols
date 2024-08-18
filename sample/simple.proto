@@ -9,11 +9,17 @@ message Book {
     string title = 2;
     Author author = 3;
     google.protobuf.Any data = 4;
+    BookState state = 5;
 
     // Author is a author of a book
     message Author {
         string name = 1;
         int64 age = 2;
+    }
+
+    enum BookState {
+        HARD_COVER = 1;
+        SOFT_COVER = 2;
     }
 }
 

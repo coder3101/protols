@@ -5,7 +5,6 @@ mod definition;
 mod diagnostics;
 mod docsymbol;
 mod hover;
-mod nodekind;
 mod rename;
 mod tree;
 

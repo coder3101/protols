@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.symbols;
+package com.parser;
 
 // outer 1 comment
 message Outer1 {

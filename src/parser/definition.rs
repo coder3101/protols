@@ -1,7 +1,7 @@
 use async_lsp::lsp_types::{Location, Range};
 use tree_sitter::Node;
 
-use crate::{parser::nodekind::NodeKind, utils::ts_to_lsp_position};
+use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
 use super::ParsedTree;
 

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.library;
+package com.workspace;
 
 // A author is a author
 message Author {
@@ -13,4 +13,3 @@ message Author {
 
    Address foo = 2;
 }
-

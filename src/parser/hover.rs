@@ -1,7 +1,7 @@
 use async_lsp::lsp_types::MarkedString;
 use tree_sitter::Node;
 
-use crate::parser::nodekind::NodeKind;
+use crate::nodekind::NodeKind;
 
 use super::ParsedTree;
 

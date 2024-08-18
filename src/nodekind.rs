@@ -39,6 +39,14 @@ impl NodeKind {
         n.kind() == Self::PackageName.as_str()
     }
 
+    pub fn is_enum_name(n: &Node) -> bool {
+        n.kind() == Self::EnumName.as_str()
+    }
+
+    pub fn is_message_name(n: &Node) -> bool {
+        n.kind() == Self::MessageName.as_str()
+    }
+
     pub fn is_userdefined(n: &Node) -> bool {
         n.kind() == Self::EnumName.as_str() || n.kind() == Self::MessageName.as_str()
     }
