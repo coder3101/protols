@@ -30,19 +30,19 @@ fn is_first_lower_case(s: &&str) -> bool {
 }
 
 pub fn is_inner_identifier(s: &str) -> bool {
-    if !s.contains(".") {
+    if !s.contains('.') {
         return false;
     }
-    s.split(".").all(is_title_case)
+    s.split('.').all(is_title_case)
 }
 
 pub fn split_identifier_package(s: &str) -> (&str, &str) {
-    if is_inner_identifier(s) || !s.contains(".") {
+    if is_inner_identifier(s) || !s.contains('.') {
         return ("", s);
     }
 
     let i = s
-        .split(".")
+        .split('.')
         .take_while(is_first_lower_case)
         .fold(0, |mut c, s| {
             if c != 0 {
