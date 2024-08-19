@@ -28,4 +28,4 @@ require'lspconfig'.protols.setup{}
 
 You can install an extension called [Protobuf Language Support](https://marketplace.visualstudio.com/items?itemName=ianandhum.protobuf-support) which uses this LSP under the hood.
 
-> NOTE: We do not own or maintain this extension.
+> NOTE: It is [open-sourced](https://github.com/ianandhum/vscode-protobuf-support) but do not own or maintain it.
