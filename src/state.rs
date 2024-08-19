@@ -94,26 +94,27 @@ impl ProtoLanguageState {
         let tree = self.trees.clone();
         let docs = self.documents.clone();
 
+        let begin = ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
+            title: String::from("indexing"),
+            cancellable: Some(false),
+            percentage: Some(0),
+            ..Default::default()
+        }));
+
+        if let Err(e) = tx.send(begin) {
+            error!(error=%e, "failed to send work begin progress");
+        }
+
         thread::spawn(move || {
             let files: Vec<_> = WalkDir::new(workspace.uri.path())
                 .into_iter()
                 .filter_map(|e| e.ok())
+                .filter(|e| e.path().extension().is_some())
+                .filter(|e| e.path().extension().unwrap() == "proto")
                 .collect();
 
             let total_files = files.len();
             let mut current = 0;
-
-            let begin =
-                ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
-                    title: String::from("indexing"),
-                    cancellable: Some(false),
-                    percentage: Some(0),
-                    ..Default::default()
-                }));
-
-            if let Err(e) = tx.send(begin) {
-                error!(error=%e, "failed to send work begin progress");
-            }
 
             for file in files.into_iter() {
                 let path = file.path();
@@ -126,7 +127,7 @@ impl ProtoLanguageState {
                         continue;
                     };
 
-                    let r = Self::upsert_content_impl(
+                    Self::upsert_content_impl(
                         parser.lock().expect("poison"),
                         &uri,
                         content,
@@ -135,13 +136,12 @@ impl ProtoLanguageState {
                     );
 
                     current += 1;
-                    info!("workspace parse file: {}, result: {}", path.display(), r);
 
                     let report = ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
                         WorkDoneProgressReport {
                             cancellable: Some(false),
                             message: Some(path.display().to_string()),
-                            percentage: Some(((current / total_files) * 100) as u32),
+                            percentage: Some((current * 100 / total_files) as u32),
                         },
                     ));
 
@@ -155,6 +155,7 @@ impl ProtoLanguageState {
                     message: Some(String::from("completed")),
                 }));
 
+            info!(len = total_files, "workspace file parsing completed");
             if let Err(e) = tx.send(report) {
                 error!(error=%e, "failed to send work completed result");
             }
