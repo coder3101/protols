@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_lsp::lsp_types::Url;
 use tree_sitter::Tree;
 
@@ -12,9 +14,10 @@ pub struct ProtoParser {
     parser: tree_sitter::Parser,
 }
 
+#[derive(Clone)]
 pub struct ParsedTree {
     pub uri: Url,
-    tree: Tree,
+    tree: Arc<Tree>,
 }
 
 impl ProtoParser {
@@ -27,8 +30,9 @@ impl ProtoParser {
     }
 
     pub fn parse(&mut self, uri: Url, contents: impl AsRef<[u8]>) -> Option<ParsedTree> {
-        self.parser
-            .parse(contents, None)
-            .map(|t| ParsedTree { tree: t, uri })
+        self.parser.parse(contents, None).map(|t| ParsedTree {
+            tree: Arc::new(t),
+            uri,
+        })
     }
 }

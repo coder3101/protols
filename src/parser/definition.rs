@@ -22,7 +22,7 @@ impl ParsedTree {
             return;
         }
 
-        if !identifier.contains(".") {
+        if !identifier.contains('.') {
             let locations: Vec<Location> = self
                 .filter_nodes_from(n, NodeKind::is_userdefined)
                 .into_iter()
@@ -41,7 +41,7 @@ impl ParsedTree {
         }
 
         // Safety: identifier contains a .
-        let (parent_identifier, remaining) = identifier.split_once(".").unwrap();
+        let (parent_identifier, remaining) = identifier.split_once('.').unwrap();
         let child_node = self
             .filter_nodes_from(n, NodeKind::is_userdefined)
             .into_iter()
