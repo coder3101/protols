@@ -9,10 +9,10 @@ A Language Server for **proto3** files. It uses tree-sitter parser for all opera
 ## Features 
 - [x] Completion (keywords, enums and messages of the package)
 - [x] Diagnostics - based on sytax errors
-- [x] Document Symbols for message and enums
-- [x] Go to definition - across packages
-- [x] Hover - across packages
-- [x] Rename - in current buffer only
+- [x] Document Symbols
+- [x] Go to definition
+- [x] Hover
+- [x] Rename
 
 ## Installation
 
