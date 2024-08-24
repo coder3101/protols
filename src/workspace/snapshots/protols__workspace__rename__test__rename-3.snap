@@ -1,0 +1,13 @@
+---
+source: src/workspace/rename.rs
+expression: "state.rename_fields(\"com.utility\", \"Foobar.Baz\", \"Foobar.Baaz\")"
+---
+"file://input/a.proto":
+  - range:
+      start:
+        line: 10
+        character: 3
+      end:
+        line: 10
+        character: 25
+    newText: com.utility.Foobar.Baaz

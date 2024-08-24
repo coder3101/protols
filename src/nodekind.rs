@@ -5,6 +5,7 @@ pub enum NodeKind {
     Identifier,
     Error,
     MessageName,
+    Message,
     EnumName,
     FieldName,
     ServiceName,
@@ -19,6 +20,7 @@ impl NodeKind {
             NodeKind::Identifier => "identifier",
             NodeKind::Error => "ERROR",
             NodeKind::MessageName => "message_name",
+            NodeKind::Message => "message",
             NodeKind::EnumName => "enum_name",
             NodeKind::FieldName => "message_or_enum_type",
             NodeKind::ServiceName => "service_name",
@@ -45,6 +47,10 @@ impl NodeKind {
 
     pub fn is_message_name(n: &Node) -> bool {
         n.kind() == Self::MessageName.as_str()
+    }
+
+    pub fn is_message(n: &Node) -> bool {
+        n.kind() == Self::Message.as_str()
     }
 
     pub fn is_field_name(n: &Node) -> bool {

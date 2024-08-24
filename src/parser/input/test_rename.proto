@@ -24,4 +24,5 @@ message Library {
 
 service Myservice {
     rpc GetBook(Empty) returns (Book);
+    rpc GetAuthor(Empty) returns (Book.Author)
 }

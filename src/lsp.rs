@@ -14,7 +14,7 @@ use async_lsp::lsp_types::{
     HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
     PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
     ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    TextDocumentSyncKind, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -238,30 +238,20 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
 
-        let Some(identifier) = tree.get_full_node_text_at_position(&pos, content.as_bytes()) else {
-            error!(uri=%uri, "failed to get full identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
         let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
             error!(uri=%uri, "failed to get package name");
             return Box::pin(async move { Ok(None) });
         };
 
-        let Some(rename_range) = tree.can_rename(&pos) else {
+        let Some((edit, otext, ntext)) = tree.rename_tree(&pos, &new_name, content.as_bytes())
+        else {
+            error!(uri=%uri, "failed to rename in a tree");
             return Box::pin(async move { Ok(None) });
         };
 
         let mut h = HashMap::new();
-        h.insert(
-            tree.uri.clone(),
-            vec![TextEdit {
-                new_text: new_name.clone(),
-                range: rename_range,
-            }],
-        );
-
-        h.extend(self.state.rename(current_package, &identifier, &new_name));
+        h.insert(tree.uri.clone(), edit);
+        h.extend(self.state.rename_fields(current_package, &otext, &ntext));
 
         let response = Some(WorkspaceEdit {
             changes: Some(h),

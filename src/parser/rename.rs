@@ -1,4 +1,5 @@
 use async_lsp::lsp_types::{Position, Range, TextEdit};
+use tree_sitter::Node;
 
 use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
@@ -20,26 +21,80 @@ impl ParsedTree {
             })
     }
 
-    pub fn rename_fields(
+    fn rename_within<'a>(
         &self,
-        field_name: &str,
+        n: Node<'a>,
+        identifier: &str,
+        new_identifier: &str,
+        content: impl AsRef<[u8]>,
+    ) -> Option<Vec<TextEdit>> {
+        n.parent().map(|p| {
+            self.filter_nodes_from(p, NodeKind::is_field_name)
+                .into_iter()
+                .filter(|i| i.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
+                .map(|i| TextEdit {
+                    range: Range {
+                        start: ts_to_lsp_position(&i.start_position()),
+                        end: ts_to_lsp_position(&i.end_position()),
+                    },
+                    new_text: new_identifier.to_string(),
+                })
+                .collect()
+        })
+    }
+
+    pub fn rename_tree(
+        &self,
+        pos: &Position,
+        new_name: &str,
+        content: impl AsRef<[u8]>,
+    ) -> Option<(Vec<TextEdit>, String, String)> {
+        let rename_range = self.can_rename(pos)?;
+
+        let mut v = vec![TextEdit {
+            range: rename_range,
+            new_text: new_name.to_owned(),
+        }];
+
+        let nodes = self.get_ancestor_nodes_at_position(pos);
+
+        let mut i = 1;
+        let mut otext = nodes.get(0)?.utf8_text(content.as_ref()).ok()?.to_owned();
+        let mut ntext = new_name.to_owned();
+
+        while nodes.len() > i {
+            let id = nodes[i].utf8_text(content.as_ref()).ok()?;
+
+            if let Some(edit) = self.rename_within(nodes[i], &otext, &ntext, content.as_ref()) {
+                v.extend(edit);
+            }
+
+            otext = format!("{id}.{otext}");
+            ntext = format!("{id}.{ntext}");
+
+            i += 1
+        }
+
+        return Some((v, otext, ntext));
+    }
+
+    pub fn rename_field(
+        &self,
+        old_identifier: &str,
         new_identifier: &str,
         content: impl AsRef<[u8]>,
     ) -> Vec<TextEdit> {
-        let renaming_field = field_name.split('.').last().unwrap_or(field_name);
-        let new_field_name = field_name.replace(renaming_field, new_identifier);
-
         self.filter_nodes(NodeKind::is_field_name)
             .into_iter()
             .filter(|n| {
                 n.utf8_text(content.as_ref())
                     .expect("utf-8 parse error")
-                    .starts_with(field_name)
+                    .starts_with(old_identifier)
             })
             .map(|n| {
-                let old_text = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
+                let text = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
                 TextEdit {
-                    new_text: old_text.replace(field_name, &new_field_name),
+                    new_text: text.replace(old_identifier, new_identifier),
                     range: Range {
                         start: ts_to_lsp_position(&n.start_position()),
                         end: ts_to_lsp_position(&n.end_position()),
@@ -58,17 +113,39 @@ mod test {
     use crate::parser::ProtoParser;
 
     #[test]
-    fn test_rename_fields() {
+    fn test_rename() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let pos_book = Position {
+            line: 5,
+            character: 9,
+        };
+        let pos_author = Position {
+            line: 11,
+            character: 14,
+        };
+        let pos_non_rename = Position {
+            line: 21,
+            character: 5,
+        };
         let contents = include_str!("input/test_rename.proto");
 
         let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        assert_yaml_snapshot!(tree.rename_fields("Book", "Kitab", contents));
-        assert_yaml_snapshot!(tree.rename_fields("Book.Author", "Writer", contents));
-        assert_yaml_snapshot!(tree.rename_fields("xyz.abc", "Doesn't matter", contents));
+        let rename_fn = |nt: &str, pos: &Position| {
+            if let Some(k) = tree.rename_tree(pos, nt, contents) {
+                let mut v = tree.rename_field(&k.1, &k.2, contents);
+                v.extend(k.0);
+                v
+            } else {
+                vec![]
+            }
+        };
+
+        assert_yaml_snapshot!(rename_fn("Kitab", &pos_book));
+        assert_yaml_snapshot!(rename_fn("Writer", &pos_author));
+        assert_yaml_snapshot!(rename_fn("xyx", &pos_non_rename));
     }
 
     #[test]
