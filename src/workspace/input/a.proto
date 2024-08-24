@@ -8,6 +8,6 @@ import "c.proto";
 message Book {
    Author author = 1;
    Author.Address foo = 2;
-   com.utility.FooBar.Baz z = 3;
+   com.utility.Foobar.Baz z = 3;
 }
 

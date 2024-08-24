@@ -1,6 +1,6 @@
 ---
 source: src/parser/rename.rs
-expression: "rename_fn(\"Kitab\", &pos_book)"
+expression: "tree.rename_fields(\"Book\", \"Kitab\", contents)"
 ---
 - range:
     start:
@@ -25,20 +25,4 @@ expression: "rename_fn(\"Kitab\", &pos_book)"
     end:
       line: 25
       character: 36
-  newText: Kitab
-- range:
-    start:
-      line: 26
-      character: 34
-    end:
-      line: 26
-      character: 45
-  newText: Kitab.Author
-- range:
-    start:
-      line: 5
-      character: 8
-    end:
-      line: 5
-      character: 12
   newText: Kitab

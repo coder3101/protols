@@ -47,6 +47,15 @@ impl ProtoLanguageState {
         self.trees.read().expect("poison").get(uri).cloned()
     }
 
+    pub fn get_trees(&self) -> Vec<ParsedTree> {
+        self.trees
+            .read()
+            .expect("poison")
+            .values()
+            .map(ToOwned::to_owned)
+            .collect()
+    }
+
     pub fn get_trees_for_package(&self, package: &str) -> Vec<ParsedTree> {
         self.trees
             .read()

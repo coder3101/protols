@@ -1,5 +1,5 @@
 ---
 source: src/parser/rename.rs
-expression: "tree.rename(&pos_non_renamble, \"Doesn't matter\", contents)"
+expression: "rename_fn(\"xyx\", &pos_non_rename)"
 ---
-~
+[]
