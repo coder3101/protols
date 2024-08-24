@@ -1,0 +1,28 @@
+---
+source: src/parser/rename.rs
+expression: "tree.rename_fields(\"Book\", \"Kitab\", contents)"
+---
+- range:
+    start:
+      line: 20
+      character: 13
+    end:
+      line: 20
+      character: 17
+  newText: Kitab
+- range:
+    start:
+      line: 21
+      character: 4
+    end:
+      line: 21
+      character: 15
+  newText: Kitab.Author
+- range:
+    start:
+      line: 25
+      character: 32
+    end:
+      line: 25
+      character: 36
+  newText: Kitab

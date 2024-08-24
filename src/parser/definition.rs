@@ -22,34 +22,39 @@ impl ParsedTree {
             return;
         }
 
-        if !identifier.contains('.') {
-            let locations: Vec<Location> = self
-                .filter_nodes_from(n, NodeKind::is_userdefined)
-                .into_iter()
-                .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
-                .map(|n| Location {
-                    uri: self.uri.clone(),
-                    range: Range {
-                        start: ts_to_lsp_position(&n.start_position()),
-                        end: ts_to_lsp_position(&n.end_position()),
-                    },
-                })
-                .collect();
+        match identifier.split_once('.') {
+            Some((parent_identifier, remaining)) => {
+                let child_node = self
+                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .into_iter()
+                    .find(|n| {
+                        n.utf8_text(content.as_ref()).expect("utf8-parse error")
+                            == parent_identifier
+                    })
+                    .and_then(|n| n.parent());
 
-            v.extend(locations);
-            return;
-        }
+                if let Some(inner) = child_node {
+                    self.definition_impl(remaining, inner, v, content);
+                }
+            }
+            None => {
+                let locations: Vec<Location> = self
+                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .into_iter()
+                    .filter(|n| {
+                        n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier
+                    })
+                    .map(|n| Location {
+                        uri: self.uri.clone(),
+                        range: Range {
+                            start: ts_to_lsp_position(&n.start_position()),
+                            end: ts_to_lsp_position(&n.end_position()),
+                        },
+                    })
+                    .collect();
 
-        // Safety: identifier contains a .
-        let (parent_identifier, remaining) = identifier.split_once('.').unwrap();
-        let child_node = self
-            .filter_nodes_from(n, NodeKind::is_userdefined)
-            .into_iter()
-            .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent_identifier)
-            .and_then(|n| n.parent());
-
-        if let Some(inner) = child_node {
-            self.definition_impl(remaining, inner, v, content);
+                v.extend(locations);
+            }
         }
     }
 }

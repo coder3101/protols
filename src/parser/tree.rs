@@ -72,6 +72,26 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
+    pub fn get_full_node_text_at_position<'a>(
+        &'a self,
+        pos: &Position,
+        content: &'a [u8],
+    ) -> Option<String> {
+        let Some(n) = self.get_actionable_node_at_position(pos) else {
+            return None;
+        };
+
+        let ntext = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
+        let mut result = format!("{ntext}");
+        while let Some(p) = n.parent() {
+            if NodeKind::is_message_name(&n) {
+                let ptext = p.utf8_text(content.as_ref()).expect("utf-8 parse error");
+                result = format!("{ptext}.{result}");
+            }
+        }
+        Some(result)
+    }
+
     pub fn get_actionable_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         self.get_node_at_position(pos)
             .map(|n| {
@@ -118,13 +138,8 @@ impl ParsedTree {
 mod test {
     use async_lsp::lsp_types::Url;
     use insta::assert_yaml_snapshot;
-    use tree_sitter::Node;
 
-    use crate::parser::ProtoParser;
-
-    fn is_message(n: &Node) -> bool {
-        n.kind() == "message_name"
-    }
+    use crate::{nodekind::NodeKind, parser::ProtoParser};
 
     #[test]
     fn test_filter() {
@@ -134,7 +149,7 @@ mod test {
 
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let nodes = tree.filter_nodes(is_message);
+        let nodes = tree.filter_nodes(NodeKind::is_message_name);
 
         assert_eq!(nodes.len(), 2);
 

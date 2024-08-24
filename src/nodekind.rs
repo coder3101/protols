@@ -47,6 +47,10 @@ impl NodeKind {
         n.kind() == Self::MessageName.as_str()
     }
 
+    pub fn is_field_name(n: &Node) -> bool {
+        n.kind() == Self::FieldName.as_str()
+    }
+
     pub fn is_userdefined(n: &Node) -> bool {
         n.kind() == Self::EnumName.as_str() || n.kind() == Self::MessageName.as_str()
     }

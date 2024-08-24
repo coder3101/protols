@@ -64,29 +64,31 @@ impl ParsedTree {
             return;
         }
 
-        if !identifier.contains('.') {
-            let comments: Vec<MarkedString> = self
-                .filter_nodes_from(n, NodeKind::is_userdefined)
-                .into_iter()
-                .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
-                .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
-                .map(MarkedString::String)
-                .collect();
+        match identifier.split_once('.') {
+            Some((parent, child)) => {
+                let child_node = self
+                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .into_iter()
+                    .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent)
+                    .and_then(|n| n.parent());
 
-            v.extend(comments);
-            return;
-        }
+                if let Some(inner) = child_node {
+                    self.hover_impl(child, inner, v, content);
+                }
+            }
+            None => {
+                let comments: Vec<MarkedString> = self
+                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .into_iter()
+                    .filter(|n| {
+                        n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier
+                    })
+                    .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
+                    .map(MarkedString::String)
+                    .collect();
 
-        // Safety: identifier contains a .
-        let (parent_identifier, remaining) = identifier.split_once('.').unwrap();
-        let child_node = self
-            .filter_nodes_from(n, NodeKind::is_userdefined)
-            .into_iter()
-            .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent_identifier)
-            .and_then(|n| n.parent());
-
-        if let Some(inner) = child_node {
-            self.hover_impl(remaining, inner, v, content);
+                v.extend(comments);
+            }
         }
     }
 }

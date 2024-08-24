@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use async_lsp::lsp_types::{Position, Range, TextEdit, WorkspaceEdit};
+use async_lsp::lsp_types::{Position, Range, TextEdit};
 
 use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
 
@@ -22,41 +20,33 @@ impl ParsedTree {
             })
     }
 
-    pub fn rename(
+    pub fn rename_fields(
         &self,
-        pos: &Position,
-        new_text: &str,
+        field_name: &str,
+        new_identifier: &str,
         content: impl AsRef<[u8]>,
-    ) -> Option<WorkspaceEdit> {
-        let old_text = self
-            .get_node_text_at_position(pos, content.as_ref())
-            .unwrap_or_default();
+    ) -> Vec<TextEdit> {
+        let renaming_field = field_name.split('.').last().unwrap_or(field_name);
+        let new_field_name = field_name.replace(renaming_field, new_identifier);
 
-        let mut changes = HashMap::new();
-
-        let diff: Vec<_> = self
-            .filter_nodes(NodeKind::is_identifier)
+        self.filter_nodes(NodeKind::is_field_name)
             .into_iter()
-            .filter(|n| n.utf8_text(content.as_ref()).unwrap() == old_text)
-            .map(|n| TextEdit {
-                new_text: new_text.to_string(),
-                range: Range {
-                    start: ts_to_lsp_position(&n.start_position()),
-                    end: ts_to_lsp_position(&n.end_position()),
-                },
+            .filter(|n| {
+                n.utf8_text(content.as_ref())
+                    .expect("utf-8 parse error")
+                    .starts_with(field_name)
             })
-            .collect();
-
-        if diff.is_empty() {
-            return None;
-        }
-
-        changes.insert(self.uri.clone(), diff);
-
-        Some(WorkspaceEdit {
-            changes: Some(changes),
-            ..Default::default()
-        })
+            .map(|n| {
+                let old_text = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
+                TextEdit {
+                    new_text: old_text.replace(field_name, &new_field_name),
+                    range: Range {
+                        start: ts_to_lsp_position(&n.start_position()),
+                        end: ts_to_lsp_position(&n.end_position()),
+                    },
+                }
+            })
+            .collect()
     }
 }
 
@@ -68,29 +58,17 @@ mod test {
     use crate::parser::ProtoParser;
 
     #[test]
-    fn test_rename() {
+    fn test_rename_fields() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
-        let pos_book_rename = Position {
-            line: 5,
-            character: 9,
-        };
-        let pos_author_rename = Position {
-            line: 21,
-            character: 10,
-        };
-        let pos_non_renamble = Position {
-            line: 24,
-            character: 4,
-        };
         let contents = include_str!("input/test_rename.proto");
 
         let parsed = ProtoParser::new().parse(uri.clone(), contents);
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        assert_yaml_snapshot!(tree.rename(&pos_book_rename, "Kitab", contents));
-        assert_yaml_snapshot!(tree.rename(&pos_author_rename, "Writer", contents));
-        assert_yaml_snapshot!(tree.rename(&pos_non_renamble, "Doesn't matter", contents));
+        assert_yaml_snapshot!(tree.rename_fields("Book", "Kitab", contents));
+        assert_yaml_snapshot!(tree.rename_fields("Book.Author", "Writer", contents));
+        assert_yaml_snapshot!(tree.rename_fields("xyz.abc", "Doesn't matter", contents));
     }
 
     #[test]

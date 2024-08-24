@@ -1,0 +1,5 @@
+---
+source: src/parser/rename.rs
+expression: "tree.rename_fields(\"xyz.abc\", \"Doesn't matter\", contents)"
+---
+[]

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::ops::ControlFlow;
 use std::sync::mpsc;
@@ -11,11 +12,10 @@ use async_lsp::lsp_types::{
     DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
-    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions,
-    RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
+    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -187,7 +187,7 @@ impl LanguageServer for ProtoLanguageServer {
             "enum", "oneof", "repeated", "reserved", "to",
         ];
 
-        let mut keywords: Vec<CompletionItem> = keywords
+        let mut completions: Vec<CompletionItem> = keywords
             .into_iter()
             .map(|w| CompletionItem {
                 label: w.to_string(),
@@ -199,10 +199,10 @@ impl LanguageServer for ProtoLanguageServer {
         if let Some(tree) = self.state.get_tree(&uri) {
             let content = self.state.get_content(&uri);
             if let Some(package_name) = tree.get_package_name(content.as_bytes()) {
-                keywords.extend(self.state.completion_items(package_name));
+                completions.extend(self.state.completion_items(package_name));
             }
         }
-        Box::pin(async move { Ok(Some(CompletionResponse::Array(keywords))) })
+        Box::pin(async move { Ok(Some(CompletionResponse::Array(completions))) })
     }
 
     fn prepare_rename(
@@ -238,11 +238,35 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
 
-        let response = if tree.can_rename(&pos).is_some() {
-            tree.rename(&pos, &new_name, content)
-        } else {
-            None
+        let Some(identifier) = tree.get_full_node_text_at_position(&pos, content.as_bytes()) else {
+            error!(uri=%uri, "failed to get full identifier");
+            return Box::pin(async move { Ok(None) });
         };
+
+        let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
+            error!(uri=%uri, "failed to get package name");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let Some(rename_range) = tree.can_rename(&pos) else {
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let mut h = HashMap::new();
+        h.insert(
+            tree.uri.clone(),
+            vec![TextEdit {
+                new_text: new_name.clone(),
+                range: rename_range,
+            }],
+        );
+
+        h.extend(self.state.rename(current_package, &identifier, &new_name));
+
+        let response = Some(WorkspaceEdit {
+            changes: Some(h),
+            ..Default::default()
+        });
 
         Box::pin(async move { Ok(response) })
     }
