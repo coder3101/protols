@@ -21,9 +21,9 @@ impl ParsedTree {
             })
     }
 
-    fn rename_within<'a>(
+    fn rename_within(
         &self,
-        n: Node<'a>,
+        n: Node<'_>,
         identifier: &str,
         new_identifier: &str,
         content: impl AsRef<[u8]>,
@@ -59,7 +59,7 @@ impl ParsedTree {
         let nodes = self.get_ancestor_nodes_at_position(pos);
 
         let mut i = 1;
-        let mut otext = nodes.get(0)?.utf8_text(content.as_ref()).ok()?.to_owned();
+        let mut otext = nodes.first()?.utf8_text(content.as_ref()).ok()?.to_owned();
         let mut ntext = new_name.to_owned();
 
         while nodes.len() > i {
@@ -75,7 +75,7 @@ impl ParsedTree {
             i += 1
         }
 
-        return Some((v, otext, ntext));
+        Some((v, otext, ntext))
     }
 
     pub fn rename_field(
