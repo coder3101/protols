@@ -55,7 +55,11 @@ mod test {
         state.upsert_file(&c_uri, c.to_owned());
 
         assert_yaml_snapshot!(state.rename_fields("com.workspace", "Author", "Writer"));
-        assert_yaml_snapshot!(state.rename_fields("com.workspace", "Author.Address", "Author.Location"));
+        assert_yaml_snapshot!(state.rename_fields(
+            "com.workspace",
+            "Author.Address",
+            "Author.Location"
+        ));
         assert_yaml_snapshot!(state.rename_fields("com.utility", "Foobar.Baz", "Foobar.Baaz"));
     }
 }
