@@ -8,18 +8,21 @@ use tracing::{error, info};
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
-    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
-    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
-    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
+    FileOperationPatternKind, FileOperationRegistrationOptions,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PrepareRenameResponse,
+    ProgressParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
+use crate::formatter::clang::ClangFormatter;
+use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 
 impl LanguageServer for ProtoLanguageServer {
@@ -73,7 +76,15 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let mut workspace_capabilities = None;
+        let mut formatter_provider = None;
         if let Some(folders) = params.workspace_folders {
+            if let Ok(formatter) =
+                ClangFormatter::new("clang-format", folders.first().unwrap().uri.path())
+            {
+                self.state.add_formatter(formatter);
+                formatter_provider = Some(OneOf::Left(true));
+                info!("Setting formatting client capability");
+            }
             for workspace in folders {
                 info!("Workspace folder: {workspace:?}");
                 self.state.add_workspace_folder_async(workspace, tx.clone())
@@ -120,6 +131,7 @@ impl LanguageServer for ProtoLanguageServer {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
                 rename_provider: Some(rename_provider),
+                document_formatting_provider: formatter_provider,
 
                 ..ServerCapabilities::default()
             },
@@ -316,6 +328,18 @@ impl LanguageServer for ProtoLanguageServer {
         let response = DocumentSymbolResponse::Nested(locations);
 
         Box::pin(async move { Ok(Some(response)) })
+    }
+
+    fn formatting(
+        &mut self,
+        params: DocumentFormattingParams,
+    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+        let response = self
+            .state
+            .get_formatter()
+            .and_then(|f| f.format_document(&params.text_document.uri));
+
+        Box::pin(async move { Ok(response) })
     }
 
     fn did_save(&mut self, _: DidSaveTextDocumentParams) -> Self::NotifyResult {
