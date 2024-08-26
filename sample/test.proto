@@ -5,7 +5,7 @@ package a.b.c;
 message CustomType { bool attribute = 1; }
 
 message SomeMessage {
-  int64 someAttribute = 1;
+  int64          someAttribute =    1;
 
-  CustomType another = 2;
+      CustomType another = 2;
 }

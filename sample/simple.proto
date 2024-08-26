@@ -27,14 +27,17 @@ message Book {
 
 // This is a comment on message
 message GetBookRequest {
-
   // This is a sigle line comment on the field of a message
   int64 isbn = 1;
 }
 
-message GotoBookRequest { bool flag = 1; }
+message GotoBookRequest {
+  bool flag = 1;
+}
 
-message GetBookViaAuthor { Book.Author author = 1; }
+message GetBookViaAuthor {
+  Book.Author author = 1;
+}
 
 // It is a BookService Implementation
 service BookService {

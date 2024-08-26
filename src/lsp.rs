@@ -9,14 +9,14 @@ use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
-    FileOperationPatternKind, FileOperationRegistrationOptions,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PrepareRenameResponse,
-    ProgressParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
+    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
+    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -77,12 +77,13 @@ impl LanguageServer for ProtoLanguageServer {
 
         let mut workspace_capabilities = None;
         let mut formatter_provider = None;
+        let mut formatter_range_provider = None;
         if let Some(folders) = params.workspace_folders {
-            if let Ok(formatter) =
-                ClangFormatter::new("clang-format", folders.first().unwrap().uri.path())
+            if let Ok(f) = ClangFormatter::new("clang-format", folders.first().unwrap().uri.path())
             {
-                self.state.add_formatter(formatter);
+                self.state.add_formatter(f);
                 formatter_provider = Some(OneOf::Left(true));
+                formatter_range_provider = Some(OneOf::Left(true));
                 info!("Setting formatting client capability");
             }
             for workspace in folders {
@@ -132,6 +133,7 @@ impl LanguageServer for ProtoLanguageServer {
                 completion_provider: Some(CompletionOptions::default()),
                 rename_provider: Some(rename_provider),
                 document_formatting_provider: formatter_provider,
+                document_range_formatting_provider: formatter_range_provider,
 
                 ..ServerCapabilities::default()
             },
@@ -338,6 +340,18 @@ impl LanguageServer for ProtoLanguageServer {
             .state
             .get_formatter()
             .and_then(|f| f.format_document(&params.text_document.uri));
+
+        Box::pin(async move { Ok(response) })
+    }
+
+    fn range_formatting(
+        &mut self,
+        params: DocumentRangeFormattingParams,
+    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+        let response = self
+            .state
+            .get_formatter()
+            .and_then(|f| f.format_document_range(&params.text_document.uri, &params.range));
 
         Box::pin(async move { Ok(response) })
     }

@@ -23,6 +23,8 @@ tree-sitter = "0.22.6"
 tracing-appender = "0.2.3"
 protols-tree-sitter-proto = "0.2.0"
 walkdir = "2.5.0"
+serde-xml-rs = "0.6.0"
+serde = { version = "1.0.209", features = ["derive"] }
 
 [dev-dependencies]
 insta = { version = "1.39.0", features = ["yaml"] }

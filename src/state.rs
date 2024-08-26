@@ -21,7 +21,6 @@ use crate::{
 };
 
 pub struct ProtoLanguageState<F: ProtoFormatter> {
-    worspace: Option<WorkspaceFolder>,
     documents: Arc<RwLock<HashMap<Url, String>>>,
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
     formatter: Option<F>,
@@ -33,7 +32,6 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         ProtoLanguageState {
             documents: Default::default(),
             trees: Default::default(),
-            worspace: Default::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             formatter: Default::default(),
         }
