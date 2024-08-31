@@ -1,26 +1,62 @@
-use serde::{Deserialize, Serialize};
-use serde_xml_rs::from_str;
-use std::{error::Error, process::Command};
+use std::{borrow::Cow, error::Error, fs::File, io::Write, path::PathBuf, process::Command};
 
 use async_lsp::lsp_types::{Position, Range, TextEdit, Url};
+use hard_xml::XmlRead;
+use tempfile::{tempdir, TempDir};
 
 use super::ProtoFormatter;
 
 pub struct ClangFormatter {
     path: String,
     working_dir: String,
+    temp_dir: TempDir,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct Replacements {
-    replacements: Vec<Replacement>,
+#[derive(XmlRead, PartialEq, Debug)]
+#[xml(tag = "replacements")]
+struct Replacements<'a> {
+    #[xml(child = "replacement")]
+    replacements: Vec<Replacement<'a>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct Replacement {
-    offset: u32,
-    length: u32,
-    value: String,
+#[derive(XmlRead, PartialEq, Debug)]
+#[xml(tag = "replacement")]
+struct Replacement<'a> {
+    #[xml(attr = "offset")]
+    offset: usize,
+    #[xml(attr = "length")]
+    length: usize,
+    #[xml(text)]
+    text: Cow<'a, str>,
+}
+
+impl<'a> Replacement<'a> {
+    fn offset_to_position(offset: usize, content: &str) -> Option<Position> {
+        if offset > content.len() {
+            return None;
+        }
+        let up_to_offset = &content[..offset];
+        let line = up_to_offset.matches('\n').count();
+        let last_newline = up_to_offset.rfind('\n').map_or(0, |pos| pos + 1);
+        let character = offset - last_newline;
+
+        tracing::info!(line, character);
+
+        Some(Position {
+            line: line as u32,
+            character: character as u32,
+        })
+    }
+
+    fn as_text_edit(&self, content: &str) -> Option<TextEdit> {
+        Some(TextEdit {
+            range: Range {
+                start: Self::offset_to_position(self.offset, content)?,
+                end: Self::offset_to_position(self.offset + self.length, content)?,
+            },
+            new_text: self.text.to_string(),
+        })
+    }
 }
 
 impl ClangFormatter {
@@ -29,59 +65,56 @@ impl ClangFormatter {
         c.arg("--version").status()?;
 
         Ok(Self {
+            temp_dir: tempdir()?,
             path: path.to_owned(),
             working_dir: workdir.to_owned(),
         })
     }
 
-    fn get_command(&self, u: &Url) -> Command {
+    fn get_temp_file_path(&self, content: &str) -> Option<PathBuf> {
+        let p = self.temp_dir.path().join("");
+        let mut file = File::create(p.clone()).ok()?;
+        file.write_all(content.as_ref()).ok()?;
+        return Some(p);
+    }
+
+    fn get_command(&self, u: &PathBuf) -> Command {
         let mut c = Command::new(self.path.as_str());
         c.current_dir(self.working_dir.as_str());
-        c.args([u.path(), "--output-replacements-xml"]);
+        c.args([u.as_path().to_str().unwrap(), "--output-replacements-xml"]);
         c
     }
-}
 
-impl ProtoFormatter for ClangFormatter {
-    fn format_document(&self, u: &Url) -> Option<Vec<TextEdit>> {
-        let output = self.get_command(u).output().ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let output = String::from_utf8_lossy(&output.stdout);
-
-        let out: Replacements = from_str(&output).ok()?;
-        let edits = out
+    fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
+        let r = Replacements::from_str(&output).ok()?;
+        tracing::info!("{r:?}");
+        let edits = r
             .replacements
             .into_iter()
-            .map(|r| TextEdit {
-                range: Range {
-                    start: Position {
-                        line: 0,
-                        character: 0,
-                    },
-                    end: Position {
-                        line: 1,
-                        character: 3,
-                    },
-                },
-                new_text: r.value,
-            })
+            .filter_map(|r| r.as_text_edit(content.as_ref()))
             .collect();
 
         tracing::info!("{edits:?}");
         Some(edits)
     }
+}
 
-    fn format_document_range(
-        &self,
-        u: &Url,
-        r: &Range,
-    ) -> Option<Vec<async_lsp::lsp_types::TextEdit>> {
+impl ProtoFormatter for ClangFormatter {
+    fn format_document(&self, content: &str) -> Option<Vec<TextEdit>> {
+        let p = self.get_temp_file_path(content)?;
+        let output = self.get_command(&p).output().ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+    }
+
+    fn format_document_range(&self, r: &Range, content: &str) -> Option<Vec<TextEdit>> {
+        let p = self.get_temp_file_path(content)?;
         let start = r.start.line + 1;
         let end = r.end.line + 1;
         let output = self
-            .get_command(u)
+            .get_command(&p)
             .args(["--lines", format!("{start}:{end}").as_str()])
             .output()
             .ok()?;
@@ -89,34 +122,6 @@ impl ProtoFormatter for ClangFormatter {
         if !output.status.success() {
             return None;
         }
-
-        let output = String::from_utf8_lossy(&output.stdout);
-
-        tracing::info!("{output}");
-        if let Err(e) = from_str::<Replacements>(&output) {
-            tracing::error!("{e}");
-            return None;
-        }
-        let out: Replacements = from_str(&output).ok()?;
-        let edits = out
-            .replacements
-            .into_iter()
-            .map(|r| TextEdit {
-                range: Range {
-                    start: Position {
-                        line: 9,
-                        character: 1,
-                    },
-                    end: Position {
-                        line: 12,
-                        character: 6,
-                    },
-                },
-                new_text: r.value,
-            })
-            .collect();
-
-        tracing::info!("{edits:?}");
-        Some(edits)
+        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 }

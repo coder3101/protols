@@ -336,10 +336,13 @@ impl LanguageServer for ProtoLanguageServer {
         &mut self,
         params: DocumentFormattingParams,
     ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+        let uri = params.text_document.uri;
+        let content = self.state.get_content(&uri);
+
         let response = self
             .state
             .get_formatter()
-            .and_then(|f| f.format_document(&params.text_document.uri));
+            .and_then(|f| f.format_document(content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
@@ -348,10 +351,13 @@ impl LanguageServer for ProtoLanguageServer {
         &mut self,
         params: DocumentRangeFormattingParams,
     ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+        let uri = params.text_document.uri;
+        let content = self.state.get_content(&uri);
+
         let response = self
             .state
             .get_formatter()
-            .and_then(|f| f.format_document_range(&params.text_document.uri, &params.range));
+            .and_then(|f| f.format_document_range(&params.range, content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
