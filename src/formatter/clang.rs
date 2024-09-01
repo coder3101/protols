@@ -1,4 +1,12 @@
-use std::{borrow::Cow, error::Error, fs::File, io::Write, path::PathBuf, process::Command};
+#![allow(clippy::needless_late_init)]
+use std::{
+    borrow::Cow,
+    error::Error,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use async_lsp::lsp_types::{Position, Range, TextEdit};
 use hard_xml::XmlRead;
@@ -74,20 +82,20 @@ impl ClangFormatter {
         let p = self.temp_dir.path().join("format-temp.proto");
         let mut file = File::create(p.clone()).ok()?;
         file.write_all(content.as_ref()).ok()?;
-        return Some(p);
+        Some(p)
     }
 
-    fn get_command(&self, u: &PathBuf) -> Command {
+    fn get_command(&self, u: &Path) -> Command {
         let mut c = Command::new(self.path.as_str());
         if let Some(wd) = self.working_dir.as_ref() {
             c.current_dir(wd.as_str());
         }
-        c.args([u.as_path().to_str().unwrap(), "--output-replacements-xml"]);
+        c.args([u.to_str().unwrap(), "--output-replacements-xml"]);
         c
     }
 
     fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
-        let r = Replacements::from_str(&output).ok()?;
+        let r = Replacements::from_str(output).ok()?;
         let edits = r
             .replacements
             .into_iter()
@@ -101,7 +109,7 @@ impl ClangFormatter {
 impl ProtoFormatter for ClangFormatter {
     fn format_document(&self, content: &str) -> Option<Vec<TextEdit>> {
         let p = self.get_temp_file_path(content)?;
-        let output = self.get_command(&p).output().ok()?;
+        let output = self.get_command(p.as_ref()).output().ok()?;
         if !output.status.success() {
             tracing::error!(
                 status = output.status.code(),
@@ -117,7 +125,7 @@ impl ProtoFormatter for ClangFormatter {
         let start = r.start.line + 1;
         let end = r.end.line + 1;
         let output = self
-            .get_command(&p)
+            .get_command(p.as_ref())
             .args(["--lines", format!("{start}:{end}").as_str()])
             .output()
             .ok()?;
