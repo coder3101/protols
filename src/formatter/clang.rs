@@ -1,25 +1,26 @@
 use std::{borrow::Cow, error::Error, fs::File, io::Write, path::PathBuf, process::Command};
 
-use async_lsp::lsp_types::{Position, Range, TextEdit, Url};
+use async_lsp::lsp_types::{Position, Range, TextEdit};
 use hard_xml::XmlRead;
+use serde::Serialize;
 use tempfile::{tempdir, TempDir};
 
 use super::ProtoFormatter;
 
 pub struct ClangFormatter {
     path: String,
-    working_dir: String,
+    working_dir: Option<String>,
     temp_dir: TempDir,
 }
 
-#[derive(XmlRead, PartialEq, Debug)]
+#[derive(XmlRead, Serialize, PartialEq, Debug)]
 #[xml(tag = "replacements")]
 struct Replacements<'a> {
     #[xml(child = "replacement")]
     replacements: Vec<Replacement<'a>>,
 }
 
-#[derive(XmlRead, PartialEq, Debug)]
+#[derive(XmlRead, Serialize, PartialEq, Debug)]
 #[xml(tag = "replacement")]
 struct Replacement<'a> {
     #[xml(attr = "offset")]
@@ -40,8 +41,6 @@ impl<'a> Replacement<'a> {
         let last_newline = up_to_offset.rfind('\n').map_or(0, |pos| pos + 1);
         let character = offset - last_newline;
 
-        tracing::info!(line, character);
-
         Some(Position {
             line: line as u32,
             character: character as u32,
@@ -60,19 +59,19 @@ impl<'a> Replacement<'a> {
 }
 
 impl ClangFormatter {
-    pub fn new(path: &str, workdir: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(path: &str, workdir: Option<&str>) -> Result<Self, Box<dyn Error>> {
         let mut c = Command::new(path);
         c.arg("--version").status()?;
 
         Ok(Self {
             temp_dir: tempdir()?,
             path: path.to_owned(),
-            working_dir: workdir.to_owned(),
+            working_dir: workdir.map(ToOwned::to_owned),
         })
     }
 
     fn get_temp_file_path(&self, content: &str) -> Option<PathBuf> {
-        let p = self.temp_dir.path().join("");
+        let p = self.temp_dir.path().join("format-temp.proto");
         let mut file = File::create(p.clone()).ok()?;
         file.write_all(content.as_ref()).ok()?;
         return Some(p);
@@ -80,21 +79,21 @@ impl ClangFormatter {
 
     fn get_command(&self, u: &PathBuf) -> Command {
         let mut c = Command::new(self.path.as_str());
-        c.current_dir(self.working_dir.as_str());
+        if let Some(wd) = self.working_dir.as_ref() {
+            c.current_dir(wd.as_str());
+        }
         c.args([u.as_path().to_str().unwrap(), "--output-replacements-xml"]);
         c
     }
 
     fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
         let r = Replacements::from_str(&output).ok()?;
-        tracing::info!("{r:?}");
         let edits = r
             .replacements
             .into_iter()
             .filter_map(|r| r.as_text_edit(content.as_ref()))
             .collect();
 
-        tracing::info!("{edits:?}");
         Some(edits)
     }
 }
@@ -104,6 +103,10 @@ impl ProtoFormatter for ClangFormatter {
         let p = self.get_temp_file_path(content)?;
         let output = self.get_command(&p).output().ok()?;
         if !output.status.success() {
+            tracing::error!(
+                status = output.status.code(),
+                "failed to execute clang-format"
+            );
             return None;
         }
         self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
@@ -120,8 +123,45 @@ impl ProtoFormatter for ClangFormatter {
             .ok()?;
 
         if !output.status.success() {
+            tracing::error!(
+                status = output.status.code(),
+                "failed to execute clang-format"
+            );
             return None;
         }
         self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use hard_xml::XmlRead;
+    use insta::{assert_yaml_snapshot, with_settings};
+
+    use super::{Replacement, Replacements};
+
+    #[test]
+    fn test_reading_xml() {
+        let c = include_str!("input/replacement.xml");
+        let r = Replacements::from_str(c).unwrap();
+        assert_yaml_snapshot!(r);
+    }
+
+    #[test]
+    fn test_reading_empty_xml() {
+        let c = include_str!("input/empty.xml");
+        let r = Replacements::from_str(c).unwrap();
+        assert_yaml_snapshot!(r);
+    }
+
+    #[test]
+    fn test_offset_to_position() {
+        let c = include_str!("input/test.proto");
+        let pos = vec![0, 4, 22, 999];
+        for i in pos {
+            with_settings!({description => c, info => &i}, {
+                assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
+            })
+        }
     }
 }

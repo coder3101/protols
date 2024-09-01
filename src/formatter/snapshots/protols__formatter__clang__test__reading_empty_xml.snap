@@ -1,0 +1,5 @@
+---
+source: src/formatter/clang.rs
+expression: r
+---
+replacements: []

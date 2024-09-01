@@ -1,0 +1,11 @@
+---
+source: src/formatter/clang.rs
+expression: r
+---
+replacements:
+  - offset: 56
+    length: 1
+    text: "\n  "
+  - offset: 76
+    length: 1
+    text: "\n"

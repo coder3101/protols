@@ -79,12 +79,12 @@ impl LanguageServer for ProtoLanguageServer {
         let mut formatter_provider = None;
         let mut formatter_range_provider = None;
         if let Some(folders) = params.workspace_folders {
-            if let Ok(f) = ClangFormatter::new("clang-format", folders.first().unwrap().uri.path())
+            if let Ok(f) = ClangFormatter::new("clang-format", folders.first().map(|f| f.uri.path()))
             {
                 self.state.add_formatter(f);
                 formatter_provider = Some(OneOf::Left(true));
                 formatter_range_provider = Some(OneOf::Left(true));
-                info!("Setting formatting client capability");
+                info!("Setting formatting server capability");
             }
             for workspace in folders {
                 info!("Workspace folder: {workspace:?}");

@@ -1,0 +1,8 @@
+---
+source: src/formatter/clang.rs
+description: "syntax = \"proto3\";\n\npackage foo.bar;\n\nmessage Box {\n  int64 height = 1;\n  int64 width = 2;\n  int64 depth = 3;\n}\n\nservice BoxAreaFinder { rpc FindArea(Box) returns (int64); }\n"
+expression: "Replacement::offset_to_position(i, c)"
+info: 4
+---
+line: 0
+character: 4
