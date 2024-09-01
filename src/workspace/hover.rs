@@ -1,8 +1,10 @@
 use async_lsp::lsp_types::MarkedString;
 
-use crate::{state::ProtoLanguageState, utils::split_identifier_package};
+use crate::{
+    formatter::ProtoFormatter, state::ProtoLanguageState, utils::split_identifier_package,
+};
 
-impl ProtoLanguageState {
+impl<F: ProtoFormatter> ProtoLanguageState<F> {
     pub fn hover(&self, curr_package: &str, identifier: &str) -> Vec<MarkedString> {
         let (mut package, identifier) = split_identifier_package(identifier);
         if package.is_empty() {
@@ -22,7 +24,7 @@ impl ProtoLanguageState {
 mod test {
     use insta::assert_yaml_snapshot;
 
-    use crate::state::ProtoLanguageState;
+    use crate::{formatter::clang::ClangFormatter, state::ProtoLanguageState};
 
     #[test]
     fn workspace_test_hover() {
@@ -34,7 +36,7 @@ mod test {
         let b = include_str!("input/b.proto");
         let c = include_str!("input/c.proto");
 
-        let mut state = ProtoLanguageState::new();
+        let mut state: ProtoLanguageState<ClangFormatter> = ProtoLanguageState::new();
         state.upsert_file(&a_uri, a.to_owned());
         state.upsert_file(&b_uri, b.to_owned());
         state.upsert_file(&c_uri, c.to_owned());

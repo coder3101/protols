@@ -1,11 +1,11 @@
-use crate::utils::split_identifier_package;
+use crate::{formatter::ProtoFormatter, utils::split_identifier_package};
 use std::collections::HashMap;
 
 use async_lsp::lsp_types::{TextEdit, Url};
 
 use crate::state::ProtoLanguageState;
 
-impl ProtoLanguageState {
+impl<F: ProtoFormatter> ProtoLanguageState<F> {
     pub fn rename_fields(
         &self,
         current_package: &str,
@@ -37,7 +37,7 @@ impl ProtoLanguageState {
 mod test {
     use insta::assert_yaml_snapshot;
 
-    use crate::state::ProtoLanguageState;
+    use crate::{formatter::clang::ClangFormatter, state::ProtoLanguageState};
 
     #[test]
     fn test_rename() {
@@ -49,7 +49,7 @@ mod test {
         let b = include_str!("input/b.proto");
         let c = include_str!("input/c.proto");
 
-        let mut state = ProtoLanguageState::new();
+        let mut state: ProtoLanguageState<ClangFormatter> = ProtoLanguageState::new();
         state.upsert_file(&a_uri, a.to_owned());
         state.upsert_file(&b_uri, b.to_owned());
         state.upsert_file(&c_uri, c.to_owned());

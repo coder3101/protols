@@ -1,13 +1,13 @@
 use async_lsp::{router::Router, ClientSocket};
 use std::ops::ControlFlow;
 
-use crate::state::ProtoLanguageState;
+use crate::{formatter::clang::ClangFormatter, state::ProtoLanguageState};
 
 pub struct TickEvent;
 pub struct ProtoLanguageServer {
     pub client: ClientSocket,
     pub counter: i32,
-    pub state: ProtoLanguageState,
+    pub state: ProtoLanguageState<ClangFormatter>,
 }
 
 impl ProtoLanguageServer {

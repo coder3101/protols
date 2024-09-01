@@ -1,31 +1,76 @@
-# protols
-[![Crates](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)
+# Protols - Protobuf Language Server
+
+[![Crates.io](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
-A Language Server for **proto3** files. It uses tree-sitter parser for all operations.
+**Protols** is an open-source Language Server Protocol (LSP) for **proto3** files, powered by the robust and efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser. With Protols, you get powerful code assistance for protobuf files, including auto-completion, syntax diagnostics, and more.
 
 ![](./assets/protols.mov)
 
-## Features 
-- [x] Completion (keywords, enums and messages of the package)
-- [x] Diagnostics - based on sytax errors
-- [x] Document Symbols
-- [x] Go to definition
-- [x] Hover
-- [x] Rename
+## ✨ Features
 
-## Installation
+- ✅ Code Completion
+- ✅ Diagnostics
+- ✅ Document Symbols
+- ✅ Code Formatting
+- ✅ Go to Definition
+- ✅ Hover Information
+- ✅ Rename Symbols
 
-### Neovim
-Run `cargo install protols` to install and add below to setup using [`nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#protols)
+## 🚀 Getting Started
+
+### Installation
+
+#### For Neovim
+
+To install Protols, run:
+
+```bash
+cargo install protols
+```
+
+Then, configure it with [`nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#protols):
 
 ```lua
 require'lspconfig'.protols.setup{}
-
 ```
 
-### Visual Studio Code
+#### For Visual Studio Code
 
-You can install an extension called [Protobuf Language Support](https://marketplace.visualstudio.com/items?itemName=ianandhum.protobuf-support) which uses this LSP under the hood.
+You can use the [Protobuf Language Support](https://marketplace.visualstudio.com/items?itemName=ianandhum.protobuf-support) extension, which leverages this LSP under the hood.
 
-> NOTE: It is [open-sourced](https://github.com/ianandhum/vscode-protobuf-support) but do not own or maintain it.
+> **Note:** This extension is [open source](https://github.com/ianandhum/vscode-protobuf-support) but is not maintained by us.
+
+## 🛠️ Usage
+
+### Code Completion
+
+Protols provides intelligent autocompletion for messages, enums, and proto3 keywords within the current package.
+
+### Diagnostics
+
+Diagnostics are powered by the tree-sitter parser, which catches syntax errors but does not utilize `protoc` for more advanced error reporting.
+
+### Code Formatting
+
+Formatting is enabled if [clang-format](https://clang.llvm.org/docs/ClangFormat.html) is available. You can control the [formatting style](https://clang.llvm.org/docs/ClangFormatStyleOptions.html) by placing a `.clang-format` file in the root of your workspace. Both document and range formatting are supported.
+
+### Document Symbols
+
+Provides symbols for the entire document, including nested symbols, messages, and enums.
+
+### Go to Definition
+
+Jump to the definition of any custom symbol, even across package boundaries.
+
+### Hover Information
+
+Displays comments and documentation for protobuf symbols on hover. Works seamlessly across package boundaries.
+
+### Rename Symbols
+
+Allows renaming of symbols like messages and enums, along with all their usages across packages. Currently, renaming fields within symbols is not supported directly.
+
+---
+
+Protols is designed to supercharge your workflow with **proto3** files. We welcome contributions and feedback from the community! Feel free to check out the [repository](https://github.com/coder3101/protols) and join in on improving this tool! 🎉
