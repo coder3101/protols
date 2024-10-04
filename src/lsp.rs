@@ -6,17 +6,7 @@ use std::thread;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
-    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
-    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
-    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -432,6 +422,11 @@ impl LanguageServer for ProtoLanguageServer {
                 error!(uri = file.uri, "failed to parse uri");
             }
         }
+        ControlFlow::Continue(())
+    }
+
+    // Required because of: https://github.com/coder3101/protols/issues/32
+    fn did_change_configuration(&mut self, _: DidChangeConfigurationParams) -> Self::NotifyResult {
         ControlFlow::Continue(())
     }
 }
