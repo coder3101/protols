@@ -6,21 +6,12 @@ use std::thread;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
-    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf,
-    PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams,
-    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
+use crate::actions::hover::HoverContext;
 use crate::formatter::clang::ClangFormatter;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
@@ -79,7 +70,8 @@ impl LanguageServer for ProtoLanguageServer {
         let mut formatter_provider = None;
         let mut formatter_range_provider = None;
         if let Some(folders) = params.workspace_folders {
-            if let Ok(f) = ClangFormatter::new("clang-format", folders.first().map(|f| f.uri.path()))
+            if let Ok(f) =
+                ClangFormatter::new("clang-format", folders.first().map(|f| f.uri.path()))
             {
                 self.state.add_formatter(f);
                 formatter_provider = Some(OneOf::Left(true));

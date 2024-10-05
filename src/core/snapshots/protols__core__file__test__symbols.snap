@@ -1,0 +1,92 @@
+---
+source: src/core/file.rs
+expression: p.unwrap().symbols()
+---
+- kind: Message
+  text: Book
+  range:
+    start_byte: 126
+    end_byte: 500
+    start_point:
+      row: 6
+      col: 0
+    end_point:
+      row: 25
+      col: 1
+- kind: Message
+  text: Book.Author
+  range:
+    start_byte: 374
+    end_byte: 434
+    start_point:
+      row: 16
+      col: 2
+    end_point:
+      row: 19
+      col: 3
+- kind: Enum
+  text: Book.BookState
+  range:
+    start_byte: 438
+    end_byte: 498
+    start_point:
+      row: 21
+      col: 2
+    end_point:
+      row: 24
+      col: 3
+- kind: Message
+  text: GetBookRequest
+  range:
+    start_byte: 534
+    end_byte: 638
+    start_point:
+      row: 28
+      col: 0
+    end_point:
+      row: 31
+      col: 1
+- kind: Message
+  text: GotoBookRequest
+  range:
+    start_byte: 640
+    end_byte: 682
+    start_point:
+      row: 33
+      col: 0
+    end_point:
+      row: 33
+      col: 42
+- kind: Message
+  text: GetBookViaAuthor
+  range:
+    start_byte: 684
+    end_byte: 736
+    start_point:
+      row: 35
+      col: 0
+    end_point:
+      row: 35
+      col: 52
+- kind: Message
+  text: BookStore
+  range:
+    start_byte: 1196
+    end_byte: 1324
+    start_point:
+      row: 48
+      col: 0
+    end_point:
+      row: 54
+      col: 1
+- kind: Enum
+  text: EnumSample
+  range:
+    start_byte: 1493
+    end_byte: 1586
+    start_point:
+      row: 60
+      col: 0
+    end_point:
+      row: 65
+      col: 1

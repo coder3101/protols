@@ -15,6 +15,7 @@ use tree_sitter::Node;
 use walkdir::WalkDir;
 
 use crate::{
+    core::file::ProtoFile,
     formatter::ProtoFormatter,
     nodekind::NodeKind,
     parser::{ParsedTree, ProtoParser},
@@ -22,6 +23,7 @@ use crate::{
 
 pub struct ProtoLanguageState<F: ProtoFormatter> {
     documents: Arc<RwLock<HashMap<Url, String>>>,
+    documents_v2: Arc<RwLock<HashMap<Url, ProtoFile>>>,
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
     formatter: Option<F>,
     parser: Arc<Mutex<ProtoParser>>,
@@ -31,10 +33,21 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
     pub fn new() -> Self {
         ProtoLanguageState {
             documents: Default::default(),
+            documents_v2: Default::default(),
             trees: Default::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             formatter: Default::default(),
         }
+    }
+
+    pub fn imports(&self, uri: &Url) -> Vec<String> {
+        // self.documents_v2
+        //     .read()
+        //     .expect("poision")
+        //     .get(uri)
+        //     .map(|d| d.imports())
+        //     .and_then(|i| )
+        todo!()
     }
 
     pub fn get_content(&self, uri: &Url) -> String {
@@ -79,8 +92,24 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         uri: &Url,
         content: String,
         mut docs: RwLockWriteGuard<HashMap<Url, String>>,
+        mut docs2: RwLockWriteGuard<HashMap<Url, ProtoFile>>,
         mut trees: RwLockWriteGuard<HashMap<Url, ParsedTree>>,
     ) -> bool {
+        if let Some(v) = docs2.get_mut(uri) {
+            if let Err(e) = v.reset(content.as_ref()) {
+                error!(error=%e, "failed to update file");
+            }
+        } else {
+            match ProtoFile::new(uri.clone(), &content) {
+                Ok(pf) => {
+                    docs2.insert(uri.clone(), pf);
+                }
+                Err(e) => {
+                    error!(error=%e, uri=%uri, "failed parsing file");
+                }
+            }
+        }
+
         if let Some(parsed) = parser.parse(uri.clone(), content.as_bytes()) {
             trees.insert(uri.clone(), parsed);
             docs.insert(uri.clone(), content);
@@ -94,7 +123,8 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         let parser = self.parser.lock().expect("poison");
         let tree = self.trees.write().expect("poison");
         let docs = self.documents.write().expect("poison");
-        Self::upsert_content_impl(parser, uri, content, docs, tree)
+        let docs2 = self.documents_v2.write().expect("poison");
+        Self::upsert_content_impl(parser, uri, content, docs, docs2, tree)
     }
 
     pub fn add_formatter(&mut self, formatter: F) {
@@ -113,6 +143,7 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         let parser = self.parser.clone();
         let tree = self.trees.clone();
         let docs = self.documents.clone();
+        let docs2 = self.documents_v2.clone();
 
         let begin = ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
             title: String::from("indexing"),
@@ -152,6 +183,7 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
                         &uri,
                         content,
                         docs.write().expect("poison"),
+                        docs2.write().expect("poison"),
                         tree.write().expect("poison"),
                     );
 
@@ -192,6 +224,7 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         info!(uri=%uri, "deleting file");
         self.documents.write().expect("poison").remove(uri);
         self.trees.write().expect("poison").remove(uri);
+        self.documents_v2.write().expect("poison").remove(uri);
     }
 
     pub fn rename_file(&mut self, new_uri: &Url, old_uri: &Url) {
@@ -207,6 +240,14 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         if let Some(mut v) = self.trees.write().expect("poison").remove(old_uri) {
             v.uri = new_uri.clone();
             self.trees
+                .write()
+                .expect("poison")
+                .insert(new_uri.clone(), v);
+        }
+
+        if let Some(mut v) = self.documents_v2.write().expect("poison").remove(old_uri) {
+            v.update_uri(new_uri.clone());
+            self.documents_v2
                 .write()
                 .expect("poison")
                 .insert(new_uri.clone(), v);

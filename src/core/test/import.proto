@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package foo.bar.baz;
+
+import "a.proto";
+import "nested/supath.proto";
+import "../relative/path.proto";
+
+import "secondline/pt.proto";
