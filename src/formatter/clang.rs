@@ -1,7 +1,6 @@
 #![allow(clippy::needless_late_init)]
 use std::{
     borrow::Cow,
-    error::Error,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -16,8 +15,8 @@ use tempfile::{tempdir, TempDir};
 use super::ProtoFormatter;
 
 pub struct ClangFormatter {
-    path: String,
-    working_dir: Option<String>,
+    pub path: String,
+    working_dir: String,
     temp_dir: TempDir,
 }
 
@@ -67,15 +66,12 @@ impl<'a> Replacement<'a> {
 }
 
 impl ClangFormatter {
-    pub fn new(path: &str, workdir: Option<&str>) -> Result<Self, Box<dyn Error>> {
-        let mut c = Command::new(path);
-        c.arg("--version").status()?;
-
-        Ok(Self {
-            temp_dir: tempdir()?,
-            path: path.to_owned(),
-            working_dir: workdir.map(ToOwned::to_owned),
-        })
+    pub fn new(cmd: &str, wdir: &str) -> Self {
+        Self {
+            temp_dir: tempdir().expect("faile to creat temp dir"),
+            path: cmd.to_owned(),
+            working_dir: wdir.to_owned()
+        }
     }
 
     fn get_temp_file_path(&self, content: &str) -> Option<PathBuf> {
@@ -87,9 +83,7 @@ impl ClangFormatter {
 
     fn get_command(&self, u: &Path) -> Command {
         let mut c = Command::new(self.path.as_str());
-        if let Some(wd) = self.working_dir.as_ref() {
-            c.current_dir(wd.as_str());
-        }
+        c.current_dir(self.working_dir.as_str());
         c.args([u.to_str().unwrap(), "--output-replacements-xml"]);
         c
     }
