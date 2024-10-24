@@ -1,13 +1,13 @@
 [package]
 name = "protols"
 description = "Language server for proto3 files"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/coder3101/protols"
 repository = "https://github.com/coder3101/protols"
 readme = "README.md"
-keywords = ["lsp", "proto3"]
+keywords = ["lsp", "proto"]
 
 exclude = ["assets/*", "sample/*"]
 
@@ -19,9 +19,9 @@ tokio-util = { version = "0.7.11", features = ["compat"] }
 tower = "0.4.13"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-tree-sitter = "0.22.6"
+tree-sitter = "0.24.3"
 tracing-appender = "0.2.3"
-protols-tree-sitter-proto = "0.2.0"
+tree-sitter-proto = "0.1.0"
 walkdir = "2.5.0"
 hard-xml = "1.36.0"
 tempfile = "3.12.0"
