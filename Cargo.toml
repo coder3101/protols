@@ -7,7 +7,7 @@ license = "MIT"
 homepage = "https://github.com/coder3101/protols"
 repository = "https://github.com/coder3101/protols"
 readme = "README.md"
-keywords = ["lsp", "proto3"]
+keywords = ["lsp", "proto"]
 
 exclude = ["assets/*", "sample/*"]
 
