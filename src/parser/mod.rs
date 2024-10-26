@@ -23,7 +23,7 @@ pub struct ParsedTree {
 impl ProtoParser {
     pub fn new() -> Self {
         let mut parser = tree_sitter::Parser::new();
-        if let Err(e) = parser.set_language(&protols_tree_sitter_proto::language()) {
+        if let Err(e) = parser.set_language(&tree_sitter_proto::LANGUAGE.into()) {
             panic!("failed to set ts language parser {:?}", e);
         }
         Self { parser }

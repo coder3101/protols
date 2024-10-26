@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
-**Protols** is an open-source Language Server Protocol (LSP) for **proto3** files, powered by the robust and efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser. With Protols, you get powerful code assistance for protobuf files, including auto-completion, syntax diagnostics, and more.
+**Protols** is an open-source Language Server Protocol (LSP) for **proto** files, powered by the robust and efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser. With Protols, you get powerful code assistance for protobuf files, including auto-completion, syntax diagnostics, and more.
 
 ![](./assets/protols.mov)
 
@@ -73,4 +73,4 @@ Allows renaming of symbols like messages and enums, along with all their usages 
 
 ---
 
-Protols is designed to supercharge your workflow with **proto3** files. We welcome contributions and feedback from the community! Feel free to check out the [repository](https://github.com/coder3101/protols) and join in on improving this tool! 🎉
+Protols is designed to supercharge your workflow with **proto** files. We welcome contributions and feedback from the community! Feel free to check out the [repository](https://github.com/coder3101/protols) and join in on improving this tool! 🎉
