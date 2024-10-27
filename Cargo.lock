@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "protols"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "async-lsp",
  "futures",
@@ -990,9 +990,9 @@ checksum = "e8ddffe35a0e5eeeadf13ff7350af564c6e73993a24db62caee1822b185c2600"
 
 [[package]]
 name = "tree-sitter-proto"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f2795023f9f2c575df39c341c4b137b2d059eab805d13978dce1a2058bbb5c1"
+checksum = "8e4360b434b5980fc397137ef29e1988619fef4159ac86fa7ac5777d459d3924"
 dependencies = [
  "cc",
  "tree-sitter-language",
