@@ -4,18 +4,18 @@ expression: "rename_fn(\"Writer\", &pos_author)"
 ---
 - range:
     start:
-      line: 21
+      line: 23
       character: 4
     end:
-      line: 21
+      line: 23
       character: 15
   newText: Book.Writer
 - range:
     start:
-      line: 26
+      line: 29
       character: 34
     end:
-      line: 26
+      line: 29
       character: 45
   newText: Book.Writer
 - range:

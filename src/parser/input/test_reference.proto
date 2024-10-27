@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package com.parser;
+
+// A Book is book
+message Book {
+
+  // This is represents author
+  // A author is a someone who writes books
+  //
+  // Author has a name and a country where they were born
+  message Author {
+    string name = 1;
+    string country = 2;
+  };
+  Author author = 1;
+  int price_usd = 2;
+}
+
+message BookShelf {}
+
+message Library {
+  repeated Book books = 1;
+  Book.Author collection = 2;
+  BookShelf shelf = 3;
+}
+
+service Myservice {
+  rpc GetBook(Empty) returns (Book);
+  rpc GetAuthor(Empty) returns (Book.Author)
+}

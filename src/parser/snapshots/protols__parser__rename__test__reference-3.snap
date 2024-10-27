@@ -1,0 +1,5 @@
+---
+source: src/parser/rename.rs
+expression: reference_fn(&pos_non_ref)
+---
+[]

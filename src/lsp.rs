@@ -6,7 +6,19 @@ use std::thread;
 use tracing::{error, info};
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, ProgressParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
+    CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
+    FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ProgressParams,
+    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities,
+    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -69,7 +81,8 @@ impl LanguageServer for ProtoLanguageServer {
         let mut formatter_provider = None;
         let mut formatter_range_provider = None;
         if let Some(folders) = params.workspace_folders {
-            if let Ok(f) = ClangFormatter::new("clang-format", folders.first().map(|f| f.uri.path()))
+            if let Ok(f) =
+                ClangFormatter::new("clang-format", folders.first().map(|f| f.uri.path()))
             {
                 self.state.add_formatter(f);
                 formatter_provider = Some(OneOf::Left(true));
@@ -124,6 +137,7 @@ impl LanguageServer for ProtoLanguageServer {
                 rename_provider: Some(rename_provider),
                 document_formatting_provider: formatter_provider,
                 document_range_formatting_provider: formatter_range_provider,
+                references_provider: Some(OneOf::Left(true)),
 
                 ..ServerCapabilities::default()
             },
@@ -263,6 +277,43 @@ impl LanguageServer for ProtoLanguageServer {
         });
 
         Box::pin(async move { Ok(response) })
+    }
+
+    fn references(
+        &mut self,
+        param: ReferenceParams,
+    ) -> BoxFuture<'static, Result<Option<Vec<Location>>, ResponseError>> {
+        let uri = param.text_document_position.text_document.uri;
+        let pos = param.text_document_position.position;
+
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let content = self.state.get_content(&uri);
+
+        let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
+            error!(uri=%uri, "failed to get package name");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let Some((mut refs, otext)) = tree.reference_tree(&pos, content.as_bytes()) else {
+            error!(uri=%uri, "failed to find references in a tree");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        if let Some(v) = self.state.reference_fields(current_package, &otext) {
+            refs.extend(v);
+        }
+
+        Box::pin(async move {
+            if refs.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(refs))
+            }
+        })
     }
 
     fn definition(

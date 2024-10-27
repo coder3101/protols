@@ -16,6 +16,7 @@
 - ✅ Go to Definition
 - ✅ Hover Information
 - ✅ Rename Symbols
+- ✅ Find references
 
 ## 🚀 Getting Started
 
@@ -70,6 +71,10 @@ Displays comments and documentation for protobuf symbols on hover. Works seamles
 ### Rename Symbols
 
 Allows renaming of symbols like messages and enums, along with all their usages across packages. Currently, renaming fields within symbols is not supported directly.
+
+### Find References
+
+Allows user defined types like messages and enums can be checked for references. Nested fields are completely supported.
 
 ---
 

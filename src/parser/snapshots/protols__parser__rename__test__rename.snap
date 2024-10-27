@@ -4,34 +4,34 @@ expression: "rename_fn(\"Kitab\", &pos_book)"
 ---
 - range:
     start:
-      line: 20
+      line: 22
       character: 13
     end:
-      line: 20
+      line: 22
       character: 17
   newText: Kitab
 - range:
     start:
-      line: 21
+      line: 23
       character: 4
     end:
-      line: 21
+      line: 23
       character: 15
   newText: Kitab.Author
 - range:
     start:
-      line: 25
+      line: 28
       character: 32
     end:
-      line: 25
+      line: 28
       character: 36
   newText: Kitab
 - range:
     start:
-      line: 26
+      line: 29
       character: 34
     end:
-      line: 26
+      line: 29
       character: 45
   newText: Kitab.Author
 - range:

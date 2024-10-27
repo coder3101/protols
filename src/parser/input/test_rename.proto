@@ -17,9 +17,12 @@ message Book {
     int price_usd = 2;
 }
 
+message BookShelf {}
+
 message Library {
     repeated Book books = 1;
     Book.Author collection = 2;
+    BookShelf shelf = 3;
 }
 
 service Myservice {
