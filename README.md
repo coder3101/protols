@@ -24,7 +24,7 @@
 
 #### For Neovim
 
-To install Protols, run:
+You can install [protols with mason.nvim](https://github.com/mason-org/mason-registry/blob/main/packages/protols/package.yaml) or directly from crates.io with:
 
 ```bash
 cargo install protols
