@@ -15,10 +15,9 @@ use async_lsp::lsp_types::{
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ProgressParams,
     ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities,
-    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;

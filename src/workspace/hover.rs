@@ -6,7 +6,6 @@ use crate::{
     formatter::ProtoFormatter, state::ProtoLanguageState, utils::split_identifier_package,
 };
 
-
 static BUITIN_DOCS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
         (
