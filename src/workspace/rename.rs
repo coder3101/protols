@@ -1,7 +1,7 @@
 use crate::utils::split_identifier_package;
 use std::collections::HashMap;
 
-use async_lsp::lsp_types::{TextEdit, Url};
+use async_lsp::lsp_types::{Location, TextEdit, Url};
 
 use crate::state::ProtoLanguageState;
 
@@ -30,6 +30,32 @@ impl ProtoLanguageState {
                 }
                 h
             })
+    }
+
+    pub fn reference_fields(
+        &self,
+        current_package: &str,
+        identifier: &str,
+    ) -> Option<Vec<Location>> {
+        let (_, identifier) = split_identifier_package(identifier);
+        let r = self
+            .get_trees()
+            .into_iter()
+            .fold(Vec::<Location>::new(), |mut v, tree| {
+                let content = self.get_content(&tree.uri);
+                let package = tree.get_package_name(content.as_ref()).unwrap_or_default();
+                let mut old = identifier.to_owned();
+                if current_package != package {
+                    old = format!("{current_package}.{old}");
+                }
+                v.extend(tree.reference_field(&old, content.as_str()));
+                v
+            });
+        if r.is_empty() {
+            None
+        } else {
+            Some(r)
+        }
     }
 }
 
@@ -61,5 +87,25 @@ mod test {
             "Author.Location"
         ));
         assert_yaml_snapshot!(state.rename_fields("com.utility", "Foobar.Baz", "Foobar.Baaz"));
+    }
+
+    #[test]
+    fn test_reference() {
+        let a_uri = "file://input/a.proto".parse().unwrap();
+        let b_uri = "file://input/b.proto".parse().unwrap();
+        let c_uri = "file://input/c.proto".parse().unwrap();
+
+        let a = include_str!("input/a.proto");
+        let b = include_str!("input/b.proto");
+        let c = include_str!("input/c.proto");
+
+        let mut state: ProtoLanguageState<ClangFormatter> = ProtoLanguageState::new();
+        state.upsert_file(&a_uri, a.to_owned());
+        state.upsert_file(&b_uri, b.to_owned());
+        state.upsert_file(&c_uri, c.to_owned());
+
+        assert_yaml_snapshot!(state.reference_fields("com.workspace", "Author"));
+        assert_yaml_snapshot!(state.reference_fields("com.workspace", "Author.Address"));
+        assert_yaml_snapshot!(state.reference_fields("com.utility", "Foobar.Baz"));
     }
 }

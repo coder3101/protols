@@ -1,7 +1,7 @@
 [package]
 name = "protols"
 description = "Language server for proto3 files"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/coder3101/protols"

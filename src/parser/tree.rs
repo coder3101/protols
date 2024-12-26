@@ -63,6 +63,16 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
+    pub fn get_hoverable_node_text_at_position<'a>(
+        &'a self,
+        pos: &Position,
+        content: &'a [u8],
+    ) -> Option<&'a str> {
+        let n = self.get_node_at_position(pos)?;
+        self.get_actionable_node_text_at_position(pos, content)
+            .or(Some(n.kind()))
+    }
+
     pub fn get_ancestor_nodes_at_position<'a>(&'a self, pos: &Position) -> Vec<Node<'a>> {
         let Some(mut n) = self.get_actionable_node_at_position(pos) else {
             return vec![];

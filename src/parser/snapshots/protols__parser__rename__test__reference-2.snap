@@ -1,0 +1,36 @@
+---
+source: src/parser/rename.rs
+expression: reference_fn(&pos_author)
+---
+- uri: "file://foo/bar.proto"
+  range:
+    start:
+      line: 23
+      character: 2
+    end:
+      line: 23
+      character: 13
+- uri: "file://foo/bar.proto"
+  range:
+    start:
+      line: 29
+      character: 32
+    end:
+      line: 29
+      character: 43
+- uri: "file://foo/bar.proto"
+  range:
+    start:
+      line: 11
+      character: 10
+    end:
+      line: 11
+      character: 16
+- uri: "file://foo/bar.proto"
+  range:
+    start:
+      line: 15
+      character: 2
+    end:
+      line: 15
+      character: 8

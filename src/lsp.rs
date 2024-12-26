@@ -12,8 +12,8 @@ use async_lsp::lsp_types::{
     DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, OneOf, PrepareRenameResponse, ProgressParams,
-    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ProgressParams,
+    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
     WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
@@ -126,6 +126,7 @@ impl LanguageServer for ProtoLanguageServer {
                 rename_provider: Some(rename_provider),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_range_formatting_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
 
                 ..ServerCapabilities::default()
             },
@@ -151,7 +152,7 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let identifier = tree.get_actionable_node_text_at_position(&pos, content.as_bytes());
+        let identifier = tree.get_hoverable_node_text_at_position(&pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes());
 
         let Some(identifier) = identifier else {
@@ -265,6 +266,43 @@ impl LanguageServer for ProtoLanguageServer {
         });
 
         Box::pin(async move { Ok(response) })
+    }
+
+    fn references(
+        &mut self,
+        param: ReferenceParams,
+    ) -> BoxFuture<'static, Result<Option<Vec<Location>>, ResponseError>> {
+        let uri = param.text_document_position.text_document.uri;
+        let pos = param.text_document_position.position;
+
+        let Some(tree) = self.state.get_tree(&uri) else {
+            error!(uri=%uri, "failed to get tree");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let content = self.state.get_content(&uri);
+
+        let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
+            error!(uri=%uri, "failed to get package name");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let Some((mut refs, otext)) = tree.reference_tree(&pos, content.as_bytes()) else {
+            error!(uri=%uri, "failed to find references in a tree");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        if let Some(v) = self.state.reference_fields(current_package, &otext) {
+            refs.extend(v);
+        }
+
+        Box::pin(async move {
+            if refs.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(refs))
+            }
+        })
     }
 
     fn definition(

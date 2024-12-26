@@ -1,0 +1,12 @@
+---
+source: src/workspace/rename.rs
+expression: "state.reference_fields(\"com.workspace\", \"Author\")"
+---
+- uri: "file://input/a.proto"
+  range:
+    start:
+      line: 8
+      character: 3
+    end:
+      line: 8
+      character: 9
