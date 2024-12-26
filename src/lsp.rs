@@ -163,7 +163,7 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let identifier = tree.get_actionable_node_text_at_position(&pos, content.as_bytes());
+        let identifier = tree.get_hoverable_node_text_at_position(&pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes());
 
         let Some(identifier) = identifier else {
