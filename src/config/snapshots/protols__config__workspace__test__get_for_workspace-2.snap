@@ -1,0 +1,12 @@
+---
+source: src/config/workspace.rs
+expression: ws.get_config_for_uri(&inworkspace2).unwrap()
+---
+config:
+  include_paths: []
+  single_file_mode: false
+  disable_parse_diagnostics: false
+  experimental:
+    use_protoc_diagnostics: false
+formatter:
+  clang_format_path: clang-format

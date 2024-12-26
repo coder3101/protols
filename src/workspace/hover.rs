@@ -2,10 +2,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use async_lsp::lsp_types::MarkedString;
 
-use crate::{
-    formatter::ProtoFormatter, state::ProtoLanguageState, utils::split_identifier_package,
-};
-
+use crate::{state::ProtoLanguageState, utils::split_identifier_package};
 
 static BUITIN_DOCS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
@@ -107,7 +104,7 @@ Unlike every other option on a field, this does not have a corresponding field i
     ])
 });
 
-impl<F: ProtoFormatter> ProtoLanguageState<F> {
+impl ProtoLanguageState {
     pub fn hover(&self, curr_package: &str, identifier: &str) -> Vec<MarkedString> {
         if let Some(docs) = BUITIN_DOCS.get(identifier) {
             return vec![MarkedString::String(docs.to_string())];
@@ -131,7 +128,7 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
 mod test {
     use insta::assert_yaml_snapshot;
 
-    use crate::{formatter::clang::ClangFormatter, state::ProtoLanguageState};
+    use crate::state::ProtoLanguageState;
 
     #[test]
     fn workspace_test_hover() {
@@ -143,7 +140,7 @@ mod test {
         let b = include_str!("input/b.proto");
         let c = include_str!("input/c.proto");
 
-        let mut state: ProtoLanguageState<ClangFormatter> = ProtoLanguageState::new();
+        let mut state: ProtoLanguageState = ProtoLanguageState::new();
         state.upsert_file(&a_uri, a.to_owned());
         state.upsert_file(&b_uri, b.to_owned());
         state.upsert_file(&c_uri, c.to_owned());
