@@ -175,23 +175,16 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let comments = self
+        let result = self
             .state
             .hover(current_package_name.as_ref(), identifier.as_ref());
 
-        let response = match comments.len() {
-            0 => None,
-            1 => Some(Hover {
-                contents: HoverContents::Scalar(comments[0].clone()),
+        Box::pin(async move {
+            Ok(result.map(|r| Hover {
                 range: None,
-            }),
-            2.. => Some(Hover {
-                contents: HoverContents::Array(comments),
-                range: None,
-            }),
-        };
-
-        Box::pin(async move { Ok(response) })
+                contents: HoverContents::Markup(r),
+            }))
+        })
     }
     fn completion(
         &mut self,

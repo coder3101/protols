@@ -1,5 +1,7 @@
 ---
 source: src/workspace/hover.rs
-expression: "state.hover(\"com.utility\", \"Baz\")"
+expression: "state.hover(\"com.workspace\", \"com.utility.Foobar.Baz\")"
+snapshot_kind: text
 ---
-- What is baz?
+kind: markdown
+value: "`Foobar.Baz` message or enum type, package: `com.utility`\n---\nWhat is baz?"

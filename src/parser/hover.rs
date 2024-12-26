@@ -47,7 +47,7 @@ impl ParsedTree {
         }
     }
 
-    pub fn hover(&self, identifier: &str, content: impl AsRef<[u8]>) -> Vec<MarkedString> {
+    pub fn hover(&self, identifier: &str, content: impl AsRef<[u8]>) -> Vec<String> {
         let mut results = vec![];
         self.hover_impl(identifier, self.tree.root_node(), &mut results, content);
         results
@@ -57,7 +57,7 @@ impl ParsedTree {
         &self,
         identifier: &str,
         n: Node,
-        v: &mut Vec<MarkedString>,
+        v: &mut Vec<String>,
         content: impl AsRef<[u8]>,
     ) {
         if identifier.is_empty() {
@@ -77,14 +77,13 @@ impl ParsedTree {
                 }
             }
             None => {
-                let comments: Vec<MarkedString> = self
+                let comments: Vec<String> = self
                     .filter_nodes_from(n, NodeKind::is_userdefined)
                     .into_iter()
                     .filter(|n| {
                         n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier
                     })
                     .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
-                    .map(MarkedString::String)
                     .collect();
 
                 v.extend(comments);
