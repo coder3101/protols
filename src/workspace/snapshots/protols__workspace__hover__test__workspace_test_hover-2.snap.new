@@ -1,6 +1,0 @@
----
-source: src/workspace/hover.rs
-assertion_line: 152
-expression: "state.hover(\"com.workspace\", \"int64\")"
----
-- "A 64-bit integer (varint encoding)\n\nValues of this type range between `-9223372036854775808` and `9223372036854775807`.\nBeware that negative values are encoded as ten bytes on the wire!"

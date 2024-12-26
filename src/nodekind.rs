@@ -8,7 +8,6 @@ pub enum NodeKind {
     Message,
     EnumName,
     FieldName,
-    FieldBuiltinTypeName,
     ServiceName,
     RpcName,
     PackageName,
@@ -24,7 +23,6 @@ impl NodeKind {
             NodeKind::Message => "message",
             NodeKind::EnumName => "enum_name",
             NodeKind::FieldName => "message_or_enum_type",
-            NodeKind::FieldBuiltinTypeName => "type",
             NodeKind::ServiceName => "service_name",
             NodeKind::RpcName => "rpc_name",
             NodeKind::PackageName => "full_ident",
@@ -57,10 +55,6 @@ impl NodeKind {
 
     pub fn is_field_name(n: &Node) -> bool {
         n.kind() == Self::FieldName.as_str()
-    }
-
-    pub fn is_builtin_field_type(n: &Node) -> bool {
-        n.kind() == Self::FieldBuiltinTypeName.as_str()
     }
 
     pub fn is_userdefined(n: &Node) -> bool {
