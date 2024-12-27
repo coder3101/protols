@@ -375,7 +375,7 @@ impl LanguageServer for ProtoLanguageServer {
         let response = self
             .state
             .get_formatter()
-            .and_then(|f| f.format_document(content.as_str()));
+            .and_then(|f| f.format_document(uri.path(), content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
@@ -390,7 +390,7 @@ impl LanguageServer for ProtoLanguageServer {
         let response = self
             .state
             .get_formatter()
-            .and_then(|f| f.format_document_range(&params.range, content.as_str()));
+            .and_then(|f| f.format_document_range(&params.range, uri.path(), content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
