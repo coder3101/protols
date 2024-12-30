@@ -85,14 +85,14 @@ impl ClangFormatter {
         Some(p)
     }
 
-    fn get_command(&self, f: &str, u: &Path) -> Command {
+    fn get_command(&self, f: &str, u: &Path) -> Option<Command> {
         let mut c = Command::new(self.path.as_str());
         if let Some(wd) = self.working_dir.as_ref() {
             c.current_dir(wd.as_str());
         }
-        c.stdin(File::open(u).unwrap());
+        c.stdin(File::open(u).ok()?);
         c.args(["--output-replacements-xml", format!("--assume-filename={f}").as_str()]);
-        c
+        Some(c)
     }
 
     fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
@@ -110,7 +110,8 @@ impl ClangFormatter {
 impl ProtoFormatter for ClangFormatter {
     fn format_document(&self, filename: &str, content: &str) -> Option<Vec<TextEdit>> {
         let p = self.get_temp_file_path(content)?;
-        let output = self.get_command(filename, p.as_ref()).output().ok()?;
+        let mut cmd = self.get_command(filename, p.as_ref())?;
+        let output = cmd.output().ok()?;
         if !output.status.success() {
             tracing::error!(
                 status = output.status.code(),
@@ -126,7 +127,7 @@ impl ProtoFormatter for ClangFormatter {
         let start = r.start.line + 1;
         let end = r.end.line + 1;
         let output = self
-            .get_command(filename, p.as_ref())
+            .get_command(filename, p.as_ref())?
             .args(["--lines", format!("{start}:{end}").as_str()])
             .output()
             .ok()?;
