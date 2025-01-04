@@ -55,7 +55,7 @@ pub fn split_identifier_package(s: &str) -> (&str, &str) {
         });
 
     let (package, identifier) = s.split_at(i);
-    return (package, identifier.trim_matches('.'));
+    (package, identifier.trim_matches('.'))
 }
 
 #[cfg(test)]

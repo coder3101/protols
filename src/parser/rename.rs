@@ -119,7 +119,7 @@ impl ParsedTree {
             .filter(|n| {
                 let ntext = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
                 let sc = format!("{old_identifier}.");
-                return ntext == old_identifier || ntext.starts_with(&sc);
+                ntext == old_identifier || ntext.starts_with(&sc)
             })
             .map(|n| {
                 let text = n.utf8_text(content.as_ref()).expect("utf-8 parse error");

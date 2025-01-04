@@ -39,7 +39,7 @@ struct Replacement<'a> {
     text: Cow<'a, str>,
 }
 
-impl<'a> Replacement<'a> {
+impl Replacement<'_> {
     fn offset_to_position(offset: usize, content: &str) -> Option<Position> {
         if offset > content.len() {
             return None;

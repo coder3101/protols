@@ -1,4 +1,3 @@
-use async_lsp::lsp_types::MarkedString;
 use tree_sitter::Node;
 
 use crate::nodekind::NodeKind;
