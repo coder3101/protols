@@ -9,6 +9,7 @@ use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
 
+mod config;
 mod formatter;
 mod lsp;
 mod nodekind;

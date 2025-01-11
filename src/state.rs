@@ -15,25 +15,22 @@ use tree_sitter::Node;
 use walkdir::WalkDir;
 
 use crate::{
-    formatter::ProtoFormatter,
     nodekind::NodeKind,
     parser::{ParsedTree, ProtoParser},
 };
 
-pub struct ProtoLanguageState<F: ProtoFormatter> {
+pub struct ProtoLanguageState {
     documents: Arc<RwLock<HashMap<Url, String>>>,
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
-    formatter: Option<F>,
     parser: Arc<Mutex<ProtoParser>>,
 }
 
-impl<F: ProtoFormatter> ProtoLanguageState<F> {
+impl ProtoLanguageState {
     pub fn new() -> Self {
         ProtoLanguageState {
             documents: Default::default(),
             trees: Default::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
-            formatter: Default::default(),
         }
     }
 
@@ -95,14 +92,6 @@ impl<F: ProtoFormatter> ProtoLanguageState<F> {
         let tree = self.trees.write().expect("poison");
         let docs = self.documents.write().expect("poison");
         Self::upsert_content_impl(parser, uri, content, docs, tree)
-    }
-
-    pub fn add_formatter(&mut self, formatter: F) {
-        self.formatter.replace(formatter);
-    }
-
-    pub fn get_formatter(&self) -> Option<&F> {
-        self.formatter.as_ref()
     }
 
     pub fn add_workspace_folder_async(
