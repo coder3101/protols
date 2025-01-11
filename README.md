@@ -18,7 +18,18 @@
 - ✅ Rename Symbols
 - ✅ Find references
 
-## 🚀 Getting Started
+## Table of Contents
+
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Basic Configuration](#basic-configuration)
+  - [Experimental Configuration](#experimental-configuration)
+  - [Formatter Configuration](#formatter-configuration)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
 
 ### Installation
 
@@ -41,6 +52,57 @@ require'lspconfig'.protols.setup{}
 You can use the [Protobuf Language Support](https://marketplace.visualstudio.com/items?itemName=ianandhum.protobuf-support) extension, which leverages this LSP under the hood.
 
 > **Note:** This extension is [open source](https://github.com/ianandhum/vscode-protobuf-support) but is not maintained by us.
+You can install **protols** via your preferred method, such as downloading the binary or building from source. Here’s how to get started with the simplest method:
+
+
+---
+
+## Configuration
+
+Protols is configured using a `protols.toml` file. This configuration file can be placed in any directory, and **protols** will look for the closest file by recursively searching through parent directories.
+
+Here’s a sample configuration:
+
+### Sample `protols.toml`
+
+```toml
+[config] # Base configuration; these are considered stable and should not change
+include_paths = ["foobar", "bazbaaz"] # Include paths to look for protofiles during parsing
+disable_parse_diagnostics = true # Disable diagnostics for parsing
+
+[config.experimental] # Experimental configuration; this should be considered unsafe and not fully tested
+use_protoc_diagnostics = true # Use diagnostics from protoc
+
+[formatter] # Formatter specific configuration
+clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in formatting
+```
+
+### Configuration Sections
+
+#### Basic Configuration
+
+The `[config]` section contains stable settings that should generally remain unchanged.
+
+- `include_paths`: List the directories where your `.proto` files are located.
+- `disable_parse_diagnostics`: Set to `true` to disable parsing diagnostics.
+
+#### Experimental Configuration
+
+The `[config.experimental]` section contains settings that are still under development or are not fully tested.
+
+- `use_protoc_diagnostics`: If set to `true`, this will enable diagnostics from the `protoc` compiler.
+
+#### Formatter Configuration
+
+The `[formatter]` section configures how the formatting is done.
+
+- `clang_format_path`: Path to the `clang-format` binary used for formatting `.proto` files.
+
+### Multiple Configuration Files
+
+You can use multiple `protols.toml` files across different directories, and **protols** will use the closest configuration file found by traversing the parent directories.
+
+---
 
 ## 🛠️ Usage
 
@@ -78,4 +140,30 @@ Allows user defined types like messages and enums can be checked for references.
 
 ---
 
-Protols is designed to supercharge your workflow with **proto** files. We welcome contributions and feedback from the community! Feel free to check out the [repository](https://github.com/coder3101/protols) and join in on improving this tool! 🎉
+## Contributing
+
+We welcome contributions from the community! If you’d like to help improve **protols**, here’s how you can get started:
+
+1. Fork the repository and clone it to your machine.
+2. Make your changes in a new branch.
+3. Run the tests to ensure everything works properly.
+4. Open a pull request with a description of the changes.
+
+### Setting Up Locally
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/coder3101/protols.git
+   cd protols
+   ```
+
+2. Build and test your changes:
+   ```bash
+   cargo build
+   cargo test
+   ```
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
