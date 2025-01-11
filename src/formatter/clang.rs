@@ -70,7 +70,7 @@ impl ClangFormatter {
         Self {
             temp_dir: tempdir().expect("faile to creat temp dir"),
             path: cmd.to_owned(),
-            working_dir: wdir.to_owned()
+            working_dir: wdir.to_owned(),
         }
     }
 
@@ -85,7 +85,10 @@ impl ClangFormatter {
         let mut c = Command::new(self.path.as_str());
         c.current_dir(self.working_dir.as_str());
         c.stdin(File::open(u).ok()?);
-        c.args(["--output-replacements-xml", format!("--assume-filename={f}").as_str()]);
+        c.args([
+            "--output-replacements-xml",
+            format!("--assume-filename={f}").as_str(),
+        ]);
         Some(c)
     }
 
@@ -116,7 +119,12 @@ impl ProtoFormatter for ClangFormatter {
         self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 
-    fn format_document_range(&self, r: &Range, filename: &str, content: &str) -> Option<Vec<TextEdit>> {
+    fn format_document_range(
+        &self,
+        r: &Range,
+        filename: &str,
+        content: &str,
+    ) -> Option<Vec<TextEdit>> {
         let p = self.get_temp_file_path(content)?;
         let start = r.start.line + 1;
         let end = r.end.line + 1;

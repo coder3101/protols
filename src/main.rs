@@ -9,6 +9,7 @@ use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
 
+mod config;
 mod formatter;
 mod lsp;
 mod nodekind;
@@ -17,7 +18,6 @@ mod server;
 mod state;
 mod utils;
 mod workspace;
-mod config;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
