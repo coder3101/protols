@@ -9,6 +9,7 @@ use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
 
+mod formatter;
 mod lsp;
 mod nodekind;
 mod parser;
@@ -16,11 +17,16 @@ mod server;
 mod state;
 mod utils;
 mod workspace;
-mod formatter;
 mod config;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 2 && args[1] == "--version" {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         tokio::spawn({
             let client = client.clone();

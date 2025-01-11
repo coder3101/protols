@@ -13,10 +13,10 @@ use async_lsp::lsp_types::{
     FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ProgressParams,
-    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities,
+    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -165,23 +165,16 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let comments = self
+        let result = self
             .state
             .hover(current_package_name.as_ref(), identifier.as_ref());
 
-        let response = match comments.len() {
-            0 => None,
-            1 => Some(Hover {
-                contents: HoverContents::Scalar(comments[0].clone()),
+        Box::pin(async move {
+            Ok(result.map(|r| Hover {
                 range: None,
-            }),
-            2.. => Some(Hover {
-                contents: HoverContents::Array(comments),
-                range: None,
-            }),
-        };
-
-        Box::pin(async move { Ok(response) })
+                contents: HoverContents::Markup(r),
+            }))
+        })
     }
     fn completion(
         &mut self,
@@ -372,7 +365,7 @@ impl LanguageServer for ProtoLanguageServer {
         let response = self
             .configs
             .get_formatter_for_uri(&uri)
-            .and_then(|f| f.format_document(content.as_str()));
+            .and_then(|f| f.format_document(uri.path(), content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
@@ -387,7 +380,7 @@ impl LanguageServer for ProtoLanguageServer {
         let response = self
             .configs
             .get_formatter_for_uri(&uri)
-            .and_then(|f| f.format_document_range(&params.range, content.as_str()));
+            .and_then(|f| f.format_document_range(&params.range, uri.path(), content.as_str()));
 
         Box::pin(async move { Ok(response) })
     }
