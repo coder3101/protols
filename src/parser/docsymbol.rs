@@ -19,7 +19,7 @@ impl DocumentSymbolTreeBuilder {
     }
 
     pub(super) fn maybe_pop(&mut self, node: usize) {
-        let should_pop = self.stack.last().map_or(false, |(n, _)| *n == node);
+        let should_pop = self.stack.last().is_some_and(|(n, _)| *n == node);
         if should_pop {
             let (_, explored) = self.stack.pop().unwrap();
             if let Some((_, parent)) = self.stack.last_mut() {

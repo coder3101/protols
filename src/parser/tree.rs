@@ -1,7 +1,10 @@
-use async_lsp::lsp_types::Position;
+use async_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Node, TreeCursor};
 
-use crate::{nodekind::NodeKind, utils::lsp_to_ts_point};
+use crate::{
+    nodekind::NodeKind,
+    utils::{lsp_to_ts_point, ts_to_lsp_position},
+};
 
 use super::ParsedTree;
 
@@ -133,15 +136,38 @@ impl ParsedTree {
             .first()
             .map(|n| n.utf8_text(content).expect("utf-8 parse error"))
     }
-    pub fn get_import_path<'a>(&self, content: &'a [u8]) -> Vec<&'a str> {
+
+    pub fn get_import_node(&self) -> Vec<Node> {
         self.find_all_nodes(NodeKind::is_import_path)
             .into_iter()
-            .filter_map(|n| {
-                n.child_by_field_name("path").map(|c| {
-                    c.utf8_text(content)
-                        .expect("utf-8 parse error")
-                        .trim_matches('"')
-                })
+            .filter_map(|n| n.child_by_field_name("path"))
+            .collect()
+    }
+
+    pub fn get_import_path<'a>(&self, content: &'a [u8]) -> Vec<&'a str> {
+        self.get_import_node()
+            .into_iter()
+            .map(|n| {
+                n.utf8_text(content)
+                    .expect("utf-8 parse error")
+                    .trim_matches('"')
+            })
+            .collect()
+    }
+
+    pub fn get_import_path_range(&self, content: &[u8], import: Vec<String>) -> Vec<Range> {
+        self.get_import_node()
+            .into_iter()
+            .filter(|n| {
+                let t = n
+                    .utf8_text(content)
+                    .expect("utf8-parse error")
+                    .trim_matches('"');
+                import.iter().any(|i| i == t)
+            })
+            .map(|n| Range {
+                start: ts_to_lsp_position(&n.start_position()),
+                end: ts_to_lsp_position(&n.end_position()),
             })
             .collect()
     }

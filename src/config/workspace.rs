@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use async_lsp::lsp_types::{Url, WorkspaceFolder};
@@ -60,6 +60,21 @@ impl WorkspaceProtoConfigs {
         self.workspaces
             .iter()
             .find(|&k| upath.starts_with(k.to_file_path().unwrap()))
+    }
+
+    pub fn get_include_paths(&self, uri: &Url) -> Option<Vec<PathBuf>> {
+        let c = self.get_config_for_uri(uri)?;
+        let w = self.get_workspace_for_uri(uri)?.to_file_path().ok()?;
+        let mut ipath: Vec<PathBuf> = c
+            .config
+            .include_paths
+            .iter()
+            .map(PathBuf::from)
+            .map(|p| if p.is_relative() { w.join(p) } else { p })
+            .collect();
+
+        ipath.push(w.to_path_buf());
+        Some(ipath)
     }
 }
 

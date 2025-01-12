@@ -6,7 +6,7 @@ fn default_clang_format_path() -> String {
     "clang-format".to_string()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct ProtolsConfig {
     pub config: Config,
@@ -32,15 +32,6 @@ pub struct Config {
 #[serde(default)]
 pub struct ExperimentalConfig {
     pub use_protoc_diagnostics: bool,
-}
-
-impl Default for ProtolsConfig {
-    fn default() -> Self {
-        Self {
-            config: Config::default(),
-            formatter: FormatterConfig::default(),
-        }
-    }
 }
 
 impl Default for FormatterConfig {

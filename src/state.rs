@@ -1,18 +1,12 @@
 use std::{
     collections::HashMap,
-    fs::read_to_string,
-    sync::{mpsc::Sender, Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard},
-    thread,
+    path::PathBuf,
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard},
 };
-use tracing::{error, info};
+use tracing::info;
 
-use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, ProgressParamsValue, PublishDiagnosticsParams, Url,
-    WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressEnd, WorkDoneProgressReport,
-    WorkspaceFolder,
-};
+use async_lsp::lsp_types::{CompletionItem, CompletionItemKind, PublishDiagnosticsParams, Url};
 use tree_sitter::Node;
-use walkdir::WalkDir;
 
 use crate::{
     nodekind::NodeKind,
@@ -87,94 +81,127 @@ impl ProtoLanguageState {
         }
     }
 
-    pub fn upsert_content(&mut self, uri: &Url, content: String) -> bool {
-        let parser = self.parser.lock().expect("poison");
-        let tree = self.trees.write().expect("poison");
-        let docs = self.documents.write().expect("poison");
-        Self::upsert_content_impl(parser, uri, content, docs, tree)
-    }
-
-    pub fn add_workspace_folder_async(
+    pub fn upsert_content(
         &mut self,
-        workspace: WorkspaceFolder,
-        tx: Sender<ProgressParamsValue>,
-    ) {
-        let parser = self.parser.clone();
-        let tree = self.trees.clone();
-        let docs = self.documents.clone();
-
-        let begin = ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
-            title: String::from("indexing"),
-            cancellable: Some(false),
-            percentage: Some(0),
-            ..Default::default()
-        }));
-
-        if let Err(e) = tx.send(begin) {
-            error!(error=%e, "failed to send work begin progress");
+        uri: &Url,
+        content: String,
+        ipath: &[PathBuf],
+    ) -> Vec<String> {
+        // Drop locks at end of block
+        {
+            let parser = self.parser.lock().expect("poison");
+            let tree = self.trees.write().expect("poison");
+            let docs = self.documents.write().expect("poison");
+            Self::upsert_content_impl(parser, uri, content.clone(), docs, tree);
         }
 
-        thread::spawn(move || {
-            let files: Vec<_> = WalkDir::new(workspace.uri.path())
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().is_some())
-                .filter(|e| e.path().extension().unwrap() == "proto")
-                .collect();
-
-            let total_files = files.len();
-            let mut current = 0;
-
-            for file in files.into_iter() {
-                let path = file.path();
-                if path.is_absolute() && path.is_file() {
-                    let Ok(content) = read_to_string(path) else {
-                        continue;
-                    };
-
-                    let Ok(uri) = Url::from_file_path(path) else {
-                        continue;
-                    };
-
-                    Self::upsert_content_impl(
-                        parser.lock().expect("poison"),
-                        &uri,
-                        content,
-                        docs.write().expect("poison"),
-                        tree.write().expect("poison"),
-                    );
-
-                    current += 1;
-
-                    let report = ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
-                        WorkDoneProgressReport {
-                            cancellable: Some(false),
-                            message: Some(path.display().to_string()),
-                            percentage: Some((current * 100 / total_files) as u32),
-                        },
-                    ));
-
-                    if let Err(e) = tx.send(report) {
-                        error!(error=%e, "failed to send work report progress");
-                    }
-                }
-            }
-            let report =
-                ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
-                    message: Some(String::from("completed")),
-                }));
-
-            info!(len = total_files, "workspace file parsing completed");
-            if let Err(e) = tx.send(report) {
-                error!(error=%e, "failed to send work completed result");
-            }
-        });
+        // After content is upserted, those imports which couldn't be located
+        // are flagged as import error
+        self.get_tree(uri)
+            .map(|t| t.get_import_path(content.as_ref()))
+            .unwrap_or_default()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .filter(|import| !ipath.iter().any(|p| p.join(import.as_str()).exists()))
+            .collect()
     }
 
-    pub fn upsert_file(&mut self, uri: &Url, content: String) -> Option<PublishDiagnosticsParams> {
+    // #[allow(unused)]
+    // pub fn add_workspace_folder_async(
+    //     &mut self,
+    //     workspace: WorkspaceFolder,
+    //     tx: Sender<ProgressParamsValue>,
+    // ) {
+    //     let parser = self.parser.clone();
+    //     let tree = self.trees.clone();
+    //     let docs = self.documents.clone();
+    //
+    //     let begin = ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
+    //         title: String::from("indexing"),
+    //         cancellable: Some(false),
+    //         percentage: Some(0),
+    //         ..Default::default()
+    //     }));
+    //
+    //     if let Err(e) = tx.send(begin) {
+    //         error!(error=%e, "failed to send work begin progress");
+    //     }
+    //
+    //     thread::spawn(move || {
+    //         let files: Vec<_> = WalkDir::new(workspace.uri.path())
+    //             .into_iter()
+    //             .filter_map(|e| e.ok())
+    //             .filter(|e| e.path().extension().is_some())
+    //             .filter(|e| e.path().extension().unwrap() == "proto")
+    //             .collect();
+    //
+    //         let total_files = files.len();
+    //         let mut current = 0;
+    //
+    //         for file in files.into_iter() {
+    //             let path = file.path();
+    //             if path.is_absolute() && path.is_file() {
+    //                 let Ok(content) = read_to_string(path) else {
+    //                     continue;
+    //                 };
+    //
+    //                 let Ok(uri) = Url::from_file_path(path) else {
+    //                     continue;
+    //                 };
+    //
+    //                 Self::upsert_content_impl(
+    //                     parser.lock().expect("poison"),
+    //                     &uri,
+    //                     content,
+    //                     docs.write().expect("poison"),
+    //                     tree.write().expect("poison"),
+    //                 );
+    //
+    //                 current += 1;
+    //
+    //                 let report = ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
+    //                     WorkDoneProgressReport {
+    //                         cancellable: Some(false),
+    //                         message: Some(path.display().to_string()),
+    //                         percentage: Some((current * 100 / total_files) as u32),
+    //                     },
+    //                 ));
+    //
+    //                 if let Err(e) = tx.send(report) {
+    //                     error!(error=%e, "failed to send work report progress");
+    //                 }
+    //             }
+    //         }
+    //         let report =
+    //             ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
+    //                 message: Some(String::from("completed")),
+    //             }));
+    //
+    //         info!(len = total_files, "workspace file parsing completed");
+    //         if let Err(e) = tx.send(report) {
+    //             error!(error=%e, "failed to send work completed result");
+    //         }
+    //     });
+    // }
+
+    pub fn upsert_file(
+        &mut self,
+        uri: &Url,
+        content: String,
+        ipath: &[PathBuf],
+    ) -> Option<PublishDiagnosticsParams> {
         info!(uri=%uri, "upserting file");
-        self.upsert_content(uri, content);
-        self.get_tree(uri).map(|tree| tree.collect_parse_errors())
+        let diag = self.upsert_content(uri, content.clone(), ipath);
+        self.get_tree(uri).map(|tree| {
+            let diag = tree.collect_import_diagnostics(content.as_ref(), diag);
+            let mut d = tree.collect_parse_diagnostics();
+            d.extend(diag);
+            PublishDiagnosticsParams {
+                uri: tree.uri.clone(),
+                diagnostics: d,
+                version: None,
+            }
+        })
     }
 
     pub fn delete_file(&mut self, uri: &Url) {

@@ -3,6 +3,8 @@
 [![Crates.io](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)  
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
+**WARNING** : Master branch is undergoing a massive refactoring, please use last relesed tag instead.
+
 **Protols** is an open-source, feature-rich [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) for **Protocol Buffers (proto)** files. Powered by the efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser, Protols offers intelligent code assistance for protobuf development, including features like auto-completion, diagnostics, formatting, and more.
 
 ![Protols Demo](./assets/protols.mov)
@@ -71,7 +73,7 @@ If you're using Visual Studio Code, you can install the [Protobuf Language Suppo
 
 ## ⚙️ Configuration
 
-Protols is configured using a `protols.toml` file, which you can place in any directory. **Protols** will search for the closest configuration file by recursively traversing the parent directories.
+Protols is configured using a `protols.toml` file, which you can place in any directory.
 
 ### Sample `protols.toml`
 
@@ -107,10 +109,6 @@ The `[config.experimental]` section contains settings that are in development or
 The `[formatter]` section allows configuration for code formatting.
 
 - `clang_format_path`: Specify the path to the `clang-format` binary.
-
-### Multiple Configuration Files
-
-You can place multiple `protols.toml` files across different directories. **Protols** will use the closest configuration file by searching up the directory tree.
 
 ---
 

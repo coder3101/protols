@@ -1,16 +1,15 @@
 ---
 source: src/parser/diagnostics.rs
-expression: parsed.unwrap().collect_parse_errors()
+expression: parsed.unwrap().collect_parse_diagnostics()
+snapshot_kind: text
 ---
-uri: "file://foo/bar.proto"
-diagnostics:
-  - range:
-      start:
-        line: 6
-        character: 8
-      end:
-        line: 6
-        character: 19
-    severity: 1
-    source: protols
-    message: Syntax error
+- range:
+    start:
+      line: 6
+      character: 8
+    end:
+      line: 6
+      character: 19
+  severity: 1
+  source: protols
+  message: Syntax error
