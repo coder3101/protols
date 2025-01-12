@@ -28,7 +28,7 @@ impl ParsedTree {
         content: impl AsRef<[u8]>,
     ) -> Option<Vec<Node<'a>>> {
         n.parent().map(|p| {
-            self.filter_nodes_from(p, NodeKind::is_field_name)
+            self.find_all_nodes_from(p, NodeKind::is_field_name)
                 .into_iter()
                 .filter(|i| i.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
                 .collect()
@@ -114,7 +114,7 @@ impl ParsedTree {
         new_identifier: &str,
         content: impl AsRef<[u8]>,
     ) -> Vec<TextEdit> {
-        self.filter_nodes(NodeKind::is_field_name)
+        self.find_all_nodes(NodeKind::is_field_name)
             .into_iter()
             .filter(|n| {
                 let ntext = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
@@ -135,7 +135,7 @@ impl ParsedTree {
     }
 
     pub fn reference_field(&self, id: &str, content: impl AsRef<[u8]>) -> Vec<Location> {
-        self.filter_nodes(NodeKind::is_field_name)
+        self.find_all_nodes(NodeKind::is_field_name)
             .into_iter()
             .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == id)
             .map(|n| Location {

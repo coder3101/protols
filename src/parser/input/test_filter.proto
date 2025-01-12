@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package com.parser;
 
+import "foo/bar.proto";
+import "baz/bar.proto";
+
 message Book {
 
     message Author {

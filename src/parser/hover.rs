@@ -66,7 +66,7 @@ impl ParsedTree {
         match identifier.split_once('.') {
             Some((parent, child)) => {
                 let child_node = self
-                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .find_all_nodes_from(n, NodeKind::is_userdefined)
                     .into_iter()
                     .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent)
                     .and_then(|n| n.parent());
@@ -77,7 +77,7 @@ impl ParsedTree {
             }
             None => {
                 let comments: Vec<String> = self
-                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .find_all_nodes_from(n, NodeKind::is_userdefined)
                     .into_iter()
                     .filter(|n| {
                         n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier

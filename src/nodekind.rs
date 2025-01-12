@@ -11,6 +11,7 @@ pub enum NodeKind {
     ServiceName,
     RpcName,
     PackageName,
+    PackageImport,
 }
 
 #[allow(unused)]
@@ -26,6 +27,7 @@ impl NodeKind {
             NodeKind::ServiceName => "service_name",
             NodeKind::RpcName => "rpc_name",
             NodeKind::PackageName => "full_ident",
+            NodeKind::PackageImport => "import",
         }
     }
 
@@ -35,6 +37,10 @@ impl NodeKind {
 
     pub fn is_error(n: &Node) -> bool {
         n.kind() == Self::Error.as_str()
+    }
+
+    pub fn is_import_path(n: &Node) -> bool {
+        n.kind() == Self::PackageImport.as_str()
     }
 
     pub fn is_package_name(n: &Node) -> bool {

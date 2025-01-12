@@ -1,5 +1,13 @@
-use async_lsp::{router::Router, ClientSocket};
-use std::ops::ControlFlow;
+use async_lsp::{
+    lsp_types::{NumberOrString, ProgressParams, ProgressParamsValue},
+    router::Router,
+    ClientSocket, LanguageClient,
+};
+use std::{
+    ops::ControlFlow,
+    sync::{mpsc, mpsc::Sender},
+    thread,
+};
 
 use crate::{config::workspace::WorkspaceProtoConfigs, state::ProtoLanguageState};
 
@@ -26,5 +34,23 @@ impl ProtoLanguageServer {
     fn on_tick(&mut self, _: TickEvent) -> ControlFlow<async_lsp::Result<()>> {
         self.counter += 1;
         ControlFlow::Continue(())
+    }
+
+    fn with_report_progress(&self, token: NumberOrString) -> Sender<ProgressParamsValue> {
+        let (tx, rx) = mpsc::channel();
+        let mut socket = self.client.clone();
+
+        thread::spawn(move || {
+            while let Ok(value) = rx.recv() {
+                if let Err(e) = socket.progress(ProgressParams {
+                    token: token.clone(),
+                    value,
+                }) {
+                    tracing::error!(error=%e, "failed to report parse progress");
+                }
+            }
+        });
+
+        tx
     }
 }

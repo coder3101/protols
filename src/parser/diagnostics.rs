@@ -7,7 +7,7 @@ use super::ParsedTree;
 impl ParsedTree {
     pub fn collect_parse_errors(&self) -> PublishDiagnosticsParams {
         let diagnostics = self
-            .filter_nodes(NodeKind::is_error)
+            .find_all_nodes(NodeKind::is_error)
             .into_iter()
             .map(|n| Diagnostic {
                 range: Range {
