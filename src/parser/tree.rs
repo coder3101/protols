@@ -155,7 +155,7 @@ impl ParsedTree {
             .collect()
     }
 
-    pub fn get_import_path_range<'a>(&self, content: &'a [u8], import: Vec<String>) -> Vec<Range> {
+    pub fn get_import_path_range(&self, content: &[u8], import: Vec<String>) -> Vec<Range> {
         self.get_import_node()
             .into_iter()
             .filter(|n| {

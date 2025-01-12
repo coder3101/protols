@@ -85,7 +85,7 @@ impl ProtoLanguageState {
         &mut self,
         uri: &Url,
         content: String,
-        ipath: &Vec<PathBuf>,
+        ipath: &[PathBuf],
     ) -> Vec<String> {
         // Drop locks at end of block
         {
@@ -188,7 +188,7 @@ impl ProtoLanguageState {
         &mut self,
         uri: &Url,
         content: String,
-        ipath: &Vec<PathBuf>,
+        ipath: &[PathBuf],
     ) -> Option<PublishDiagnosticsParams> {
         info!(uri=%uri, "upserting file");
         let diag = self.upsert_content(uri, content.clone(), ipath);
