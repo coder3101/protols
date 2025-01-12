@@ -112,7 +112,7 @@ static WELLKNOWN_DOCS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock:
     HashMap::from([
         (
             "google.protobuf.Any",
-            r#"*Any* wellknown type
+            r#"*google.protobuf.Any* wellknown type
 ---
 `Any` contains an arbitrary serialized message along with a URL that describes the type of the serialized message.
 The JSON representation of an Any value uses the regular representation of the deserialized, embedded message, with an additional field @type which contains the type URL.
@@ -128,7 +128,7 @@ message Any {
         ),
         (
             "google.protobuf.Api",
-            r#"*Api* well known type
+            r#"*google.protobuf.Api* well known type
 ---
 `Api` is a light-weight descriptor for a protocol buffer service.
 ---
@@ -148,7 +148,7 @@ message Api {
         ),
         (
             "google.protobuf.BoolValue",
-            r#"*BoolValue* well known type, Wrapper message for bool
+            r#"*google.protobuf.BoolValue* well known type, Wrapper message for bool
 ---
 The JSON representation for `BoolValue` is JSON `true` and `false`
 ---
@@ -161,7 +161,7 @@ message BoolValue {
         ),
         (
             "google.protobuf.BytesValue",
-            r#"*BytesValue* well known type, Wrapper message for bytes
+            r#"*google.protobuf.BytesValue* well known type, Wrapper message for bytes
 ---
 The JSON representation for `BytesValue` is JSON string.
 ---
@@ -174,7 +174,7 @@ message BytesValue {
         ),
         (
             "google.protobuf.DoubleValue",
-            r#"*DoubleValue* well known type, Wrapper message for double
+            r#"*google.protobuf.DoubleValue* well known type, Wrapper message for double
 ---
 The JSON representation for `DoubleValue` is JSON number.
 ---
@@ -187,7 +187,7 @@ message DoubleValue {
         ),
         (
             "google.protobuf.Duration",
-            r#"*Duration* well known type
+            r#"*google.protobuf.Duration* well known type
 ---
 A Duration represents a signed, fixed-length span of time represented as a count of seconds and fractions of seconds at nanosecond resolution.
 It is independent of any calendar and concepts like "day" or "month". 
@@ -204,7 +204,7 @@ message Duration {
         ),
         (
             "google.protobuf.Empty",
-            r#"*Empty* well known type
+            r#"*google.protobuf.Empty* well known type
 ---
 A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs.
 The JSON representation for Empty is empty JSON object `{}`
@@ -212,7 +212,7 @@ The JSON representation for Empty is empty JSON object `{}`
         ),
         (
             "google.protobuf.Enum",
-            r#"*Enum* well known type
+            r#"*google.protobuf.Enum* well known type
 ---
 Enum type definition
 ---
@@ -230,7 +230,7 @@ message Enum {
         ),
         (
             "google.protobuf.EnumValue",
-            r#"*EnumValue* well known type
+            r#"*google.protobuf.EnumValue* well known type
 ---
 Enum value definition
 ---
@@ -246,7 +246,7 @@ message EnumValue {
         ),
         (
             "google.protobuf.Field",
-            r#"*Field* well known type
+            r#"*google.protobuf.Field* well known type
 ---
 A single field of a message type.
 ---
@@ -268,7 +268,7 @@ message Field {
         ),
         (
             "google.protobuf.Field.Cardinality",
-            r#"*Field.Cardinality* well known type
+            r#"*google.protobuf.Field.Cardinality* well known type
 ---
 Whether a field is optional, required, or repeated.
 ---
@@ -285,7 +285,7 @@ enum Cardinality {
         ),
         (
             "google.protobuf.Field.Kind",
-            r#"*Field.Kind* well known type
+            r#"*google.protobuf.Field.Kind* well known type
 ---
 Basic field types.
 ---
@@ -317,7 +317,7 @@ enum Kind {
         ),
         (
             "google.protobuf.FieldMask",
-            r#"*FieldMask* well known type
+            r#"*google.protobuf.FieldMask* well known type
 ---
 `FieldMask` represents a set of symbolic field paths
 ---
@@ -331,7 +331,7 @@ message FieldMask {
         ),
         (
             "google.protobuf.FloatValue",
-            r#"*FloatValue* well known type, Wrapper message for `float`
+            r#"*google.protobuf.FloatValue* well known type, Wrapper message for `float`
 ---
 The JSON representation for `FloatValue` is JSON number.
 ---
@@ -344,7 +344,7 @@ message FloatValue {
         ),
         (
             "google.protobuf.Int32Value",
-            r#"*Int32Value* well known type, Wrapper message for `int32`
+            r#"*google.protobuf.Int32Value* well known type, Wrapper message for `int32`
 ---
 The JSON representation for `Int32Value` is JSON number.
 ---
@@ -357,7 +357,7 @@ message Int32Value {
         ),
         (
             "google.protobuf.Int64Value",
-            r#"*Int64Value* well known type, Wrapper message for `int64`
+            r#"*google.protobuf.Int64Value* well known type, Wrapper message for `int64`
 ---
 The JSON representation for `Int64Value` is JSON string.
 ---
@@ -370,7 +370,7 @@ message Int64Value {
         ),
         (
             "google.protobuf.ListValue",
-            r#"*ListValue* well known type, Wrapper around a repeated field of values
+            r#"*google.protobuf.ListValue* well known type, Wrapper around a repeated field of values
 ---
 The JSON representation for `ListValue` is JSON Array.
 ---
@@ -383,7 +383,7 @@ message Int64Value {
         ),
         (
             "google.protobuf.Method",
-            r#"*Method* well known type
+            r#"*google.protobuf.Method* well known type
 ---
 Method represents a method of an api.
 ---
@@ -402,7 +402,7 @@ message Method {
         ),
         (
             "google.protobuf.Mixin",
-            r#"*Mixin* well known type
+            r#"*google.protobuf.Mixin* well known type
 ---
 Declares an API Interface to be included in this interface. The including
 interface must redeclare all the methods from the included interface, but
@@ -418,7 +418,7 @@ message Mixin {
         ),
         (
             "google.protobuf.NullValue",
-            r#"*NullValue* well known type
+            r#"*google.protobuf.NullValue* well known type
 ---
 `NullValue` is a singleton enumeration to represent the null value for the Value type union.
 The JSON representation for NullValue is JSON `null`.
@@ -432,7 +432,7 @@ enum NullValue {
         ),
         (
             "google.protobuf.Option",
-            r#"*Option* well known type
+            r#"*google.protobuf.Option* well known type
 ---
 A protocol buffer option, which can be attached to a message, field, enumeration, etc
 ---
@@ -446,7 +446,7 @@ message Option {
         ),
         (
             "google.protobuf.SourceContext",
-            r#"*SourceContext* well known type
+            r#"*google.protobuf.SourceContext* well known type
 ---
 `SourceContext` represents information about the source of a protobuf element, like the file in which it is defined
 ---
@@ -459,7 +459,7 @@ message SourceContext {
         ),
         (
             "google.protobuf.StringValue",
-            r#"*StringValue* well known type, Wrapper message for string.
+            r#"*google.protobuf.StringValue* well known type, Wrapper message for string.
 ---
 The JSON representation for `StringValue` is JSON string.
 ---
@@ -472,7 +472,7 @@ message StringValue {
         ),
         (
             "google.protobuf.Struct",
-            r#"*Struct* well known type
+            r#"*google.protobuf.Struct* well known type
 ---
 `Struct` represents a structured data value, consisting of fields
 which map to dynamically typed values.
@@ -486,7 +486,7 @@ message Struct {
         ),
         (
             "google.protobuf.Syntax",
-            r#"*Syntax* well known type
+            r#"*google.protobuf.Syntax* well known type
 ---
 The syntax in which a protocol buffer element is defined
 ---
@@ -501,7 +501,7 @@ enum Syntax {
         ),
         (
             "google.protobuf.Timestamp",
-            r#"*Timestamp* well known type
+            r#"*google.protobuf.Timestamp* well known type
 ---
 `Timestamp` represents a point in time independent of any time zone or calendar, represented as seconds and fractions of seconds at nanosecond resolution in UTC Epoch time
 ---
@@ -515,7 +515,7 @@ message Timestamp {
         ),
         (
             "google.protobuf.Type",
-            r#"*Type* well known type
+            r#"*google.protobuf.Type* well known type
 ---
 A protocol buffer message type
 ---
@@ -534,7 +534,7 @@ message Type {
         ),
         (
             "google.protobuf.UInt32Value",
-            r#"*UInt32Value* well known type, Wrapper message for `uint32`
+            r#"*google.protobuf.UInt32Value* well known type, Wrapper message for `uint32`
 ---
 The JSON representation for `UInt32Value` is JSON number.
 ---
@@ -547,7 +547,7 @@ message UInt32Value {
         ),
         (
             "google.protobuf.UInt64Value",
-            r#"*UInt64Value* well known type, Wrapper message for `uint64`
+            r#"*google.protobuf.UInt64Value* well known type, Wrapper message for `uint64`
 ---
 The JSON representation for `UInt64Value` is JSON string.
 ---
@@ -560,7 +560,7 @@ message UInt64Value {
         ),
         (
             "google.protobuf.Value",
-            r#"*Value* well known type
+            r#"*google.protobuf.Value* well known type
 ---
 `Value` represents a dynamically typed value which can be either
 null, a number, a string, a boolean, a recursive struct value, or a
@@ -649,6 +649,7 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned());
         state.upsert_file(&c_uri, c.to_owned());
 
+        assert_yaml_snapshot!(state.hover("com.workspace", "google.protobuf.Any"));
         assert_yaml_snapshot!(state.hover("com.workspace", "Author"));
         assert_yaml_snapshot!(state.hover("com.workspace", "int64"));
         assert_yaml_snapshot!(state.hover("com.workspace", "Author.Address"));

@@ -1,7 +1,6 @@
 ---
 source: src/workspace/hover.rs
-expression: "state.hover(\"com.workspace\", \"Author\")"
-snapshot_kind: text
+expression: "state.hover(\"com.workspace\", \"google.protobuf.Any\")"
 ---
 kind: markdown
-value: "`Author` message or enum type, package: `com.workspace`\n---\nA author is a author"
+value: "*google.protobuf.Any* wellknown type\n---\n`Any` contains an arbitrary serialized message along with a URL that describes the type of the serialized message.\nThe JSON representation of an Any value uses the regular representation of the deserialized, embedded message, with an additional field @type which contains the type URL.\n---\n```proto\nmessage Any {\n    string type_url = 1; // A URL/resource name that uniquely identifies the type of the serialized protocol buffer message\n    bytes value = 2; // Must be a valid serialized protocol buffer\n}\n```\n\n"

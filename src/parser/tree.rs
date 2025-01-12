@@ -6,7 +6,7 @@ use crate::{nodekind::NodeKind, utils::lsp_to_ts_point};
 use super::ParsedTree;
 
 impl ParsedTree {
-    pub(super) fn walk_and_collect_filter<'a>(
+    pub(super) fn walk_and_filter<'a>(
         cursor: &mut TreeCursor<'a>,
         f: fn(&Node) -> bool,
         early: bool,
@@ -24,7 +24,7 @@ impl ParsedTree {
             }
 
             if cursor.goto_first_child() {
-                v.extend(Self::walk_and_collect_filter(cursor, f, early));
+                v.extend(Self::walk_and_filter(cursor, f, early));
                 cursor.goto_parent();
             }
 
@@ -110,28 +110,40 @@ impl ParsedTree {
         self.tree.root_node().descendant_for_point_range(pos, pos)
     }
 
-    pub fn filter_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node> {
-        self.filter_nodes_from(self.tree.root_node(), f)
+    pub fn find_all_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+        self.find_all_nodes_from(self.tree.root_node(), f)
     }
 
-    pub fn filter_nodes_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+    pub fn find_all_nodes_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
         let mut cursor = n.walk();
-        Self::walk_and_collect_filter(&mut cursor, f, false)
+        Self::walk_and_filter(&mut cursor, f, false)
     }
 
-    pub fn find_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+    pub fn find_first_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
         self.find_node_from(self.tree.root_node(), f)
     }
 
     pub fn find_node_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
         let mut cursor = n.walk();
-        Self::walk_and_collect_filter(&mut cursor, f, true)
+        Self::walk_and_filter(&mut cursor, f, true)
     }
 
     pub fn get_package_name<'a>(&self, content: &'a [u8]) -> Option<&'a str> {
-        self.find_node(NodeKind::is_package_name)
+        self.find_first_node(NodeKind::is_package_name)
             .first()
             .map(|n| n.utf8_text(content).expect("utf-8 parse error"))
+    }
+    pub fn get_import_path<'a>(&self, content: &'a [u8]) -> Vec<&'a str> {
+        self.find_all_nodes(NodeKind::is_import_path)
+            .into_iter()
+            .filter_map(|n| {
+                n.child_by_field_name("path").map(|c| {
+                    c.utf8_text(content)
+                        .expect("utf-8 parse error")
+                        .trim_matches('"')
+                })
+            })
+            .collect()
     }
 }
 
@@ -150,7 +162,7 @@ mod test {
 
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
-        let nodes = tree.filter_nodes(NodeKind::is_message_name);
+        let nodes = tree.find_all_nodes(NodeKind::is_message_name);
 
         assert_eq!(nodes.len(), 2);
 
@@ -163,5 +175,7 @@ mod test {
 
         let package_name = tree.get_package_name(contents.as_ref());
         assert_yaml_snapshot!(package_name);
+        let imports = tree.get_import_path(contents.as_ref());
+        assert_yaml_snapshot!(imports);
     }
 }

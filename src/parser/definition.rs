@@ -25,7 +25,7 @@ impl ParsedTree {
         match identifier.split_once('.') {
             Some((parent_identifier, remaining)) => {
                 let child_node = self
-                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .find_all_nodes_from(n, NodeKind::is_userdefined)
                     .into_iter()
                     .find(|n| {
                         n.utf8_text(content.as_ref()).expect("utf8-parse error")
@@ -39,7 +39,7 @@ impl ParsedTree {
             }
             None => {
                 let locations: Vec<Location> = self
-                    .filter_nodes_from(n, NodeKind::is_userdefined)
+                    .find_all_nodes_from(n, NodeKind::is_userdefined)
                     .into_iter()
                     .filter(|n| {
                         n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier

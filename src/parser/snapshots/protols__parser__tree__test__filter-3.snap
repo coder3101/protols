@@ -1,0 +1,6 @@
+---
+source: src/parser/tree.rs
+expression: imports
+---
+- foo/bar.proto
+- baz/bar.proto

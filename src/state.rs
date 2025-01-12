@@ -208,7 +208,7 @@ impl ProtoLanguageState {
                 .into_iter()
                 .fold(vec![], |mut v, tree| {
                     let content = self.get_content(&tree.uri);
-                    let t = tree.filter_nodes(f).into_iter().map(|n| CompletionItem {
+                    let t = tree.find_all_nodes(f).into_iter().map(|n| CompletionItem {
                         label: n.utf8_text(content.as_bytes()).unwrap().to_string(),
                         kind: Some(k),
                         ..Default::default()

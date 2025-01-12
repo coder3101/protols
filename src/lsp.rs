@@ -51,25 +51,6 @@ impl LanguageServer for ProtoLanguageServer {
             },
         }];
 
-        let worktoken = params.work_done_progress_params.work_done_token;
-        let (tx, rx) = mpsc::channel();
-        let mut socket = self.client.clone();
-
-        thread::spawn(move || {
-            let Some(token) = worktoken else {
-                return;
-            };
-
-            while let Ok(value) = rx.recv() {
-                if let Err(e) = socket.progress(ProgressParams {
-                    token: token.clone(),
-                    value,
-                }) {
-                    error!(error=%e, "failed to report parse progress");
-                }
-            }
-        });
-
         let file_registration_option = FileOperationRegistrationOptions {
             filters: file_operation_filers.clone(),
         };
@@ -80,7 +61,6 @@ impl LanguageServer for ProtoLanguageServer {
             for workspace in folders {
                 info!("Workspace folder: {workspace:?}");
                 self.configs.add_workspace(&workspace);
-                self.state.add_workspace_folder_async(workspace, tx.clone());
             }
             workspace_capabilities = Some(WorkspaceServerCapabilities {
                 workspace_folders: Some(WorkspaceFoldersServerCapabilities {
