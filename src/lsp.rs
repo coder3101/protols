@@ -1,6 +1,4 @@
 use std::ops::ControlFlow;
-use std::sync::mpsc;
-use std::thread;
 use std::{collections::HashMap, fs::read_to_string};
 use tracing::{error, info};
 
@@ -12,11 +10,12 @@ use async_lsp::lsp_types::{
     DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ProgressParams,
-    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities,
-    ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextEdit, Url, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse,
+    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams,
+    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
@@ -377,15 +376,19 @@ impl LanguageServer for ProtoLanguageServer {
         let uri = params.text_document.uri;
         let content = params.text_document.text;
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content) else {
+        let Some(ipath) = self.configs.get_include_paths(&uri) else {
             return ControlFlow::Continue(());
         };
 
-        let Some(ws) = self.configs.get_config_for_uri(&uri) else {
+        let Some(diagnostics) = self.state.upsert_file(&uri, content.clone(), &ipath) else {
             return ControlFlow::Continue(());
         };
 
-        if !ws.config.disable_parse_diagnostics {
+        let Some(pconf) = self.configs.get_config_for_uri(&uri) else {
+            return ControlFlow::Continue(());
+        };
+
+        if !pconf.config.disable_parse_diagnostics {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }
@@ -397,7 +400,11 @@ impl LanguageServer for ProtoLanguageServer {
         let uri = params.text_document.uri;
         let content = params.content_changes[0].text.clone();
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content) else {
+        let Some(ipath) = self.configs.get_include_paths(&uri) else {
+            return ControlFlow::Continue(());
+        };
+
+        let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath) else {
             return ControlFlow::Continue(());
         };
 
@@ -419,7 +426,7 @@ impl LanguageServer for ProtoLanguageServer {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 // Safety: The uri is always a file type
                 let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
-                self.state.upsert_content(&uri, content);
+                self.state.upsert_content(&uri, content, &vec![]);
             } else {
                 error!(uri=%file.uri, "failed parse uri");
             }
