@@ -30,11 +30,7 @@ impl WorkspaceProtoConfigs {
         for file in CONFIG_FILE_NAMES {
             let p = Path::new(&wpath).join(file);
             match std::fs::exists(&p) {
-                Ok(exists) => {
-                    if exists {
-                        return Some(p);
-                    }
-                }
+                Ok(exists) if exists => return Some(p),
                 _ => continue,
             }
         }
