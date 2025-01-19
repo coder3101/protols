@@ -9,7 +9,7 @@ use crate::formatter::clang::ClangFormatter;
 
 use super::ProtolsConfig;
 
-const CONFIG_FILE_NAME: &str = "protols.toml";
+const CONFIG_FILE_NAMES: [&str; 2] = [".protols.toml", "protols.toml"];
 
 pub struct WorkspaceProtoConfigs {
     workspaces: HashSet<Url>,
@@ -26,13 +26,24 @@ impl WorkspaceProtoConfigs {
         }
     }
 
+    fn get_config_file_path(wpath: &PathBuf) -> Option<PathBuf> {
+        for file in CONFIG_FILE_NAMES {
+            let p = Path::new(&wpath).join(file);
+            match std::fs::exists(&p) {
+                Ok(exists) if exists => return Some(p),
+                _ => continue,
+            }
+        }
+        None
+    }
+
     pub fn add_workspace(&mut self, w: &WorkspaceFolder) {
         let Ok(wpath) = w.uri.to_file_path() else {
             return;
         };
 
-        let p = Path::new(&wpath).join(CONFIG_FILE_NAME);
-        let content = std::fs::read_to_string(p).unwrap_or_default();
+        let path = Self::get_config_file_path(&wpath).unwrap_or_default();
+        let content = std::fs::read_to_string(path).unwrap_or_default();
 
         let wr: ProtolsConfig = basic_toml::from_str(&content).unwrap_or_default();
         let fmt = ClangFormatter::new(
@@ -84,7 +95,7 @@ mod test {
     use insta::assert_yaml_snapshot;
     use tempfile::tempdir;
 
-    use super::WorkspaceProtoConfigs;
+    use super::{WorkspaceProtoConfigs, CONFIG_FILE_NAMES};
 
     #[test]
     fn test_get_for_workspace() {
@@ -152,5 +163,25 @@ mod test {
             ws.get_formatter_for_uri(&inworkspace2).unwrap().path,
             "clang-format"
         );
+    }
+
+    #[test]
+    fn test_loading_different_config_files() {
+        let tmpdir = tempdir().expect("failed to create temp directory");
+
+        for file in CONFIG_FILE_NAMES {
+            let f = tmpdir.path().join(file);
+            std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
+
+            let mut ws = WorkspaceProtoConfigs::new();
+            ws.add_workspace(&WorkspaceFolder {
+                uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+                name: "Test".to_string(),
+            });
+
+            // check we really loaded the config file
+            let workspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
+            assert!(ws.get_workspace_for_uri(&workspace).is_some());
+        }
     }
 }
