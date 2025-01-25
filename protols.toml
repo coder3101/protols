@@ -1,2 +1,2 @@
 [config]
-include_paths = ["sample", "src/workspace/input"]
+include_paths = ["src/workspace/input"]

@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+// Import Google's Well-Known Types
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
+
+package example;
+
+// Enum example
+enum Status {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+
+// Nested message example
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string zip_code = 4;
+}
+
+// Main message example
+message Person {
+  // Scalar types
+  string name = 1;
+  int32 age = 2;
+  bool is_verified = 3;
+
+  // Repeated field (array)
+  repeated string phone_numbers = 4;
+
+  // Map example
+  map<string, string> attributes = 5;
+
+  // Enum field
+  Status status = 6;
+
+  // Nested message
+  Address address = 7;
+
+  // Oneof example
+  oneof contact_method {
+    string email = 8;
+    string phone = 9;
+  }
+
+  // Google Well-Known Types
+  google.protobuf.Timestamp last_updated = 10;
+  google.protobuf.Duration session_duration = 11;
+  google.protobuf.Empty metadata = 12;
+  google.protobuf.Struct extra_data = 13;
+  google.protobuf.Any any_data = 14;
+}
+
+// Service example
+service PersonService {
+  rpc GetPerson(google.protobuf.Empty) returns (Person);
+  rpc UpdatePerson(Person) returns (google.protobuf.Empty);
+}

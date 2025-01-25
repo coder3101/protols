@@ -12,7 +12,7 @@
 ## ✨ Features
 
 - ✅ **Code Completion**: Auto-complete messages, enums, and keywords in your `.proto` files.
-- ✅ **Diagnostics**: Syntax errors detected with the tree-sitter parser.
+- ✅ **Diagnostics**: Syntax errors and import error detected with the tree-sitter parser.
 - ✅ **Document Symbols**: Navigate and view all symbols, including messages and enums.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
 - ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums.
@@ -138,7 +138,7 @@ Jump directly to the definition of any custom symbol, including those in other f
 
 ### Hover Information
 
-Hover over any symbol to get detailed documentation and comments associated with it. This works seamlessly across different packages and namespaces.
+Hover over any symbol or imports to get detailed documentation and comments associated with it. This works seamlessly across different packages and namespaces.
 
 ### Rename Symbols
 

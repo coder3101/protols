@@ -10,11 +10,10 @@ use async_lsp::lsp_types::{
     DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse,
-    ReferenceParams, RenameFilesParams, RenameOptions, RenameParams,
-    ServerCapabilities, ServerInfo, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ReferenceParams,
+    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -131,10 +130,10 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let identifier = tree.get_hoverable_node_text_at_position(&pos, content.as_bytes());
+        let hv = tree.get_hoverable_at_position(&pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes());
 
-        let Some(identifier) = identifier else {
+        let Some(hv) = hv else {
             error!(uri=%uri, "failed to get identifier");
             return Box::pin(async move { Ok(None) });
         };
@@ -144,9 +143,8 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let result = self
-            .state
-            .hover(current_package_name.as_ref(), identifier.as_ref());
+        let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
+        let result = self.state.hover(&ipath, current_package_name.as_ref(), hv);
 
         Box::pin(async move {
             Ok(result.map(|r| Hover {
@@ -290,7 +288,7 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let identifier = tree.get_actionable_node_text_at_position(&pos, content.as_bytes());
+        let identifier = tree.get_user_defined_text(&pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes());
 
         let Some(identifier) = identifier else {
