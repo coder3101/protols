@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_lsp::lsp_types::{Url, WorkspaceFolder};
+use pkg_config::Config;
 
 use crate::formatter::clang::ClangFormatter;
 
@@ -15,6 +16,7 @@ pub struct WorkspaceProtoConfigs {
     workspaces: HashSet<Url>,
     configs: HashMap<Url, ProtolsConfig>,
     formatters: HashMap<Url, ClangFormatter>,
+    protoc_include_prefix: Vec<PathBuf>,
 }
 
 impl WorkspaceProtoConfigs {
@@ -22,6 +24,11 @@ impl WorkspaceProtoConfigs {
         Self {
             workspaces: Default::default(),
             formatters: Default::default(),
+            protoc_include_prefix: Config::new()
+                .atleast_version("3.0.0")
+                .probe("protobuf")
+                .map(|l| l.include_paths)
+                .unwrap_or_default(),
             configs: Default::default(),
         }
     }
@@ -85,6 +92,7 @@ impl WorkspaceProtoConfigs {
             .collect();
 
         ipath.push(w.to_path_buf());
+        ipath.extend_from_slice(&self.protoc_include_prefix);
         Some(ipath)
     }
 }
