@@ -91,10 +91,6 @@ mod test {
             Jumpable::Identifier("Baz".to_owned())
         ));
 
-        // An absolute ipath is passed; In reality the ipaths are always absolute paths but in test
-        // it is difficult to get that. Hence, we form abolute path and instead of checking for
-        // complete output, we only check the lenght. Output contains the path which is not going
-        // to be same across systems.
         let loc = state.definition(
             &vec![std::env::current_dir().unwrap().join(&ipath[0])],
             "com.workspace",
