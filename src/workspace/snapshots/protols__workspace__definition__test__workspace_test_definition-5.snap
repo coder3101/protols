@@ -1,6 +1,6 @@
 ---
 source: src/workspace/definition.rs
-assertion_line: 98
 expression: "state.definition(&vec![std::env::current_dir().unwrap().join(&ipath[0])],\n\"com.workspace\", Jumpable::Import(\"c.proto\".to_owned())).len()"
+snapshot_kind: text
 ---
 1
