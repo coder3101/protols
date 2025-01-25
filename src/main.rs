@@ -18,6 +18,7 @@ mod server;
 mod state;
 mod utils;
 mod workspace;
+mod context;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {

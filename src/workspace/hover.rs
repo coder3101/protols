@@ -1,8 +1,10 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
 
 use async_lsp::lsp_types::{MarkupContent, MarkupKind};
 
-use crate::{state::ProtoLanguageState, utils::split_identifier_package};
+use crate::{
+    context::hoverable::Hoverables, state::ProtoLanguageState, utils::split_identifier_package,
+};
 
 static BUITIN_DOCS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
@@ -586,45 +588,76 @@ message Value {
 });
 
 impl ProtoLanguageState {
-    pub fn hover(&self, curr_package: &str, identifier: &str) -> Option<MarkupContent> {
-        if let Some(docs) = BUITIN_DOCS.get(identifier) {
-            return Some(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: docs.to_string(),
-            });
-        }
+    pub fn hover(
+        &self,
+        ipath: &[PathBuf],
+        curr_package: &str,
+        hv: Hoverables,
+    ) -> Option<MarkupContent> {
+        let v = match hv {
+            Hoverables::FieldType(field) => {
+                // Type is a builtin
+                if let Some(docs) = BUITIN_DOCS.get(field.as_str()) {
+                    docs.to_string()
+                } else {
+                    String::new()
+                }
+            }
+            Hoverables::ImportPath(path) => {
+                if let Some(p) = ipath.iter().map(|p| p.join(&path)).find(|p| p.exists()) {
+                    format!(
+                        r#"Import: `{path}` protobuf file,
+---
+Included from {}"#,
+                        p.to_string_lossy(),
+                    )
+                } else {
+                    String::new()
+                }
+            }
+            Hoverables::Identifier(identifier) => {
+                let (mut package, identifier) = split_identifier_package(identifier.as_str());
+                if package.is_empty() {
+                    package = curr_package;
+                }
 
-        if let Some(wellknown) = WELLKNOWN_DOCS
-            .get(identifier)
-            .or(WELLKNOWN_DOCS.get(format!("google.protobuf.{identifier}").as_str()))
-        {
-            return Some(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: wellknown.to_string(),
-            });
-        }
+                // Node is user defined type or well known type
+                // If user defined,
+                let mut result = WELLKNOWN_DOCS
+                    .get(format!("{package}.{identifier}").as_str())
+                    .map(|&s| s.to_string())
+                    .unwrap_or_default();
 
-        let (mut package, identifier) = split_identifier_package(identifier);
-        if package.is_empty() {
-            package = curr_package;
-        }
+                // If no well known was found; try parsing from trees.
+                if result.is_empty() {
+                    for tree in self.get_trees_for_package(package) {
+                        let res = tree.hover(identifier, self.get_content(&tree.uri));
 
-        for tree in self.get_trees_for_package(package) {
-            let res = tree.hover(identifier, self.get_content(&tree.uri));
-            if !res.is_empty() {
-                return Some(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!(
-                        r#"`{identifier}` message or enum type, package: `{package}`
+                        if res.is_empty() {
+                            continue;
+                        }
+
+                        result = format!(
+                            r#"`{identifier}` message or enum type, package: `{package}`
 ---
 {}"#,
-                        res[0].clone()
-                    ),
-                });
-            }
-        }
+                            res[0].clone()
+                        );
+                        break;
+                    }
+                }
 
-        None
+                result
+            }
+        };
+
+        match v {
+            v if v.is_empty() => None,
+            v => Some(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: v,
+            }),
+        }
     }
 }
 
@@ -634,6 +667,7 @@ mod test {
 
     use insta::assert_yaml_snapshot;
 
+    use crate::context::hoverable::Hoverables;
     use crate::state::ProtoLanguageState;
 
     #[test]
@@ -652,11 +686,40 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned(), &ipath);
         state.upsert_file(&c_uri, c.to_owned(), &ipath);
 
-        assert_yaml_snapshot!(state.hover("com.workspace", "google.protobuf.Any"));
-        assert_yaml_snapshot!(state.hover("com.workspace", "Author"));
-        assert_yaml_snapshot!(state.hover("com.workspace", "int64"));
-        assert_yaml_snapshot!(state.hover("com.workspace", "Author.Address"));
-        assert_yaml_snapshot!(state.hover("com.workspace", "com.utility.Foobar.Baz"));
-        assert_yaml_snapshot!(state.hover("com.utility", "Baz"));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::Identifier("google.protobuf.Any".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::Identifier("Author".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::FieldType("int64".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::Identifier("Author.Address".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::Identifier("com.utility.Foobar.Baz".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.utility",
+            Hoverables::Identifier("Baz".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::ImportPath("c.proto".to_string())
+        ))
     }
 }

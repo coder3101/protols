@@ -2,6 +2,7 @@ use async_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Node, TreeCursor};
 
 use crate::{
+    context::hoverable::Hoverables,
     nodekind::NodeKind,
     utils::{lsp_to_ts_point, ts_to_lsp_position},
 };
@@ -57,7 +58,7 @@ impl ParsedTree {
         }
     }
 
-    pub fn get_actionable_node_text_at_position<'a>(
+    pub fn get_user_defined_text<'a>(
         &'a self,
         pos: &Position,
         content: &'a [u8],
@@ -66,14 +67,30 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
-    pub fn get_hoverable_node_text_at_position<'a>(
+    pub fn get_hoverable_at_position<'a>(
         &'a self,
         pos: &Position,
         content: &'a [u8],
-    ) -> Option<&'a str> {
+    ) -> Option<Hoverables> {
         let n = self.get_node_at_position(pos)?;
-        self.get_actionable_node_text_at_position(pos, content)
-            .or(Some(n.kind()))
+
+        // If node is import path. return the whole path, removing the quotes
+        if n.parent().filter(NodeKind::is_import_path).is_some() {
+            return Some(Hoverables::ImportPath(
+                n.utf8_text(content)
+                    .expect("utf-8 parse error")
+                    .trim_matches('"')
+                    .to_string(),
+            ));
+        }
+
+        // If node is user defined enum/message
+        if let Some(identifier) = self.get_user_defined_text(pos, content) {
+            return Some(Hoverables::Identifier(identifier.to_string()));
+        }
+
+        // Lastly; fallback to either wellknown or builtin types
+        Some(Hoverables::FieldType(n.kind().to_string()))
     }
 
     pub fn get_ancestor_nodes_at_position<'a>(&'a self, pos: &Position) -> Vec<Node<'a>> {
