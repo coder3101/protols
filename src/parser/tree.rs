@@ -2,7 +2,7 @@ use async_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Node, TreeCursor};
 
 use crate::{
-    context::hoverable::Hoverables,
+    context::{hoverable::Hoverables, jumpable::Jumpable},
     nodekind::NodeKind,
     utils::{lsp_to_ts_point, ts_to_lsp_position},
 };
@@ -63,8 +63,29 @@ impl ParsedTree {
         pos: &Position,
         content: &'a [u8],
     ) -> Option<&'a str> {
-        self.get_actionable_node_at_position(pos)
+        self.get_user_defined_node(pos)
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
+    }
+
+    pub fn get_jumpable_at_position(&self, pos: &Position, content: &[u8]) -> Option<Jumpable> {
+        let n = self.get_node_at_position(pos)?;
+
+        // If node is import path. return the whole path, removing the quotes
+        if n.parent().filter(NodeKind::is_import_path).is_some() {
+            return Some(Jumpable::Import(
+                n.utf8_text(content)
+                    .expect("utf-8 parse error")
+                    .trim_matches('"')
+                    .to_string(),
+            ));
+        }
+
+        // If node is user defined enum/message
+        if let Some(identifier) = self.get_user_defined_text(pos, content) {
+            return Some(Jumpable::Identifier(identifier.to_string()));
+        }
+
+        None
     }
 
     pub fn get_hoverable_at_position<'a>(
@@ -94,7 +115,7 @@ impl ParsedTree {
     }
 
     pub fn get_ancestor_nodes_at_position<'a>(&'a self, pos: &Position) -> Vec<Node<'a>> {
-        let Some(mut n) = self.get_actionable_node_at_position(pos) else {
+        let Some(mut n) = self.get_user_defined_node(pos) else {
             return vec![];
         };
 
@@ -113,7 +134,7 @@ impl ParsedTree {
         nodes
     }
 
-    pub fn get_actionable_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
+    pub fn get_user_defined_node<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         self.get_node_at_position(pos)
             .map(|n| {
                 if NodeKind::is_actionable(&n) {
@@ -161,7 +182,7 @@ impl ParsedTree {
             .collect()
     }
 
-    pub fn get_import_path<'a>(&self, content: &'a [u8]) -> Vec<&'a str> {
+    pub fn get_import_paths<'a>(&self, content: &'a [u8]) -> Vec<&'a str> {
         self.get_import_node()
             .into_iter()
             .map(|n| {
@@ -218,7 +239,7 @@ mod test {
 
         let package_name = tree.get_package_name(contents.as_ref());
         assert_yaml_snapshot!(package_name);
-        let imports = tree.get_import_path(contents.as_ref());
+        let imports = tree.get_import_paths(contents.as_ref());
         assert_yaml_snapshot!(imports);
     }
 }

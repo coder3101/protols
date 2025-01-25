@@ -1,24 +1,53 @@
-use async_lsp::lsp_types::Location;
+use std::path::PathBuf;
 
-use crate::{state::ProtoLanguageState, utils::split_identifier_package};
+use async_lsp::lsp_types::{Location, Range, Url};
+
+use crate::{
+    context::jumpable::Jumpable, state::ProtoLanguageState, utils::split_identifier_package,
+};
 
 impl ProtoLanguageState {
-    pub fn definition(&self, curr_package: &str, identifier: &str) -> Vec<Location> {
-        let (mut package, identifier) = split_identifier_package(identifier);
-        if package.is_empty() {
-            package = curr_package;
+    pub fn definition(
+        &self,
+        ipath: &[PathBuf],
+        curr_package: &str,
+        jump: Jumpable,
+    ) -> Vec<Location> {
+        match jump {
+            Jumpable::Import(path) => {
+                let Some(p) = ipath.iter().map(|p| p.join(&path)).find(|p| p.exists()) else {
+                    return vec![];
+                };
+
+                let Ok(uri) = Url::from_file_path(p) else {
+                    return vec![];
+                };
+
+                vec![Location {
+                    uri,
+                    range: Range::default(), // just start of the file
+                }]
+            }
+            Jumpable::Identifier(identifier) => {
+                let (mut package, identifier) = split_identifier_package(identifier.as_str());
+                if package.is_empty() {
+                    package = curr_package;
+                }
+
+                self.get_trees_for_package(package)
+                    .into_iter()
+                    .fold(vec![], |mut v, tree| {
+                        v.extend(tree.definition(identifier, self.get_content(&tree.uri)));
+                        v
+                    })
+            }
         }
-        self.get_trees_for_package(package)
-            .into_iter()
-            .fold(vec![], |mut v, tree| {
-                v.extend(tree.definition(identifier, self.get_content(&tree.uri)));
-                v
-            })
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::context::jumpable::Jumpable;
     use std::path::PathBuf;
 
     use insta::assert_yaml_snapshot;
@@ -41,9 +70,42 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned(), &ipath);
         state.upsert_file(&c_uri, c.to_owned(), &ipath);
 
-        assert_yaml_snapshot!(state.definition("com.workspace", "Author"));
-        assert_yaml_snapshot!(state.definition("com.workspace", "Author.Address"));
-        assert_yaml_snapshot!(state.definition("com.workspace", "com.utility.Foobar.Baz"));
-        assert_yaml_snapshot!(state.definition("com.utility", "Baz"));
+        assert_yaml_snapshot!(state.definition(
+            &ipath,
+            "com.workspace",
+            Jumpable::Identifier("Author".to_owned())
+        ));
+        assert_yaml_snapshot!(state.definition(
+            &ipath,
+            "com.workspace",
+            Jumpable::Identifier("Author.Address".to_owned())
+        ));
+        assert_yaml_snapshot!(state.definition(
+            &ipath,
+            "com.workspace",
+            Jumpable::Identifier("com.utility.Foobar.Baz".to_owned())
+        ));
+        assert_yaml_snapshot!(state.definition(
+            &ipath,
+            "com.utility",
+            Jumpable::Identifier("Baz".to_owned())
+        ));
+
+        // An absolute ipath is passed; In reality the ipaths are always absolute paths but in test
+        // it is difficult to get that. Hence, we form abolute path and instead of checking for
+        // complete output, we only check the lenght. Output contains the path which is not going
+        // to be same across systems.
+        let loc = state.definition(
+            &vec![std::env::current_dir().unwrap().join(&ipath[0])],
+            "com.workspace",
+            Jumpable::Import("c.proto".to_owned()),
+        );
+
+        assert_eq!(loc.len(), 1);
+        assert!(loc[0]
+            .uri
+            .to_file_path()
+            .unwrap()
+            .ends_with(ipath[0].join("c.proto")))
     }
 }

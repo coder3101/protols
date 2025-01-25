@@ -5,15 +5,16 @@ use tracing::{error, info};
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FileOperationFilter, FileOperationPattern,
-    FileOperationPatternKind, FileOperationRegistrationOptions, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, Location, OneOf, PrepareRenameResponse, ReferenceParams,
-    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
+    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
+    Location, OneOf, PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions,
+    RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
@@ -134,7 +135,7 @@ impl LanguageServer for ProtoLanguageServer {
         let current_package_name = tree.get_package_name(content.as_bytes());
 
         let Some(hv) = hv else {
-            error!(uri=%uri, "failed to get identifier");
+            error!(uri=%uri, "failed to get hoverable identifier");
             return Box::pin(async move { Ok(None) });
         };
 
@@ -153,6 +154,7 @@ impl LanguageServer for ProtoLanguageServer {
             }))
         })
     }
+
     fn completion(
         &mut self,
         params: CompletionParams,
@@ -288,11 +290,11 @@ impl LanguageServer for ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let identifier = tree.get_user_defined_text(&pos, content.as_bytes());
+        let jump = tree.get_jumpable_at_position(&pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes());
 
-        let Some(identifier) = identifier else {
-            error!(uri=%uri, "failed to get identifier");
+        let Some(jump) = jump else {
+            error!(uri=%uri, "failed to get jump identifier");
             return Box::pin(async move { Ok(None) });
         };
 
@@ -301,9 +303,10 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
+        let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
         let locations = self
             .state
-            .definition(current_package_name.as_ref(), identifier.as_ref());
+            .definition(&ipath, current_package_name.as_ref(), jump);
 
         let response = match locations.len() {
             0 => None,
@@ -462,6 +465,14 @@ impl LanguageServer for ProtoLanguageServer {
 
     // Required because of: https://github.com/coder3101/protols/issues/32
     fn did_change_configuration(&mut self, _: DidChangeConfigurationParams) -> Self::NotifyResult {
+        ControlFlow::Continue(())
+    }
+
+    // Required because when jumping to outside the workspace; this is triggered
+    fn did_change_workspace_folders(
+        &mut self,
+        _: DidChangeWorkspaceFoldersParams,
+    ) -> Self::NotifyResult {
         ControlFlow::Continue(())
     }
 }
