@@ -66,9 +66,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath);
+        state.upsert_file(&a_uri, a.to_owned(), &ipath, 2);
+        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
+        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
 
         assert_yaml_snapshot!(state.definition(
             &ipath,

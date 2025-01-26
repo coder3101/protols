@@ -1,12 +1,13 @@
 ---
 source: src/workspace/rename.rs
 expression: "state.reference_fields(\"com.utility\", \"Foobar.Baz\")"
+snapshot_kind: text
 ---
 - uri: "file://input/a.proto"
   range:
     start:
-      line: 10
+      line: 11
       character: 3
     end:
-      line: 10
+      line: 11
       character: 25

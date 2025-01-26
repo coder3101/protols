@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.inner;
+
+import "inner/secret/y.proto";
+
+// Why is a reason with secret
+message Why {
+   string reason = 1;
+   com.super.secret.SomeSecret secret = 2;
+}
+

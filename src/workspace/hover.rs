@@ -672,7 +672,7 @@ mod test {
 
     #[test]
     fn workspace_test_hover() {
-        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let ipath = vec![std::env::current_dir().unwrap().join("src/workspace/input")];
         let a_uri = "file://input/a.proto".parse().unwrap();
         let b_uri = "file://input/b.proto".parse().unwrap();
         let c_uri = "file://input/c.proto".parse().unwrap();
@@ -682,9 +682,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath);
+        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3);
+        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
+        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
 
         assert_yaml_snapshot!(state.hover(
             &ipath,
@@ -719,7 +719,12 @@ mod test {
         assert_yaml_snapshot!(state.hover(
             &ipath,
             "com.workspace",
-            Hoverables::ImportPath("c.proto".to_string())
-        ))
+            Hoverables::Identifier("com.inner.Why".to_string())
+        ));
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.workspace",
+            Hoverables::Identifier("com.super.secret.SomeSecret".to_string())
+        ));
     }
 }

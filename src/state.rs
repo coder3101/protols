@@ -1,7 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard},
+    sync::{Arc, Mutex, RwLock},
 };
 use tracing::info;
 
@@ -66,19 +66,63 @@ impl ProtoLanguageState {
     }
 
     fn upsert_content_impl(
-        mut parser: MutexGuard<ProtoParser>,
+        &mut self,
         uri: &Url,
         content: String,
-        mut docs: RwLockWriteGuard<HashMap<Url, String>>,
-        mut trees: RwLockWriteGuard<HashMap<Url, ParsedTree>>,
-    ) -> bool {
-        if let Some(parsed) = parser.parse(uri.clone(), content.as_bytes()) {
-            trees.insert(uri.clone(), parsed);
-            docs.insert(uri.clone(), content);
-            true
-        } else {
-            false
+        ipath: &[PathBuf],
+        depth: usize,
+        parse_session: &mut HashSet<Url>,
+    ) {
+        // Safety: to not cause stack overflow
+        if depth == 0 {
+            return;
         }
+
+        // avoid re-parsing same file incase of circular dependencies
+        if parse_session.contains(uri) {
+            return;
+        }
+
+        let Some(parsed) = self
+            .parser
+            .lock()
+            .expect("poison")
+            .parse(uri.clone(), content.as_bytes())
+        else {
+            return;
+        };
+
+        self.trees
+            .write()
+            .expect("posion")
+            .insert(uri.clone(), parsed);
+
+        self.documents
+            .write()
+            .expect("poison")
+            .insert(uri.clone(), content.clone());
+
+        parse_session.insert(uri.clone());
+        let imports = self.get_owned_imports(uri, content.as_str());
+
+        for import in imports.iter() {
+            if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists()) {
+                if let Ok(uri) = Url::from_file_path(p.clone()) {
+                    if let Ok(content) = std::fs::read_to_string(p) {
+                        self.upsert_content_impl(&uri, content, ipath, depth - 1, parse_session);
+                    }
+                }
+            }
+        }
+    }
+
+    fn get_owned_imports(&self, uri: &Url, content: &str) -> Vec<String> {
+        self.get_tree(uri)
+            .map(|t| t.get_import_paths(content.as_ref()))
+            .unwrap_or_default()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect()
     }
 
     pub fn upsert_content(
@@ -86,14 +130,10 @@ impl ProtoLanguageState {
         uri: &Url,
         content: String,
         ipath: &[PathBuf],
+        depth: usize,
     ) -> Vec<String> {
-        // Drop locks at end of block
-        {
-            let parser = self.parser.lock().expect("poison");
-            let tree = self.trees.write().expect("poison");
-            let docs = self.documents.write().expect("poison");
-            Self::upsert_content_impl(parser, uri, content.clone(), docs, tree);
-        }
+        let mut session = HashSet::new();
+        self.upsert_content_impl(uri, content.clone(), ipath, depth, &mut session);
 
         // After content is upserted, those imports which couldn't be located
         // are flagged as import error
@@ -189,9 +229,10 @@ impl ProtoLanguageState {
         uri: &Url,
         content: String,
         ipath: &[PathBuf],
+        depth: usize,
     ) -> Option<PublishDiagnosticsParams> {
-        info!(uri=%uri, "upserting file");
-        let diag = self.upsert_content(uri, content.clone(), ipath);
+        info!(%uri, %depth, "upserting file");
+        let diag = self.upsert_content(uri, content.clone(), ipath, depth);
         self.get_tree(uri).map(|tree| {
             let diag = tree.collect_import_diagnostics(content.as_ref(), diag);
             let mut d = tree.collect_parse_diagnostics();
@@ -205,13 +246,13 @@ impl ProtoLanguageState {
     }
 
     pub fn delete_file(&mut self, uri: &Url) {
-        info!(uri=%uri, "deleting file");
+        info!(%uri, "deleting file");
         self.documents.write().expect("poison").remove(uri);
         self.trees.write().expect("poison").remove(uri);
     }
 
     pub fn rename_file(&mut self, new_uri: &Url, old_uri: &Url) {
-        info!(new_uri=%new_uri, old_uri=%new_uri, "renaming file");
+        info!(%new_uri, %new_uri, "renaming file");
 
         if let Some(v) = self.documents.write().expect("poison").remove(old_uri) {
             self.documents

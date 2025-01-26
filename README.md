@@ -15,7 +15,7 @@
 - ✅ **Diagnostics**: Syntax errors and import error detected with the tree-sitter parser.
 - ✅ **Document Symbols**: Navigate and view all symbols, including messages and enums.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
-- ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums.
+- ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums and imports.
 - ✅ **Hover Information**: Get detailed information and documentation on hover.
 - ✅ **Rename Symbols**: Rename protobuf symbols and propagate changes across the codebase.
 - ✅ **Find References**: Find where messages, enums, and fields are used throughout the codebase.
@@ -134,7 +134,7 @@ Protols provides a list of symbols in the current document, including nested sym
 
 ### Go to Definition
 
-Jump directly to the definition of any custom symbol, including those in other files or packages. This feature works across package boundaries.
+Jump directly to the definition of any custom symbol or imports, including those in other files or packages. This feature works across package boundaries.
 
 ### Hover Information
 
