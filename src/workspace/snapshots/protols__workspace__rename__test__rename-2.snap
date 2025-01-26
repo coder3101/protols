@@ -1,13 +1,14 @@
 ---
 source: src/workspace/rename.rs
 expression: "state.rename_fields(\"com.workspace\", \"Author.Address\", \"Author.Location\")"
+snapshot_kind: text
 ---
 "file://input/a.proto":
   - range:
       start:
-        line: 9
+        line: 10
         character: 3
       end:
-        line: 9
+        line: 10
         character: 17
     newText: Author.Location

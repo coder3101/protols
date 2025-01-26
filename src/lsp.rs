@@ -381,7 +381,7 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content.clone(), &ipath) else {
+        let Some(diagnostics) = self.state.upsert_file(&uri, content.clone(), &ipath, 8) else {
             return ControlFlow::Continue(());
         };
 
@@ -405,7 +405,7 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath) else {
+        let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 2) else {
             return ControlFlow::Continue(());
         };
 
@@ -427,9 +427,10 @@ impl LanguageServer for ProtoLanguageServer {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 // Safety: The uri is always a file type
                 let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
-                self.state.upsert_content(&uri, content, &[]);
-            } else {
-                error!(uri=%file.uri, "failed parse uri");
+
+                if let Some(ipath) = self.configs.get_include_paths(&uri) {
+                    self.state.upsert_content(&uri, content, &ipath, 2);
+                }
             }
         }
         ControlFlow::Continue(())
