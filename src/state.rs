@@ -142,9 +142,7 @@ impl ProtoLanguageState {
             .unwrap_or_default()
             .into_iter()
             .map(ToOwned::to_owned)
-            .filter(|import| {
-                !ipath.iter().any(|p| p.join(import.as_str()).exists())
-            })
+            .filter(|import| !ipath.iter().any(|p| p.join(import.as_str()).exists()))
             .collect()
     }
 
