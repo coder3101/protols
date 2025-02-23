@@ -29,7 +29,9 @@ impl WorkspaceProtoConfigs {
             .output()
         {
             if output.status.success() {
-                let p = String::from_utf8_lossy(&output.stdout).to_string();
+                let p = String::from_utf8_lossy(&output.stdout)
+                    .trim_matches('\n')
+                    .to_string();
                 git_root = Some(PathBuf::from(p))
             }
         }

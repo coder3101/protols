@@ -10,6 +10,7 @@ use tower::ServiceBuilder;
 use tracing::Level;
 
 mod config;
+mod context;
 mod formatter;
 mod lsp;
 mod nodekind;
@@ -18,7 +19,6 @@ mod server;
 mod state;
 mod utils;
 mod workspace;
-mod context;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
