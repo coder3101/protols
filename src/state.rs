@@ -137,12 +137,19 @@ impl ProtoLanguageState {
 
         // After content is upserted, those imports which couldn't be located
         // are flagged as import error
+        tracing::info!(?ipath, "import path");
         self.get_tree(uri)
             .map(|t| t.get_import_paths(content.as_ref()))
             .unwrap_or_default()
             .into_iter()
             .map(ToOwned::to_owned)
-            .filter(|import| !ipath.iter().any(|p| p.join(import.as_str()).exists()))
+            .filter(|import| {
+                tracing::info!(
+                    %import,
+                    "trying import",
+                );
+                !ipath.iter().any(|p| p.join(import.as_str()).exists())
+            })
             .collect()
     }
 
