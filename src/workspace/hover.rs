@@ -663,8 +663,6 @@ Included from {}"#,
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
-
     use insta::assert_yaml_snapshot;
 
     use crate::context::hoverable::Hoverables;

@@ -81,9 +81,10 @@ impl WorkspaceProtoConfigs {
     }
 
     pub fn get_include_paths(&self, uri: &Url) -> Option<Vec<PathBuf>> {
-        let c = self.get_config_for_uri(uri)?;
+        let cfg = self.get_config_for_uri(uri)?;
         let w = self.get_workspace_for_uri(uri)?.to_file_path().ok()?;
-        let mut ipath: Vec<PathBuf> = c
+
+        let mut ipath: Vec<PathBuf> = cfg
             .config
             .include_paths
             .iter()
