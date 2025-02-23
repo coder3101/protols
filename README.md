@@ -95,7 +95,7 @@ clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in 
 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
-- `include_paths`: Directories to search for `.proto` files.
+- `include_paths`: Directories to search for `.proto` files. Absolute or relative to git root. If git root is unavailble, LSP's workspace is used.
 - `disable_parse_diagnostics`: Set to `true` to disable diagnostics during parsing.
 
 #### Experimental Configuration
