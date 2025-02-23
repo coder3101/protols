@@ -92,7 +92,6 @@ impl WorkspaceProtoConfigs {
             .map(|p| if p.is_relative() { w.join(p) } else { p })
             .collect();
 
-        tracing::info!(?ipath, "getting include paths");
         ipath.push(w.to_path_buf());
         ipath.extend_from_slice(&self.protoc_include_prefix);
         Some(ipath)
