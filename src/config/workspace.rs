@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use async_lsp::lsp_types::{Url, WorkspaceFolder};
@@ -18,24 +17,10 @@ pub struct WorkspaceProtoConfigs {
     configs: HashMap<Url, ProtolsConfig>,
     formatters: HashMap<Url, ClangFormatter>,
     protoc_include_prefix: Vec<PathBuf>,
-    git_root: Option<PathBuf>,
 }
 
 impl WorkspaceProtoConfigs {
     pub fn new() -> Self {
-        let mut git_root = None;
-        if let Ok(output) = Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
-            .output()
-        {
-            if output.status.success() {
-                let p = String::from_utf8_lossy(&output.stdout)
-                    .trim_matches('\n')
-                    .to_string();
-                git_root = Some(PathBuf::from(p))
-            }
-        }
-
         Self {
             workspaces: Default::default(),
             formatters: Default::default(),
@@ -45,7 +30,6 @@ impl WorkspaceProtoConfigs {
                 .map(|l| l.include_paths)
                 .unwrap_or_default(),
             configs: Default::default(),
-            git_root,
         }
     }
 
@@ -98,15 +82,7 @@ impl WorkspaceProtoConfigs {
 
     pub fn get_include_paths(&self, uri: &Url) -> Option<Vec<PathBuf>> {
         let cfg = self.get_config_for_uri(uri)?;
-
-        // How to replace relative paths in include_paths?
-        // If there's a git root use that else the root will be LSP workspace root
-        let w = if let Some(root) = &self.git_root {
-            tracing::info!(?root, "using git root as relative path replacer");
-            root.clone()
-        } else {
-            self.get_workspace_for_uri(uri)?.to_file_path().ok()?
-        };
+        let w = self.get_workspace_for_uri(uri)?.to_file_path().ok()?;
 
         let mut ipath: Vec<PathBuf> = cfg
             .config
@@ -116,6 +92,7 @@ impl WorkspaceProtoConfigs {
             .map(|p| if p.is_relative() { w.join(p) } else { p })
             .collect();
 
+        tracing::info!(?ipath, "getting include paths");
         ipath.push(w.to_path_buf());
         ipath.extend_from_slice(&self.protoc_include_prefix);
         Some(ipath)
