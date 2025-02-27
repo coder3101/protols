@@ -98,10 +98,12 @@ mod test {
         );
 
         assert_eq!(loc.len(), 1);
-        assert!(loc[0]
-            .uri
-            .to_file_path()
-            .unwrap()
-            .ends_with(ipath[0].join("c.proto")))
+        assert!(
+            loc[0]
+                .uri
+                .to_file_path()
+                .unwrap()
+                .ends_with(ipath[0].join("c.proto"))
+        )
     }
 }

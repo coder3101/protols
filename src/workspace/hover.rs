@@ -597,10 +597,9 @@ impl ProtoLanguageState {
         let v = match hv {
             Hoverables::FieldType(field) => {
                 // Type is a builtin
-                if let Some(docs) = BUITIN_DOCS.get(field.as_str()) {
-                    docs.to_string()
-                } else {
-                    String::new()
+                match BUITIN_DOCS.get(field.as_str()) {
+                    Some(docs) => docs.to_string(),
+                    _ => String::new(),
                 }
             }
             Hoverables::ImportPath(path) => {

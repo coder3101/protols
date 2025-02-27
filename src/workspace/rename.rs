@@ -51,11 +51,7 @@ impl ProtoLanguageState {
                 v.extend(tree.reference_field(&old, content.as_str()));
                 v
             });
-        if r.is_empty() {
-            None
-        } else {
-            Some(r)
-        }
+        if r.is_empty() { None } else { Some(r) }
     }
 }
 
