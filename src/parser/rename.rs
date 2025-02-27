@@ -177,12 +177,13 @@ mod test {
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let rename_fn = |nt: &str, pos: &Position| {
-            if let Some(k) = tree.rename_tree(pos, nt, contents) {
+        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+            Some(k) => {
                 let mut v = tree.rename_field(&k.1, &k.2, contents);
                 v.extend(k.0);
                 v
-            } else {
+            }
+            _ => {
                 vec![]
             }
         };
@@ -213,12 +214,13 @@ mod test {
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let reference_fn = |pos: &Position| {
-            if let Some(k) = tree.reference_tree(pos, contents) {
+        let reference_fn = |pos: &Position| match tree.reference_tree(pos, contents) {
+            Some(k) => {
                 let mut v = tree.reference_field(&k.1, contents);
                 v.extend(k.0);
                 v
-            } else {
+            }
+            _ => {
                 vec![]
             }
         };

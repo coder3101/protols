@@ -10,7 +10,7 @@ use std::{
 use async_lsp::lsp_types::{Position, Range, TextEdit};
 use hard_xml::XmlRead;
 use serde::Serialize;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 use super::ProtoFormatter;
 

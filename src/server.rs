@@ -1,7 +1,7 @@
 use async_lsp::{
+    ClientSocket, LanguageClient,
     lsp_types::{NumberOrString, ProgressParams, ProgressParamsValue},
     router::Router,
-    ClientSocket, LanguageClient,
 };
 use std::{
     ops::ControlFlow,

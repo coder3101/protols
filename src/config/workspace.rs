@@ -104,7 +104,7 @@ mod test {
     use insta::assert_yaml_snapshot;
     use tempfile::tempdir;
 
-    use super::{WorkspaceProtoConfigs, CONFIG_FILE_NAMES};
+    use super::{CONFIG_FILE_NAMES, WorkspaceProtoConfigs};
 
     #[test]
     fn test_get_for_workspace() {
