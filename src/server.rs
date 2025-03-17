@@ -36,8 +36,7 @@ impl ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    #[allow(unused)]
-    fn with_report_progress(&self, token: NumberOrString) -> Sender<ProgressParamsValue> {
+    pub fn with_report_progress(&self, token: NumberOrString) -> Sender<ProgressParamsValue> {
         let (tx, rx) = mpsc::channel();
         let mut socket = self.client.clone();
 

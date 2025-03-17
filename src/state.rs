@@ -5,8 +5,11 @@ use std::{
 };
 use tracing::info;
 
+use async_lsp::lsp_types::ProgressParamsValue;
 use async_lsp::lsp_types::{CompletionItem, CompletionItemKind, PublishDiagnosticsParams, Url};
+use std::sync::mpsc::Sender;
 use tree_sitter::Node;
+use walkdir::WalkDir;
 
 use crate::{
     nodekind::NodeKind,
@@ -17,6 +20,7 @@ pub struct ProtoLanguageState {
     documents: Arc<RwLock<HashMap<Url, String>>>,
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
     parser: Arc<Mutex<ProtoParser>>,
+    parsed_workspaces: Arc<RwLock<HashSet<String>>>,
 }
 
 impl ProtoLanguageState {
@@ -25,6 +29,7 @@ impl ProtoLanguageState {
             documents: Default::default(),
             trees: Default::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
+            parsed_workspaces: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -146,83 +151,65 @@ impl ProtoLanguageState {
             .collect()
     }
 
-    // #[allow(unused)]
-    // pub fn add_workspace_folder_async(
-    //     &mut self,
-    //     workspace: WorkspaceFolder,
-    //     tx: Sender<ProgressParamsValue>,
-    // ) {
-    //     let parser = self.parser.clone();
-    //     let tree = self.trees.clone();
-    //     let docs = self.documents.clone();
-    //
-    //     let begin = ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(WorkDoneProgressBegin {
-    //         title: String::from("indexing"),
-    //         cancellable: Some(false),
-    //         percentage: Some(0),
-    //         ..Default::default()
-    //     }));
-    //
-    //     if let Err(e) = tx.send(begin) {
-    //         error!(error=%e, "failed to send work begin progress");
-    //     }
-    //
-    //     thread::spawn(move || {
-    //         let files: Vec<_> = WalkDir::new(workspace.uri.path())
-    //             .into_iter()
-    //             .filter_map(|e| e.ok())
-    //             .filter(|e| e.path().extension().is_some())
-    //             .filter(|e| e.path().extension().unwrap() == "proto")
-    //             .collect();
-    //
-    //         let total_files = files.len();
-    //         let mut current = 0;
-    //
-    //         for file in files.into_iter() {
-    //             let path = file.path();
-    //             if path.is_absolute() && path.is_file() {
-    //                 let Ok(content) = read_to_string(path) else {
-    //                     continue;
-    //                 };
-    //
-    //                 let Ok(uri) = Url::from_file_path(path) else {
-    //                     continue;
-    //                 };
-    //
-    //                 Self::upsert_content_impl(
-    //                     parser.lock().expect("poison"),
-    //                     &uri,
-    //                     content,
-    //                     docs.write().expect("poison"),
-    //                     tree.write().expect("poison"),
-    //                 );
-    //
-    //                 current += 1;
-    //
-    //                 let report = ProgressParamsValue::WorkDone(WorkDoneProgress::Report(
-    //                     WorkDoneProgressReport {
-    //                         cancellable: Some(false),
-    //                         message: Some(path.display().to_string()),
-    //                         percentage: Some((current * 100 / total_files) as u32),
-    //                     },
-    //                 ));
-    //
-    //                 if let Err(e) = tx.send(report) {
-    //                     error!(error=%e, "failed to send work report progress");
-    //                 }
-    //             }
-    //         }
-    //         let report =
-    //             ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
-    //                 message: Some(String::from("completed")),
-    //             }));
-    //
-    //         info!(len = total_files, "workspace file parsing completed");
-    //         if let Err(e) = tx.send(report) {
-    //             error!(error=%e, "failed to send work completed result");
-    //         }
-    //     });
-    // }
+    pub fn parse_all_from_workspace(
+        &mut self,
+        workspace: PathBuf,
+        progress_sender: Option<Sender<ProgressParamsValue>>,
+    ) {
+        if self
+            .parsed_workspaces
+            .read()
+            .expect("poison")
+            .contains(workspace.to_str().unwrap_or_default())
+        {
+            return;
+        }
+
+        let files: Vec<_> = WalkDir::new(workspace.to_str().unwrap_or_default())
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some())
+            .filter(|e| e.path().extension().unwrap() == "proto")
+            .collect();
+
+        let total_files = files.len();
+
+        for (idx, file) in files.into_iter().enumerate() {
+            let path = file.path();
+            if path.is_absolute() && path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if let Ok(uri) = Url::from_file_path(path) {
+                        if self.documents.read().expect("poison").contains_key(&uri) {
+                            continue;
+                        }
+                        self.upsert_content(&uri, content, &[], 1);
+
+                        if let Some(sender) = &progress_sender {
+                            let percentage = ((idx + 1) as f64 / total_files as f64 * 100.0) as u32;
+                            let _ = sender.send(ProgressParamsValue::WorkDone(
+                                async_lsp::lsp_types::WorkDoneProgress::Report(
+                                    async_lsp::lsp_types::WorkDoneProgressReport {
+                                        cancellable: None,
+                                        message: Some(format!(
+                                            "Parsing file {} of {}",
+                                            idx + 1,
+                                            total_files
+                                        )),
+                                        percentage: Some(percentage),
+                                    },
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        self.parsed_workspaces
+            .write()
+            .expect("poison")
+            .insert(workspace.to_str().unwrap_or_default().to_string());
+    }
 
     pub fn upsert_file(
         &mut self,
