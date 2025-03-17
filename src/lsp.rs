@@ -228,9 +228,23 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
+        let Some(workspace) = self.configs.get_workspace_for_uri(&uri) else {
+            error!(uri=%uri, "failed to get workspace");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let work_done_token = params.work_done_progress_params.work_done_token;
+        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
+
         let mut h = HashMap::new();
         h.insert(tree.uri.clone(), edit);
-        h.extend(self.state.rename_fields(current_package, &otext, &ntext));
+        h.extend(self.state.rename_fields(
+            current_package,
+            &otext,
+            &ntext,
+            workspace.to_file_path().unwrap(),
+            progress_sender,
+        ));
 
         let response = Some(WorkspaceEdit {
             changes: Some(h),
@@ -246,6 +260,7 @@ impl LanguageServer for ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<Vec<Location>>, ResponseError>> {
         let uri = param.text_document_position.text_document.uri;
         let pos = param.text_document_position.position;
+        let work_done_token = param.work_done_progress_params.work_done_token;
 
         let Some(tree) = self.state.get_tree(&uri) else {
             error!(uri=%uri, "failed to get tree");
@@ -264,7 +279,19 @@ impl LanguageServer for ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        if let Some(v) = self.state.reference_fields(current_package, &otext) {
+        let Some(workspace) = self.configs.get_workspace_for_uri(&uri) else {
+            error!(uri=%uri, "failed to get workspace");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
+
+        if let Some(v) = self.state.reference_fields(
+            current_package,
+            &otext,
+            workspace.to_file_path().unwrap(),
+            progress_sender,
+        ) {
             refs.extend(v);
         }
 

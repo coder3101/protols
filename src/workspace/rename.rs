@@ -1,17 +1,23 @@
 use crate::utils::split_identifier_package;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use async_lsp::lsp_types::{Location, TextEdit, Url};
 
 use crate::state::ProtoLanguageState;
+use async_lsp::lsp_types::ProgressParamsValue;
+use std::sync::mpsc::Sender;
 
 impl ProtoLanguageState {
     pub fn rename_fields(
-        &self,
+        &mut self,
         current_package: &str,
         identifier: &str,
         new_text: &str,
+        workspace: PathBuf,
+        progress_sender: Option<Sender<ProgressParamsValue>>,
     ) -> HashMap<Url, Vec<TextEdit>> {
+        self.parse_all_from_workspace(workspace, progress_sender);
         let (_, identifier) = split_identifier_package(identifier);
         self.get_trees()
             .into_iter()
@@ -33,10 +39,13 @@ impl ProtoLanguageState {
     }
 
     pub fn reference_fields(
-        &self,
+        &mut self,
         current_package: &str,
         identifier: &str,
+        workspace: PathBuf,
+        progress_sender: Option<Sender<ProgressParamsValue>>,
     ) -> Option<Vec<Location>> {
+        self.parse_all_from_workspace(workspace, progress_sender);
         let (_, identifier) = split_identifier_package(identifier);
         let r = self
             .get_trees()
@@ -79,13 +88,27 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
         state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
 
-        assert_yaml_snapshot!(state.rename_fields("com.workspace", "Author", "Writer"));
+        assert_yaml_snapshot!(state.rename_fields(
+            "com.workspace",
+            "Author",
+            "Writer",
+            PathBuf::from("src/workspace/input"),
+            None
+        ));
         assert_yaml_snapshot!(state.rename_fields(
             "com.workspace",
             "Author.Address",
-            "Author.Location"
+            "Author.Location",
+            PathBuf::from("src/workspace/input"),
+            None
         ));
-        assert_yaml_snapshot!(state.rename_fields("com.utility", "Foobar.Baz", "Foobar.Baaz"));
+        assert_yaml_snapshot!(state.rename_fields(
+            "com.utility",
+            "Foobar.Baz",
+            "Foobar.Baaz",
+            PathBuf::from("src/workspace/input"),
+            None
+        ));
     }
 
     #[test]
@@ -104,8 +127,17 @@ mod test {
         state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
         state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
 
-        assert_yaml_snapshot!(state.reference_fields("com.workspace", "Author"));
-        assert_yaml_snapshot!(state.reference_fields("com.workspace", "Author.Address"));
-        assert_yaml_snapshot!(state.reference_fields("com.utility", "Foobar.Baz"));
+        assert_yaml_snapshot!(state.reference_fields(
+            "com.workspace",
+            "Author",
+            PathBuf::from("src/workspace/input"),
+            None
+        ));
+        assert_yaml_snapshot!(state.reference_fields(
+            "com.workspace",
+            "Author.Address",
+            PathBuf::from("src/workspace/input"),
+            None
+        ));
     }
 }
