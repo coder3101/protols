@@ -457,10 +457,7 @@ impl LanguageServer for ProtoLanguageServer {
         // override config to disable protoc diagnostics during change
         let mut pconf = pconf.config.clone();
         pconf.experimental.use_protoc_diagnostics = false;
-        if let Some(diagnostics) = self
-            .state
-            .upsert_file(&uri, content, &ipath, 8, &pconf)
-        {
+        if let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 8, &pconf) {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }

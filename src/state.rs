@@ -236,7 +236,7 @@ impl ProtoLanguageState {
             // Add protoc diagnostics if enabled
             if config.experimental.use_protoc_diagnostics {
                 if let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock() {
-                    if let Some(file_path) = uri.to_file_path().ok() {
+                    if let Ok(file_path) = uri.to_file_path() {
                         let protoc_diags = protoc_diagnostics.collect_diagnostics(
                             &config.experimental.protoc_path,
                             file_path.to_str().unwrap_or_default(),

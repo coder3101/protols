@@ -92,7 +92,7 @@ mod test {
         ));
 
         let loc = state.definition(
-            &vec![std::env::current_dir().unwrap().join(&ipath[0])],
+            &[std::env::current_dir().unwrap().join(&ipath[0])],
             "com.workspace",
             Jumpable::Import("c.proto".to_owned()),
         );
