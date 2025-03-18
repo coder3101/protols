@@ -21,15 +21,18 @@ pub struct WorkspaceProtoConfigs {
 
 impl WorkspaceProtoConfigs {
     pub fn new() -> Self {
+        // Try to find protobuf library and get its include paths
+        let protoc_include_prefix = Config::new()
+            .atleast_version("3.0.0")
+            .probe("protobuf")
+            .map(|lib| lib.include_paths)
+            .unwrap_or_default();
+
         Self {
-            workspaces: Default::default(),
-            formatters: Default::default(),
-            protoc_include_prefix: Config::new()
-                .atleast_version("3.0.0")
-                .probe("protobuf")
-                .map(|l| l.include_paths)
-                .unwrap_or_default(),
-            configs: Default::default(),
+            workspaces: HashSet::new(),
+            formatters: HashMap::new(),
+            configs: HashMap::new(),
+            protoc_include_prefix,
         }
     }
 

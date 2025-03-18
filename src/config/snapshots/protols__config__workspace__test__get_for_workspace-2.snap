@@ -8,5 +8,6 @@ config:
   disable_parse_diagnostics: false
   experimental:
     use_protoc_diagnostics: false
+    protoc_path: protoc
 formatter:
   clang_format_path: clang-format

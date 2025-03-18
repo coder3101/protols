@@ -52,8 +52,8 @@ mod test {
 
     use insta::assert_yaml_snapshot;
 
+    use crate::config::Config;
     use crate::state::ProtoLanguageState;
-
     #[test]
     fn workspace_test_definition() {
         let ipath = vec![PathBuf::from("src/workspace/input")];
@@ -66,9 +66,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 2);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
+        state.upsert_file(&a_uri, a.to_owned(), &ipath, 2, &Config::default());
+        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default());
+        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default());
 
         assert_yaml_snapshot!(state.definition(
             &ipath,
@@ -92,7 +92,7 @@ mod test {
         ));
 
         let loc = state.definition(
-            &vec![std::env::current_dir().unwrap().join(&ipath[0])],
+            &[std::env::current_dir().unwrap().join(&ipath[0])],
             "com.workspace",
             Jumpable::Import("c.proto".to_owned()),
         );

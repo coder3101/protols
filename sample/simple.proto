@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package com.book;
 
+import "google/protobuf/any.proto";
+
 // This is a book represeted by some comments that we like to address in the
 // review
 message Book {
@@ -24,6 +26,7 @@ message Book {
   }
 
   enum BookState {
+    UNSPECIFIED = 0;
     HARD_COVER = 1;
     SOFT_COVER = 2;
   }
@@ -52,10 +55,10 @@ service BookService {
 
 message BookStore {
   reserved 1;
-  Book book = 0;
-  string name = 1;
-  map<int64, string> books = 2;
-  EnumSample sample = 3;
+  Book book = 5;
+  string name = 2;
+  map<int64, string> books = 3;
+  EnumSample sample = 4;
 }
 
 // These are enum options representing some operation in the proto
