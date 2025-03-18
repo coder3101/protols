@@ -10,5 +10,6 @@ config:
   disable_parse_diagnostics: true
   experimental:
     use_protoc_diagnostics: true
+    protoc_path: protoc
 formatter:
   clang_format_path: /usr/bin/clang-format
