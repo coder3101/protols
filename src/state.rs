@@ -12,15 +12,19 @@ use tree_sitter::Node;
 use walkdir::WalkDir;
 
 use crate::{
+    config::Config,
     nodekind::NodeKind,
     parser::{ParsedTree, ProtoParser},
 };
+
+use crate::protoc::ProtocDiagnostics;
 
 pub struct ProtoLanguageState {
     documents: Arc<RwLock<HashMap<Url, String>>>,
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
     parser: Arc<Mutex<ProtoParser>>,
     parsed_workspaces: Arc<RwLock<HashSet<String>>>,
+    protoc_diagnostics: Arc<Mutex<ProtocDiagnostics>>,
 }
 
 impl ProtoLanguageState {
@@ -30,6 +34,7 @@ impl ProtoLanguageState {
             trees: Default::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             parsed_workspaces: Arc::new(RwLock::new(HashSet::new())),
+            protoc_diagnostics: Arc::new(Mutex::new(ProtocDiagnostics::new())),
         }
     }
 
@@ -217,13 +222,34 @@ impl ProtoLanguageState {
         content: String,
         ipath: &[PathBuf],
         depth: usize,
+        config: &Config,
     ) -> Option<PublishDiagnosticsParams> {
         info!(%uri, %depth, "upserting file");
         let diag = self.upsert_content(uri, content.clone(), ipath, depth);
         self.get_tree(uri).map(|tree| {
-            let diag = tree.collect_import_diagnostics(content.as_ref(), diag);
-            let mut d = tree.collect_parse_diagnostics();
-            d.extend(diag);
+            let mut d = vec![];
+            if !config.disable_parse_diagnostics {
+                d.extend(tree.collect_parse_diagnostics());
+            }
+            d.extend(tree.collect_import_diagnostics(content.as_ref(), diag));
+
+            // Add protoc diagnostics if enabled
+            if config.experimental.use_protoc_diagnostics {
+                if let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock() {
+                    if let Some(file_path) = uri.to_file_path().ok() {
+                        let protoc_diags = protoc_diagnostics.collect_diagnostics(
+                            &config.experimental.protoc_path,
+                            file_path.to_str().unwrap_or_default(),
+                            &ipath
+                                .iter()
+                                .map(|p| p.to_str().unwrap_or_default().to_string())
+                                .collect::<Vec<_>>(),
+                        );
+                        d.extend(protoc_diags);
+                    }
+                }
+            }
+
             PublishDiagnosticsParams {
                 uri: tree.uri.clone(),
                 diagnostics: d,

@@ -82,8 +82,9 @@ Protols is configured using a `protols.toml` file, which you can place in any di
 include_paths = ["foobar", "bazbaaz"] # Include paths to look for protofiles during parsing
 disable_parse_diagnostics = true # Disable diagnostics for parsing
 
-[config.experimental] # Experimental configuration; this should be considered unsafe and not fully tested
-use_protoc_diagnostics = true # Use diagnostics from protoc
+[config.experimental] # experimental configuration; this should be considered unsafe and not fully tested
+use_protoc_diagnostics = true # use diagnostics from protoc
+protoc_path = "protoc" # Path to proto compiler (protoc)
 
 [formatter] # Formatter specific configuration
 clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in formatting
@@ -96,13 +97,14 @@ clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
 - `include_paths`: Directories to search for `.proto` files. Absolute or relative to LSP workspace root.
-- `disable_parse_diagnostics`: Set to `true` to disable diagnostics during parsing.
+- `disable_parse_diagnostics`: Set to `true` to disable tree-sitter parse diagnostics during parsing.
 
 #### Experimental Configuration
 
 The `[config.experimental]` section contains settings that are in development or not fully tested.
 
 - `use_protoc_diagnostics`: Enable diagnostics from the `protoc` compiler when set to `true`.
+- `protoc_path`: Uses protoc from this path for diagnostics
 
 #### Formatter Configuration
 

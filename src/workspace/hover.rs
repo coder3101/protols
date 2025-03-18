@@ -664,9 +664,9 @@ Included from {}"#,
 mod test {
     use insta::assert_yaml_snapshot;
 
+    use crate::config::Config;
     use crate::context::hoverable::Hoverables;
     use crate::state::ProtoLanguageState;
-
     #[test]
     fn workspace_test_hover() {
         let ipath = vec![std::env::current_dir().unwrap().join("src/workspace/input")];
@@ -679,9 +679,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2);
+        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3, &Config::default());
+        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default());
+        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default());
 
         assert_yaml_snapshot!(state.hover(
             &ipath,

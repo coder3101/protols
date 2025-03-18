@@ -15,6 +15,7 @@ mod formatter;
 mod lsp;
 mod nodekind;
 mod parser;
+mod protoc;
 mod server;
 mod state;
 mod utils;

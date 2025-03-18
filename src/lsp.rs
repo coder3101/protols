@@ -392,7 +392,26 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn did_save(&mut self, _: DidSaveTextDocumentParams) -> Self::NotifyResult {
+    fn did_save(&mut self, params: DidSaveTextDocumentParams) -> Self::NotifyResult {
+        let uri = params.text_document.uri;
+        let content = self.state.get_content(&uri);
+
+        let Some(ipath) = self.configs.get_include_paths(&uri) else {
+            return ControlFlow::Continue(());
+        };
+
+        let Some(pconf) = self.configs.get_config_for_uri(&uri) else {
+            return ControlFlow::Continue(());
+        };
+
+        if let Some(diagnostics) = self
+            .state
+            .upsert_file(&uri, content, &ipath, 8, &pconf.config)
+        {
+            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
+                error!(error=%e, "failed to publish diagnostics")
+            }
+        }
         ControlFlow::Continue(())
     }
 
@@ -408,15 +427,14 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content.clone(), &ipath, 8) else {
-            return ControlFlow::Continue(());
-        };
-
         let Some(pconf) = self.configs.get_config_for_uri(&uri) else {
             return ControlFlow::Continue(());
         };
 
-        if !pconf.config.disable_parse_diagnostics {
+        if let Some(diagnostics) = self
+            .state
+            .upsert_file(&uri, content, &ipath, 8, &pconf.config)
+        {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }
@@ -432,20 +450,21 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 2) else {
+        let Some(pconf) = self.configs.get_config_for_uri(&uri) else {
             return ControlFlow::Continue(());
         };
 
-        let Some(ws) = self.configs.get_config_for_uri(&uri) else {
-            return ControlFlow::Continue(());
-        };
-
-        if !ws.config.disable_parse_diagnostics {
+        // override config to disable protoc diagnostics during change
+        let mut pconf = pconf.config.clone();
+        pconf.experimental.use_protoc_diagnostics = false;
+        if let Some(diagnostics) = self
+            .state
+            .upsert_file(&uri, content, &ipath, 8, &pconf)
+        {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }
         }
-
         ControlFlow::Continue(())
     }
 

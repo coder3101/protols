@@ -1,2 +1,5 @@
 [config]
 include_paths = ["src/workspace/input"]
+
+[config.experimental] # experimental configuration; this should be considered unsafe and not fully tested
+use_protoc_diagnostics = true # use diagnostics from protoc
