@@ -57,7 +57,7 @@ impl WorkspaceProtoConfigs {
 
         let wr: ProtolsConfig = basic_toml::from_str(&content).unwrap_or_default();
         let fmt = ClangFormatter::new(
-            &wr.formatter.clang_format_path,
+            &wr.config.path.clang_format,
             wpath.to_str().expect("non-utf8 path"),
         );
 

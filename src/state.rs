@@ -223,22 +223,21 @@ impl ProtoLanguageState {
         ipath: &[PathBuf],
         depth: usize,
         config: &Config,
+        protoc_diagnostics: bool,
     ) -> Option<PublishDiagnosticsParams> {
         info!(%uri, %depth, "upserting file");
         let diag = self.upsert_content(uri, content.clone(), ipath, depth);
         self.get_tree(uri).map(|tree| {
             let mut d = vec![];
-            if !config.disable_parse_diagnostics {
-                d.extend(tree.collect_parse_diagnostics());
-            }
+            d.extend(tree.collect_parse_diagnostics());
             d.extend(tree.collect_import_diagnostics(content.as_ref(), diag));
 
             // Add protoc diagnostics if enabled
-            if config.experimental.use_protoc_diagnostics {
+            if protoc_diagnostics {
                 if let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock() {
                     if let Ok(file_path) = uri.to_file_path() {
                         let protoc_diags = protoc_diagnostics.collect_diagnostics(
-                            &config.experimental.protoc_path,
+                            &config.path.protoc,
                             file_path.to_str().unwrap_or_default(),
                             &ipath
                                 .iter()

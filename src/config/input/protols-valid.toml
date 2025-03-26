@@ -1,9 +1,6 @@
 [config]
 include_paths = ["foobar", "bazbaaz"]
-disable_parse_diagnostics = true
 
-[config.experimental]
-use_protoc_diagnostics = true
-
-[formatter]
-clang_format_path = "/usr/bin/clang-format"
+[config.path]
+protoc = "/usr/bin/protoc"
+clang_format = "/usr/bin/clang-format"

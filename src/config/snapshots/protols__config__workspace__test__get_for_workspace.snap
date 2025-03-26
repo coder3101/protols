@@ -6,10 +6,6 @@ config:
   include_paths:
     - foobar
     - bazbaaz
-  single_file_mode: false
-  disable_parse_diagnostics: true
-  experimental:
-    use_protoc_diagnostics: true
-    protoc_path: protoc
-formatter:
-  clang_format_path: /usr/bin/clang-format
+  path:
+    clang_format: /usr/bin/clang-format
+    protoc: /usr/bin/protoc
