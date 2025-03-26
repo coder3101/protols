@@ -22,8 +22,12 @@ pub struct WorkspaceProtoConfigs {
 impl WorkspaceProtoConfigs {
     pub fn new() -> Self {
         // Try to find protobuf library and get its include paths
+        // Do not emit metadata on stdout as LSP programs can consider
+        // it part of spec
         let protoc_include_prefix = Config::new()
             .atleast_version("3.0.0")
+            .env_metadata(false)
+            .cargo_metadata(false)
             .probe("protobuf")
             .map(|lib| lib.include_paths)
             .unwrap_or_default();
