@@ -3,16 +3,12 @@
 [![Crates.io](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)  
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
-**WARNING** : Master branch is undergoing a massive refactoring, please use last relesed tag instead.
-
 **Protols** is an open-source, feature-rich [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) for **Protocol Buffers (proto)** files. Powered by the efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser, Protols offers intelligent code assistance for protobuf development, including features like auto-completion, diagnostics, formatting, and more.
-
-![Protols Demo](./assets/protols.mov)
 
 ## ✨ Features
 
 - ✅ **Code Completion**: Auto-complete messages, enums, and keywords in your `.proto` files.
-- ✅ **Diagnostics**: Syntax errors and import error detected with the tree-sitter parser.
+- ✅ **Diagnostics**: Syntax errors, import error detected with the tree-sitter and advanced diagnostics from `protoc` parser.
 - ✅ **Document Symbols**: Navigate and view all symbols, including messages and enums.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
 - ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums and imports.
@@ -111,7 +107,7 @@ Protols offers a rich set of features to enhance your `.proto` file editing expe
 
 ### Diagnostics
 
-Syntax errors are caught by the tree-sitter parser, which highlights issues directly in your editor. More advanced error reporting, is done by `protoc` which runs after a file saved.
+Syntax errors are caught by the tree-sitter parser, which highlights issues directly in your editor. More advanced error reporting, is done by `protoc` which runs after a file saved. You must have `protoc` installed and added to your path or you can specify its path in the configuration above
 
 ### Code Formatting
 
