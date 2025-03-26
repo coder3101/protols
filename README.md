@@ -3,16 +3,12 @@
 [![Crates.io](https://img.shields.io/crates/v/protols.svg)](https://crates.io/crates/protols)  
 [![Build and Test](https://github.com/coder3101/protols/actions/workflows/ci.yml/badge.svg)](https://github.com/coder3101/protols/actions/workflows/ci.yml)
 
-**WARNING** : Master branch is undergoing a massive refactoring, please use last relesed tag instead.
-
 **Protols** is an open-source, feature-rich [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/) for **Protocol Buffers (proto)** files. Powered by the efficient [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser, Protols offers intelligent code assistance for protobuf development, including features like auto-completion, diagnostics, formatting, and more.
-
-![Protols Demo](./assets/protols.mov)
 
 ## ✨ Features
 
 - ✅ **Code Completion**: Auto-complete messages, enums, and keywords in your `.proto` files.
-- ✅ **Diagnostics**: Syntax errors and import error detected with the tree-sitter parser.
+- ✅ **Diagnostics**: Syntax errors, import error detected with the tree-sitter and advanced diagnostics from `protoc` parser.
 - ✅ **Document Symbols**: Navigate and view all symbols, including messages and enums.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
 - ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums and imports.
@@ -29,9 +25,7 @@
   - [For Visual Studio Code](#for-visual-studio-code)
 - [Configuration](#configuration)
   - [Basic Configuration](#basic-configuration)
-  - [Experimental Configuration](#experimental-configuration)
-  - [Formatter Configuration](#formatter-configuration)
-  - [Multiple Configuration Files](#multiple-configuration-files)
+  - [Path Configuration](#path-configuration)
 - [Usage](#usage)
   - [Code Completion](#code-completion)
   - [Diagnostics](#diagnostics)
@@ -78,16 +72,12 @@ Protols is configured using a `protols.toml` file, which you can place in any di
 ### Sample `protols.toml`
 
 ```toml
-[config] # Base configuration; these are considered stable and should not change
+[config]
 include_paths = ["foobar", "bazbaaz"] # Include paths to look for protofiles during parsing
-disable_parse_diagnostics = true # Disable diagnostics for parsing
 
-[config.experimental] # experimental configuration; this should be considered unsafe and not fully tested
-use_protoc_diagnostics = true # use diagnostics from protoc
-protoc_path = "protoc" # Path to proto compiler (protoc)
-
-[formatter] # Formatter specific configuration
-clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in formatting
+[config.path]
+clang_format = "clang-format"
+protoc = "protoc"
 ```
 
 ### Configuration Sections
@@ -96,21 +86,14 @@ clang_format_path = "/usr/bin/clang-format" # clang-format binary to execute in 
 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
-- `include_paths`: Directories to search for `.proto` files. Absolute or relative to LSP workspace root.
-- `disable_parse_diagnostics`: Set to `true` to disable tree-sitter parse diagnostics during parsing.
+- `include_paths`: Directories to search for `.proto` files. Absolute or relative to LSP workspace root. Worspace root is already included in include_paths
 
-#### Experimental Configuration
+#### Path Configuration
 
-The `[config.experimental]` section contains settings that are in development or not fully tested.
+The `[config.path]` section contains path for various tools used by LSP.
 
-- `use_protoc_diagnostics`: Enable diagnostics from the `protoc` compiler when set to `true`.
-- `protoc_path`: Uses protoc from this path for diagnostics
-
-#### Formatter Configuration
-
-The `[formatter]` section allows configuration for code formatting.
-
-- `clang_format_path`: Specify the path to the `clang-format` binary.
+- `clang_format`: Uses clang_format from this path for formatting
+- `protoc`: Uses protoc from this path for diagnostics
 
 ---
 
@@ -124,7 +107,7 @@ Protols offers a rich set of features to enhance your `.proto` file editing expe
 
 ### Diagnostics
 
-Syntax errors are caught by the tree-sitter parser, which highlights issues directly in your editor. For more advanced error reporting, the LSP can be configured to use `protoc` diagnostics.
+Syntax errors are caught by the tree-sitter parser, which highlights issues directly in your editor. More advanced error reporting, is done by `protoc` which runs after a file saved. You must have `protoc` installed and added to your path or you can specify its path in the configuration above
 
 ### Code Formatting
 

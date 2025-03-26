@@ -406,7 +406,7 @@ impl LanguageServer for ProtoLanguageServer {
 
         if let Some(diagnostics) = self
             .state
-            .upsert_file(&uri, content, &ipath, 8, &pconf.config)
+            .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
         {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
@@ -433,7 +433,7 @@ impl LanguageServer for ProtoLanguageServer {
 
         if let Some(diagnostics) = self
             .state
-            .upsert_file(&uri, content, &ipath, 8, &pconf.config)
+            .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
         {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
@@ -454,10 +454,7 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        // override config to disable protoc diagnostics during change
-        let mut pconf = pconf.config.clone();
-        pconf.experimental.use_protoc_diagnostics = false;
-        if let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 8, &pconf) {
+        if let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 8, &pconf.config, false) {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }

@@ -679,9 +679,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3, &Config::default());
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default());
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default());
+        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3, &Config::default(), false);
+        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default(), false);
+        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default(), false);
 
         assert_yaml_snapshot!(state.hover(
             &ipath,
