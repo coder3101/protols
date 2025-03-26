@@ -1,5 +1,2 @@
 [config]
 include_paths = ["src/workspace/input"]
-
-[config.experimental]
-use_protoc_diagnostics = true
