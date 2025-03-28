@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    env,
     path::{Path, PathBuf},
 };
 
@@ -106,9 +107,20 @@ impl WorkspaceProtoConfigs {
 
     pub fn no_workspace_mode(&mut self) {
         let wr = ProtolsConfig::default();
-        let uri = match Url::from_file_path("/") {
+        let rp = if cfg!(target_os = "windows") {
+            let mut d = String::from("C");
+            if let Ok(cdir) = env::current_dir() {
+                if let Some(drive) = cdir.components().next() {
+                    d = drive.as_os_str().to_string_lossy().to_string()
+                }
+            }
+            format!("{d}://")
+        } else {
+            String::from("/")
+        };
+        let uri = match Url::from_file_path(&rp) {
             Err(err) => {
-                tracing::error!(?err, "failed to convert path: '/' to Url");
+                tracing::error!(?err, "failed to convert path: {rp} to Url");
                 return;
             }
             Ok(uri) => uri,
