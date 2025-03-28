@@ -74,6 +74,9 @@ impl LanguageServer for ProtoLanguageServer {
                     ..Default::default()
                 }),
             })
+        } else {
+            tracing::info!("running in no workspace mode");
+            self.configs.no_workspace_mode()
         }
 
         let mut rename_provider: OneOf<bool, RenameOptions> = OneOf::Left(true);
