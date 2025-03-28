@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    env,
     path::{Path, PathBuf},
 };
 
@@ -62,7 +63,7 @@ impl WorkspaceProtoConfigs {
         let wr: ProtolsConfig = basic_toml::from_str(&content).unwrap_or_default();
         let fmt = ClangFormatter::new(
             &wr.config.path.clang_format,
-            wpath.to_str().expect("non-utf8 path"),
+            Some(wpath.to_str().expect("non-utf8 path")),
         );
 
         self.workspaces.insert(w.uri.clone());
@@ -102,6 +103,34 @@ impl WorkspaceProtoConfigs {
         ipath.push(w.to_path_buf());
         ipath.extend_from_slice(&self.protoc_include_prefix);
         Some(ipath)
+    }
+
+    pub fn no_workspace_mode(&mut self) {
+        let wr = ProtolsConfig::default();
+        let rp = if cfg!(target_os = "windows") {
+            let mut d = String::from("C");
+            if let Ok(cdir) = env::current_dir() {
+                if let Some(drive) = cdir.components().next() {
+                    d = drive.as_os_str().to_string_lossy().to_string()
+                }
+            }
+            format!("{d}://")
+        } else {
+            String::from("/")
+        };
+        let uri = match Url::from_file_path(&rp) {
+            Err(err) => {
+                tracing::error!(?err, "failed to convert path: {rp} to Url");
+                return;
+            }
+            Ok(uri) => uri,
+        };
+
+        let fmt = ClangFormatter::new(&wr.config.path.clang_format, None);
+
+        self.workspaces.insert(uri.clone());
+        self.configs.insert(uri.clone(), wr);
+        self.formatters.insert(uri.clone(), fmt);
     }
 }
 

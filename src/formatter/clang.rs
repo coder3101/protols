@@ -16,7 +16,7 @@ use super::ProtoFormatter;
 
 pub struct ClangFormatter {
     pub path: String,
-    working_dir: String,
+    working_dir: Option<String>,
     temp_dir: TempDir,
 }
 
@@ -66,11 +66,11 @@ impl Replacement<'_> {
 }
 
 impl ClangFormatter {
-    pub fn new(cmd: &str, wdir: &str) -> Self {
+    pub fn new(cmd: &str, wdir: Option<&str>) -> Self {
         Self {
             temp_dir: tempdir().expect("faile to creat temp dir"),
             path: cmd.to_owned(),
-            working_dir: wdir.to_owned(),
+            working_dir: wdir.map(ToOwned::to_owned),
         }
     }
 
@@ -83,7 +83,9 @@ impl ClangFormatter {
 
     fn get_command(&self, f: &str, u: &Path) -> Option<Command> {
         let mut c = Command::new(self.path.as_str());
-        c.current_dir(self.working_dir.as_str());
+        if let Some(wd) = &self.working_dir {
+            c.current_dir(wd.as_str());
+        }
         c.stdin(File::open(u).ok()?);
         c.args([
             "--output-replacements-xml",
