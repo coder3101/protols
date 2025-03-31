@@ -5,6 +5,7 @@ use async_lsp::{
 };
 use std::{
     ops::ControlFlow,
+    path::PathBuf,
     sync::{mpsc, mpsc::Sender},
     thread,
 };
@@ -20,12 +21,12 @@ pub struct ProtoLanguageServer {
 }
 
 impl ProtoLanguageServer {
-    pub fn new_router(client: ClientSocket) -> Router<Self> {
+    pub fn new_router(client: ClientSocket, cli_include_paths: Vec<PathBuf>) -> Router<Self> {
         let mut router = Router::from_language_server(Self {
             client,
             counter: 0,
             state: ProtoLanguageState::new(),
-            configs: WorkspaceProtoConfigs::new(),
+            configs: WorkspaceProtoConfigs::new(cli_include_paths),
         });
         router.event(Self::on_tick);
         router

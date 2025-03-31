@@ -22,6 +22,7 @@
 
 - [Installation](#installation)
   - [For Neovim](#for-neovim)
+  - [Command Line Options](#command-line-options)
   - [For Visual Studio Code](#for-visual-studio-code)
 - [Configuration](#configuration)
   - [Basic Configuration](#basic-configuration)
@@ -57,6 +58,25 @@ Then, configure it in your `init.lua` using [nvim-lspconfig](https://github.com/
 require'lspconfig'.protols.setup{}
 ```
 
+### Command Line Options
+
+Protols supports various command line options to customize its behavior:
+
+```
+protols [OPTIONS]
+
+Options:
+  -i, --include-paths <INCLUDE_PATHS>  Include paths for proto files, comma-separated
+  -V, --version                        Print version information
+  -h, --help                           Print help information
+```
+
+For example, to specify include paths when starting the language server:
+
+```bash
+protols --include-paths=/path/to/protos,/another/path/to/protos
+```
+
 ### For Visual Studio Code
 
 If you're using Visual Studio Code, you can install the [Protobuf Language Support](https://marketplace.visualstudio.com/items?itemName=ianandhum.protobuf-support) extension, which uses this LSP under the hood.
@@ -86,7 +106,7 @@ protoc = "protoc"
 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
-- `include_paths`: Directories to search for `.proto` files. Absolute or relative to LSP workspace root. Worspace root is already included in include_paths
+- `include_paths`: These are directories where `.proto` files are searched. Paths can be absolute or relative to the LSP workspace root, which is already included in the `include_paths`. You can also specify this using the `--include-paths` flag in the command line. The include paths from the CLI are combined with those from the configuration. While configuration-based include paths are specific to a workspace, the CLI-specified paths apply to all workspaces on the server.
 
 #### Path Configuration
 

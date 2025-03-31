@@ -5,6 +5,7 @@ use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
+use clap::Parser;
 use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
@@ -21,15 +22,40 @@ mod state;
 mod utils;
 mod workspace;
 
+/// Language server for proto3 files
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Include paths for proto files
+    #[arg(short, long, value_delimiter = ',')]
+    include_paths: Option<Vec<String>>,
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() == 2 && args[1] == "--version" {
-        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-        return;
-    }
+    let cli = Cli::parse();
+
+    let dir = std::env::temp_dir();
+    eprintln!("Rolling file based logging at directory: {dir:?}");
+
+    let file_appender = tracing_appender::rolling::daily(dir.clone(), "protols.log");
+    let file_appender = tracing_appender::non_blocking(file_appender);
+
+    tracing_subscriber::fmt()
+        .with_max_level(Level::INFO)
+        .with_ansi(false)
+        .with_writer(file_appender.0)
+        .init();
 
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
+        tracing::info!("Using CLI options: {:?}", cli);
+        let server = ProtoLanguageServer::new_router(
+            client.clone(),
+            cli.include_paths
+                .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
+                .unwrap_or_default(),
+        );
+
         tokio::spawn({
             let client = client.clone();
             async move {
@@ -49,20 +75,8 @@ async fn main() {
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(ProtoLanguageServer::new_router(client))
+            .service(server)
     });
-
-    let dir = std::env::temp_dir();
-    eprintln!("Logs are being written to directory {:?}", dir);
-
-    let file_appender = tracing_appender::rolling::daily(dir, "protols.log");
-    let (non_blocking, _gaurd) = tracing_appender::non_blocking(file_appender);
-
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .with_ansi(false)
-        .with_writer(non_blocking)
-        .init();
 
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
@@ -78,4 +92,35 @@ async fn main() {
     );
 
     server.run_buffered(stdin, stdout).await.unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_parsing() {
+        // Test with no arguments
+        let args = vec!["protols"];
+        let cli = Cli::parse_from(args);
+        assert!(cli.include_paths.is_none());
+
+        // Test with include paths
+        let args = vec!["protols", "--include-paths=/path1,/path2"];
+        let cli = Cli::parse_from(args);
+        assert!(cli.include_paths.is_some());
+        let paths = cli.include_paths.unwrap();
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0], "/path1");
+        assert_eq!(paths[1], "/path2");
+
+        // Test with short form
+        let args = vec!["protols", "-i", "/path1,/path2"];
+        let cli = Cli::parse_from(args);
+        assert!(cli.include_paths.is_some());
+        let paths = cli.include_paths.unwrap();
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0], "/path1");
+        assert_eq!(paths[1], "/path2");
+    }
 }
