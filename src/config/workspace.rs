@@ -18,10 +18,11 @@ pub struct WorkspaceProtoConfigs {
     configs: HashMap<Url, ProtolsConfig>,
     formatters: HashMap<Url, ClangFormatter>,
     protoc_include_prefix: Vec<PathBuf>,
+    cli_include_paths: Vec<PathBuf>,
 }
 
 impl WorkspaceProtoConfigs {
-    pub fn new() -> Self {
+    pub fn new(cli_include_paths: Vec<PathBuf>) -> Self {
         // Try to find protobuf library and get its include paths
         // Do not emit metadata on stdout as LSP programs can consider
         // it part of spec
@@ -38,6 +39,7 @@ impl WorkspaceProtoConfigs {
             formatters: HashMap::new(),
             configs: HashMap::new(),
             protoc_include_prefix,
+            cli_include_paths,
         }
     }
 
@@ -100,6 +102,15 @@ impl WorkspaceProtoConfigs {
             .map(|p| if p.is_relative() { w.join(p) } else { p })
             .collect();
 
+        // Add CLI include paths
+        for path in &self.cli_include_paths {
+            if path.is_relative() {
+                ipath.push(w.join(path));
+            } else {
+                ipath.push(path.clone());
+            }
+        }
+
         ipath.push(w.to_path_buf());
         ipath.extend_from_slice(&self.protoc_include_prefix);
         Some(ipath)
@@ -139,6 +150,7 @@ mod test {
     use async_lsp::lsp_types::{Url, WorkspaceFolder};
     use insta::assert_yaml_snapshot;
     use tempfile::tempdir;
+    use std::path::PathBuf;
 
     use super::{CONFIG_FILE_NAMES, WorkspaceProtoConfigs};
 
@@ -149,7 +161,7 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-        let mut ws = WorkspaceProtoConfigs::new();
+        let mut ws = WorkspaceProtoConfigs::new(vec![]);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
@@ -183,7 +195,7 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-        let mut ws = WorkspaceProtoConfigs::new();
+        let mut ws = WorkspaceProtoConfigs::new(vec![]);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
@@ -218,7 +230,7 @@ mod test {
             let f = tmpdir.path().join(file);
             std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-            let mut ws = WorkspaceProtoConfigs::new();
+            let mut ws = WorkspaceProtoConfigs::new(vec![]);
             ws.add_workspace(&WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
                 name: "Test".to_string(),
@@ -228,5 +240,37 @@ mod test {
             let workspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
             assert!(ws.get_workspace_for_uri(&workspace).is_some());
         }
+    }
+
+    #[test]
+    fn test_cli_include_paths() {
+        let tmpdir = tempdir().expect("failed to create temp directory");
+        let f = tmpdir.path().join("protols.toml");
+        std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
+
+        // Set CLI include paths
+        let cli_paths = vec![
+            PathBuf::from("/path/to/protos"),
+            PathBuf::from("relative/path"),
+        ];
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths);
+        ws.add_workspace(&WorkspaceFolder {
+            uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+            name: "Test".to_string(),
+        });
+
+        let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
+        let include_paths = ws.get_include_paths(&inworkspace).unwrap();
+
+        // Check that CLI paths are included in the result
+        assert!(include_paths.iter().any(|p| p.ends_with("relative/path") || 
+                                        p == &PathBuf::from("/path/to/protos")));
+        
+        // The relative path should be resolved relative to the workspace
+        let resolved_relative_path = tmpdir.path().join("relative/path");
+        assert!(include_paths.contains(&resolved_relative_path));
+        
+        // The absolute path should be included as is
+        assert!(include_paths.contains(&PathBuf::from("/path/to/protos")));
     }
 }
