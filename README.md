@@ -106,7 +106,7 @@ protoc = "protoc"
 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
-- `include_paths`: Directories to search for `.proto` files. Absolute or relative to LSP workspace root. Workspace root is already included in include_paths. This can also be specified via command line arguments using the `--include-paths` flag.
+- `include_paths`: These are directories where `.proto` files are searched. Paths can be absolute or relative to the LSP workspace root, which is already included in the `include_paths`. You can also specify this using the `--include-paths` flag in the command line. The include paths from the CLI are combined with those from the configuration. While configuration-based include paths are specific to a workspace, the CLI-specified paths apply to all workspaces on the server.
 
 #### Path Configuration
 
