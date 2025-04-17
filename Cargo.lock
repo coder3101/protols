@@ -648,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "protols"
-version = "0.11.5"
+version = "0.11.6"
 dependencies = [
  "async-lsp",
  "basic-toml",
