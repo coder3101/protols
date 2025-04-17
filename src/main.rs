@@ -24,7 +24,7 @@ mod workspace;
 
 /// Language server for proto3 files
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, ignore_errors(true))]
 struct Cli {
     /// Include paths for proto files
     #[arg(short, long, value_delimiter = ',')]
