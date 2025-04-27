@@ -87,7 +87,7 @@ If you're using Visual Studio Code, you can install the [Protobuf Language Suppo
 
 ## ⚙️ Configuration
 
-Protols is configured using a `protols.toml` file, which you can place in any directory.
+Protols can be configured using a `protols.toml` file, which you can place in root of your project directory.
 
 ### Sample `protols.toml`
 
