@@ -17,8 +17,7 @@ pub struct ProtolsConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FormatterConfig {
-}
+pub struct FormatterConfig {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
@@ -38,7 +37,7 @@ impl Default for PathConfig {
     fn default() -> Self {
         Self {
             clang_format: default_clang_format_path(),
-            protoc: default_protoc_path()
+            protoc: default_protoc_path(),
         }
     }
 }

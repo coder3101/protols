@@ -10,16 +10,16 @@ message SomeMessage {
   CustomType another = 2;
 }
 
-message A {
+message CapitalA {
   // B is a b
-  message B {
+  message CapitalB {
 
   }
 
-  B b = 1;
+ a.b.c.CapitalA.CapitalB b = 1;
 }
 
 message C {
-  A.B ab = 1;
-  A a = 2;
+  CapitalA.CapitalB ab = 1;
+  .a.b.c.CapitalA a = 2;
 }

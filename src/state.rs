@@ -67,9 +67,7 @@ impl ProtoLanguageState {
             .values()
             .filter(|tree| {
                 let content = self.get_content(&tree.uri);
-                tree.get_package_name(content.as_bytes())
-                    .unwrap_or(".")
-                    == package
+                tree.get_package_name(content.as_bytes()).unwrap_or(".") == package
             })
             .map(ToOwned::to_owned)
             .collect()
