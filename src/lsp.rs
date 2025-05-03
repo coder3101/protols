@@ -135,15 +135,10 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
         let hv = tree.get_hoverable_at_position(&pos, content.as_bytes());
-        let current_package_name = tree.get_package_name(content.as_bytes());
+        let current_package_name = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
         let Some(hv) = hv else {
             error!(uri=%uri, "failed to get hoverable identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let Some(current_package_name) = current_package_name else {
-            error!(uri=%uri, "failed to get package name");
             return Box::pin(async move { Ok(None) });
         };
 
@@ -220,10 +215,7 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
 
-        let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
-            error!(uri=%uri, "failed to get package name");
-            return Box::pin(async move { Ok(None) });
-        };
+        let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
         let Some((edit, otext, ntext)) = tree.rename_tree(&pos, &new_name, content.as_bytes())
         else {
@@ -240,7 +232,6 @@ impl LanguageServer for ProtoLanguageServer {
         let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
 
         let mut h = HashMap::new();
-        h.insert(tree.uri.clone(), edit);
         h.extend(self.state.rename_fields(
             current_package,
             &otext,
@@ -248,6 +239,8 @@ impl LanguageServer for ProtoLanguageServer {
             workspace.to_file_path().unwrap(),
             progress_sender,
         ));
+
+        h.entry(tree.uri).or_insert(edit.clone()).extend(edit);
 
         let response = Some(WorkspaceEdit {
             changes: Some(h),
@@ -272,10 +265,7 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
 
-        let Some(current_package) = tree.get_package_name(content.as_bytes()) else {
-            error!(uri=%uri, "failed to get package name");
-            return Box::pin(async move { Ok(None) });
-        };
+        let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
         let Some((mut refs, otext)) = tree.reference_tree(&pos, content.as_bytes()) else {
             error!(uri=%uri, "failed to find references in a tree");
@@ -321,15 +311,10 @@ impl LanguageServer for ProtoLanguageServer {
 
         let content = self.state.get_content(&uri);
         let jump = tree.get_jumpable_at_position(&pos, content.as_bytes());
-        let current_package_name = tree.get_package_name(content.as_bytes());
+        let current_package_name = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
         let Some(jump) = jump else {
             error!(uri=%uri, "failed to get jump identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let Some(current_package_name) = current_package_name else {
-            error!(uri=%uri, "failed to get package name");
             return Box::pin(async move { Ok(None) });
         };
 
@@ -407,9 +392,9 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        if let Some(diagnostics) = self
-            .state
-            .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+        if let Some(diagnostics) =
+            self.state
+                .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
         {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
@@ -434,9 +419,9 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        if let Some(diagnostics) = self
-            .state
-            .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+        if let Some(diagnostics) =
+            self.state
+                .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
         {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
@@ -457,7 +442,10 @@ impl LanguageServer for ProtoLanguageServer {
             return ControlFlow::Continue(());
         };
 
-        if let Some(diagnostics) = self.state.upsert_file(&uri, content, &ipath, 8, &pconf.config, false) {
+        if let Some(diagnostics) =
+            self.state
+                .upsert_file(&uri, content, &ipath, 8, &pconf.config, false)
+        {
             if let Err(e) = self.client.publish_diagnostics(diagnostics) {
                 error!(error=%e, "failed to publish diagnostics")
             }

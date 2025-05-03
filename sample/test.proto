@@ -9,3 +9,17 @@ message SomeMessage {
 
   CustomType another = 2;
 }
+
+message A {
+  // B is a b
+  message B {
+
+  }
+
+  B b = 1;
+}
+
+message C {
+  A.B ab = 1;
+  A a = 2;
+}

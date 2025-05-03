@@ -23,7 +23,7 @@ impl ProtoLanguageState {
             .into_iter()
             .fold(HashMap::new(), |mut h, tree| {
                 let content = self.get_content(&tree.uri);
-                let package = tree.get_package_name(content.as_ref()).unwrap_or_default();
+                let package = tree.get_package_name(content.as_ref()).unwrap_or(".");
                 let mut old = identifier.to_string();
                 let mut new = new_text.to_string();
                 if current_package != package {
@@ -52,7 +52,7 @@ impl ProtoLanguageState {
             .into_iter()
             .fold(Vec::<Location>::new(), |mut v, tree| {
                 let content = self.get_content(&tree.uri);
-                let package = tree.get_package_name(content.as_ref()).unwrap_or_default();
+                let package = tree.get_package_name(content.as_ref()).unwrap_or(".");
                 let mut old = identifier.to_owned();
                 if current_package != package {
                     old = format!("{current_package}.{old}");

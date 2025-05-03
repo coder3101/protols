@@ -37,7 +37,6 @@ pub fn is_inner_identifier(s: &str) -> bool {
 }
 
 pub fn split_identifier_package(s: &str) -> (&str, &str) {
-    // trim beginning dots, some use `.` prefix for fully qualified field names
     let s = s.trim_start_matches(".");
     if is_inner_identifier(s) || !s.contains('.') {
         return ("", s);

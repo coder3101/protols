@@ -11,6 +11,7 @@ impl ParsedTree {
         self.definition_impl(identifier, self.tree.root_node(), &mut results, content);
         results
     }
+
     fn definition_impl(
         &self,
         identifier: &str,
