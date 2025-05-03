@@ -23,14 +23,42 @@ impl ProtoLanguageState {
             .into_iter()
             .fold(HashMap::new(), |mut h, tree| {
                 let content = self.get_content(&tree.uri);
-                let package = tree.get_package_name(content.as_ref()).unwrap_or_default();
+                let package = tree.get_package_name(content.as_ref()).unwrap_or(".");
                 let mut old = identifier.to_string();
                 let mut new = new_text.to_string();
-                if current_package != package {
-                    old = format!("{current_package}.{old}");
-                    new = format!("{current_package}.{new}");
+                let mut v = vec![];
+
+                // Global scope: Reference by only . or within global directly
+                if current_package == "." {
+                    if package == "." {
+                        v.extend(tree.rename_field(&old, &new, content.as_str()));
+                    }
+
+                    old = format!(".{old}");
+                    new = format!(".{new}");
+
+                    v.extend(tree.rename_field(&old, &new, content.as_str()));
+
+                    if !v.is_empty() {
+                        h.insert(tree.uri.clone(), v);
+                    }
+                    return h;
                 }
-                let v = tree.rename_field(&old, &new, content.as_str());
+
+                let full_old = format!("{current_package}.{old}");
+                let full_new = format!("{current_package}.{new}");
+                let global_full_old = format!(".{current_package}.{old}");
+                let global_full_new = format!(".{current_package}.{new}");
+
+                // Current package: Reference by full or relative name or directly
+                if current_package == package {
+                    v.extend(tree.rename_field(&old, &new, content.as_str()));
+                }
+
+                // Otherwise, full reference
+                v.extend(tree.rename_field(&full_old, &full_new, content.as_str()));
+                v.extend(tree.rename_field(&global_full_old, &global_full_new, content.as_str()));
+
                 if !v.is_empty() {
                     h.insert(tree.uri.clone(), v);
                 }
@@ -52,12 +80,31 @@ impl ProtoLanguageState {
             .into_iter()
             .fold(Vec::<Location>::new(), |mut v, tree| {
                 let content = self.get_content(&tree.uri);
-                let package = tree.get_package_name(content.as_ref()).unwrap_or_default();
+                let package = tree.get_package_name(content.as_ref()).unwrap_or(".");
                 let mut old = identifier.to_owned();
-                if current_package != package {
-                    old = format!("{current_package}.{old}");
+                // Global scope: Reference by only . or within global directly
+                if current_package == "." {
+                    if package == "." {
+                        v.extend(tree.reference_field(&old, content.as_str()));
+                    }
+
+                    old = format!(".{old}");
+                    v.extend(tree.reference_field(&old, content.as_str()));
+
+                    return v;
                 }
-                v.extend(tree.reference_field(&old, content.as_str()));
+
+                let full_old = format!("{current_package}.{old}");
+                let global_full_old = format!(".{current_package}.{old}");
+
+                // Current package: Reference by full or relative name or directly
+                if current_package == package {
+                    v.extend(tree.reference_field(&old, content.as_str()));
+                }
+
+                // Otherwise, full reference
+                v.extend(tree.reference_field(&full_old, content.as_str()));
+                v.extend(tree.reference_field(&global_full_old, content.as_str()));
                 v
             });
         if r.is_empty() { None } else { Some(r) }

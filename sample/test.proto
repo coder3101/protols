@@ -9,3 +9,17 @@ message SomeMessage {
 
   CustomType another = 2;
 }
+
+message CapitalA {
+  // B is a b
+  message CapitalB {
+
+  }
+
+ a.b.c.CapitalA.CapitalB b = 1;
+}
+
+message C {
+  CapitalA.CapitalB ab = 1;
+  .a.b.c.CapitalA a = 2;
+}

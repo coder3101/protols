@@ -149,8 +149,8 @@ impl WorkspaceProtoConfigs {
 mod test {
     use async_lsp::lsp_types::{Url, WorkspaceFolder};
     use insta::assert_yaml_snapshot;
-    use tempfile::tempdir;
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     use super::{CONFIG_FILE_NAMES, WorkspaceProtoConfigs};
 
@@ -263,13 +263,16 @@ mod test {
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();
 
         // Check that CLI paths are included in the result
-        assert!(include_paths.iter().any(|p| p.ends_with("relative/path") || 
-                                        p == &PathBuf::from("/path/to/protos")));
-        
+        assert!(
+            include_paths
+                .iter()
+                .any(|p| p.ends_with("relative/path") || p == &PathBuf::from("/path/to/protos"))
+        );
+
         // The relative path should be resolved relative to the workspace
         let resolved_relative_path = tmpdir.path().join("relative/path");
         assert!(include_paths.contains(&resolved_relative_path));
-        
+
         // The absolute path should be included as is
         assert!(include_paths.contains(&PathBuf::from("/path/to/protos")));
     }
