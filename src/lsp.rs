@@ -7,19 +7,20 @@ use async_lsp::lsp_types::{
     CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams,
     DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
     FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    Location, OneOf, PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions,
-    RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    Location, MarkupContent, MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams,
+    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
 use async_lsp::{LanguageClient, LanguageServer, ResponseError};
 use futures::future::BoxFuture;
 
+use crate::docs;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 
@@ -159,20 +160,40 @@ impl LanguageServer for ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<CompletionResponse>, Self::Error>> {
         let uri = params.text_document_position.text_document.uri;
 
+        // All keywords in the language
         let keywords = vec![
             "syntax", "package", "option", "import", "service", "rpc", "returns", "message",
             "enum", "oneof", "repeated", "reserved", "to",
         ];
 
-        let mut completions: Vec<CompletionItem> = keywords
-            .into_iter()
-            .map(|w| CompletionItem {
-                label: w.to_string(),
-                kind: Some(CompletionItemKind::KEYWORD),
+        // Build completion item from builtins as fields
+        let mut completions: Vec<CompletionItem> = docs::BUITIN
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: v.to_string(),
+                    },
+                )
+            })
+            .map(|(k, v)| CompletionItem {
+                label: k.to_string(),
+                kind: Some(CompletionItemKind::FIELD),
+                documentation: Some(Documentation::MarkupContent(v)),
                 ..CompletionItem::default()
             })
             .collect();
 
+        // Build completion item from keywords
+        completions.extend(keywords.into_iter().map(|w| CompletionItem {
+            label: w.to_string(),
+            kind: Some(CompletionItemKind::KEYWORD),
+            ..CompletionItem::default()
+        }));
+
+        // Build completion item from the current tree
         if let Some(tree) = self.state.get_tree(&uri) {
             let content = self.state.get_content(&uri);
             if let Some(package_name) = tree.get_package_name(content.as_bytes()) {
