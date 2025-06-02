@@ -12,6 +12,7 @@ use tracing::Level;
 
 mod config;
 mod context;
+mod docs;
 mod formatter;
 mod lsp;
 mod nodekind;
