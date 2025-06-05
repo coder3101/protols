@@ -4,34 +4,30 @@ use tracing::{error, info};
 
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    CreateFilesParams, DeleteFilesParams, DidChangeConfigurationParams,
-    DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
-    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeParams, InitializeResult,
-    Location, MarkupContent, MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams,
-    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FileOperationFilter,
+    FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, Location, MarkupContent,
+    MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions,
+    RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities,
 };
-use async_lsp::{LanguageClient, LanguageServer, ResponseError};
+use async_lsp::{LanguageClient, ResponseError};
 use futures::future::BoxFuture;
 
 use crate::docs;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 
-impl LanguageServer for ProtoLanguageServer {
-    type Error = ResponseError;
-    type NotifyResult = ControlFlow<async_lsp::Result<()>>;
-
-    fn initialize(
+impl ProtoLanguageServer {
+    pub(super) fn initialize(
         &mut self,
         params: InitializeParams,
-    ) -> BoxFuture<'static, Result<InitializeResult, Self::Error>> {
+    ) -> BoxFuture<'static, Result<InitializeResult, ResponseError>> {
         let (cname, version) = params
             .client_info
             .as_ref()
@@ -122,10 +118,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn hover(
+    pub(super) fn hover(
         &mut self,
         param: HoverParams,
-    ) -> BoxFuture<'static, Result<Option<Hover>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<Hover>, ResponseError>> {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
@@ -154,10 +150,10 @@ impl LanguageServer for ProtoLanguageServer {
         })
     }
 
-    fn completion(
+    pub(super) fn completion(
         &mut self,
         params: CompletionParams,
-    ) -> BoxFuture<'static, Result<Option<CompletionResponse>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<CompletionResponse>, ResponseError>> {
         let uri = params.text_document_position.text_document.uri;
 
         // All keywords in the language
@@ -203,10 +199,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(Some(CompletionResponse::Array(completions))) })
     }
 
-    fn prepare_rename(
+    pub(super) fn prepare_rename(
         &mut self,
         params: TextDocumentPositionParams,
-    ) -> BoxFuture<'static, Result<Option<PrepareRenameResponse>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<PrepareRenameResponse>, ResponseError>> {
         let uri = params.text_document.uri;
         let pos = params.position;
 
@@ -220,10 +216,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn rename(
+    pub(super) fn rename(
         &mut self,
         params: RenameParams,
-    ) -> BoxFuture<'static, Result<Option<WorkspaceEdit>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<WorkspaceEdit>, ResponseError>> {
         let uri = params.text_document_position.text_document.uri;
         let pos = params.text_document_position.position;
 
@@ -271,7 +267,7 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn references(
+    pub(super) fn references(
         &mut self,
         param: ReferenceParams,
     ) -> BoxFuture<'static, Result<Option<Vec<Location>>, ResponseError>> {
@@ -318,7 +314,7 @@ impl LanguageServer for ProtoLanguageServer {
         })
     }
 
-    fn definition(
+    pub(super) fn definition(
         &mut self,
         param: GotoDefinitionParams,
     ) -> BoxFuture<'static, Result<Option<GotoDefinitionResponse>, ResponseError>> {
@@ -353,10 +349,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn document_symbol(
+    pub(super) fn document_symbol(
         &mut self,
         params: DocumentSymbolParams,
-    ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, ResponseError>> {
         let uri = params.text_document.uri;
 
         let Some(tree) = self.state.get_tree(&uri) else {
@@ -371,10 +367,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(Some(response)) })
     }
 
-    fn formatting(
+    pub(super) fn formatting(
         &mut self,
         params: DocumentFormattingParams,
-    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, ResponseError>> {
         let uri = params.text_document.uri;
         let content = self.state.get_content(&uri);
 
@@ -386,10 +382,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn range_formatting(
+    pub(super) fn range_formatting(
         &mut self,
         params: DocumentRangeFormattingParams,
-    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, Self::Error>> {
+    ) -> BoxFuture<'static, Result<Option<Vec<TextEdit>>, ResponseError>> {
         let uri = params.text_document.uri;
         let content = self.state.get_content(&uri);
 
@@ -401,7 +397,10 @@ impl LanguageServer for ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
-    fn did_save(&mut self, params: DidSaveTextDocumentParams) -> Self::NotifyResult {
+    pub(super) fn did_save(
+        &mut self,
+        params: DidSaveTextDocumentParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         let uri = params.text_document.uri;
         let content = self.state.get_content(&uri);
 
@@ -424,11 +423,10 @@ impl LanguageServer for ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    fn did_close(&mut self, _params: DidCloseTextDocumentParams) -> Self::NotifyResult {
-        ControlFlow::Continue(())
-    }
-
-    fn did_open(&mut self, params: DidOpenTextDocumentParams) -> Self::NotifyResult {
+    pub(super) fn did_open(
+        &mut self,
+        params: DidOpenTextDocumentParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         let uri = params.text_document.uri;
         let content = params.text_document.text;
 
@@ -451,7 +449,10 @@ impl LanguageServer for ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    fn did_change(&mut self, params: DidChangeTextDocumentParams) -> Self::NotifyResult {
+    pub(super) fn did_change(
+        &mut self,
+        params: DidChangeTextDocumentParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         let uri = params.text_document.uri;
         let content = params.content_changes[0].text.clone();
 
@@ -474,7 +475,10 @@ impl LanguageServer for ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    fn did_create_files(&mut self, params: CreateFilesParams) -> Self::NotifyResult {
+    pub(super) fn did_create_files(
+        &mut self,
+        params: CreateFilesParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         for file in params.files {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 // Safety: The uri is always a file type
@@ -488,7 +492,10 @@ impl LanguageServer for ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    fn did_rename_files(&mut self, params: RenameFilesParams) -> Self::NotifyResult {
+    pub(super) fn did_rename_files(
+        &mut self,
+        params: RenameFilesParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         for file in params.files {
             let Ok(new_uri) = Url::from_file_path(&file.new_uri) else {
                 error!(uri = file.new_uri, "failed to parse uri");
@@ -505,7 +512,10 @@ impl LanguageServer for ProtoLanguageServer {
         ControlFlow::Continue(())
     }
 
-    fn did_delete_files(&mut self, params: DeleteFilesParams) -> Self::NotifyResult {
+    pub(super) fn did_delete_files(
+        &mut self,
+        params: DeleteFilesParams,
+    ) -> ControlFlow<async_lsp::Result<()>> {
         for file in params.files {
             if let Ok(uri) = Url::from_file_path(&file.uri) {
                 self.state.delete_file(&uri);
@@ -513,19 +523,6 @@ impl LanguageServer for ProtoLanguageServer {
                 error!(uri = file.uri, "failed to parse uri");
             }
         }
-        ControlFlow::Continue(())
-    }
-
-    // Required because of: https://github.com/coder3101/protols/issues/32
-    fn did_change_configuration(&mut self, _: DidChangeConfigurationParams) -> Self::NotifyResult {
-        ControlFlow::Continue(())
-    }
-
-    // Required because when jumping to outside the workspace; this is triggered
-    fn did_change_workspace_folders(
-        &mut self,
-        _: DidChangeWorkspaceFoldersParams,
-    ) -> Self::NotifyResult {
         ControlFlow::Continue(())
     }
 }
