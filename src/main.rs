@@ -37,7 +37,7 @@ async fn main() {
     let cli = Cli::parse();
 
     let dir = std::env::temp_dir();
-    eprintln!("Rolling file based logging at directory: {dir:?}");
+    eprintln!("file logging at directory: {dir:?}");
 
     let file_appender = tracing_appender::rolling::daily(dir.clone(), "protols.log");
     let file_appender = tracing_appender::non_blocking(file_appender);
@@ -48,9 +48,10 @@ async fn main() {
         .with_writer(file_appender.0)
         .init();
 
+    tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         tracing::info!("Using CLI options: {:?}", cli);
-        let server = ProtoLanguageServer::new_router(
+        let router = ProtoLanguageServer::new_router(
             client.clone(),
             cli.include_paths
                 .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
@@ -76,7 +77,7 @@ async fn main() {
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
-            .service(server)
+            .service(router)
     });
 
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.

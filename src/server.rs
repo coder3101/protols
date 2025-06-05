@@ -1,6 +1,16 @@
 use async_lsp::{
     ClientSocket, LanguageClient,
-    lsp_types::{NumberOrString, ProgressParams, ProgressParamsValue},
+    lsp_types::{
+        NumberOrString, ProgressParams, ProgressParamsValue,
+        notification::{
+            DidChangeTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
+            DidRenameFiles, DidSaveTextDocument,
+        },
+        request::{
+            Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
+            Initialize, PrepareRenameRequest, RangeFormatting, References, Rename,
+        },
+    },
     router::Router,
 };
 use std::{
@@ -22,19 +32,45 @@ pub struct ProtoLanguageServer {
 
 impl ProtoLanguageServer {
     pub fn new_router(client: ClientSocket, cli_include_paths: Vec<PathBuf>) -> Router<Self> {
-        let mut router = Router::from_language_server(Self {
+        let mut router = Router::new(Self {
             client,
             counter: 0,
             state: ProtoLanguageState::new(),
             configs: WorkspaceProtoConfigs::new(cli_include_paths),
         });
-        router.event(Self::on_tick);
-        router
-    }
 
-    fn on_tick(&mut self, _: TickEvent) -> ControlFlow<async_lsp::Result<()>> {
-        self.counter += 1;
-        ControlFlow::Continue(())
+        router.event::<TickEvent>(|st, _| {
+            st.counter += 1;
+            ControlFlow::Continue(())
+        });
+
+        // Ignore any unknown notification.
+        router.unhandled_notification(|_, notif| {
+            tracing::info!(notif.method, "ignored unknown notification");
+            ControlFlow::Continue(())
+        });
+
+        // Handling request
+        router.request::<Initialize, _>(|st, params| st.initialize(params));
+        router.request::<HoverRequest, _>(|st, params| st.hover(params));
+        router.request::<Completion, _>(|st, params| st.completion(params));
+        router.request::<PrepareRenameRequest, _>(|st, params| st.prepare_rename(params));
+        router.request::<Rename, _>(|st, params| st.rename(params));
+        router.request::<References, _>(|st, params| st.references(params));
+        router.request::<GotoDefinition, _>(|st, params| st.definition(params));
+        router.request::<DocumentSymbolRequest, _>(|st, params| st.document_symbol(params));
+        router.request::<Formatting, _>(|st, params| st.formatting(params));
+        router.request::<RangeFormatting, _>(|st, params| st.range_formatting(params));
+
+        // Handling notification
+        router.notification::<DidSaveTextDocument>(|st, params| st.did_save(params));
+        router.notification::<DidOpenTextDocument>(|st, params| st.did_open(params));
+        router.notification::<DidChangeTextDocument>(|st, params| st.did_change(params));
+        router.notification::<DidCreateFiles>(|st, params| st.did_create_files(params));
+        router.notification::<DidRenameFiles>(|st, params| st.did_rename_files(params));
+        router.notification::<DidDeleteFiles>(|st, params| st.did_delete_files(params));
+
+        router
     }
 
     pub fn with_report_progress(&self, token: NumberOrString) -> Sender<ProgressParamsValue> {
