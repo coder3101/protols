@@ -1,22 +1,21 @@
 ---
 source: src/workspace/rename.rs
-expression: "state.rename_fields(\"com.workspace\", \"Author\", \"Writer\")"
-snapshot_kind: text
+expression: "state.rename_fields(\"com.workspace\", \"Author\", \"Writer\",\nPathBuf::from(\"src/workspace/input\"), None)"
 ---
 "file://input/a.proto":
   - range:
       start:
-        line: 9
+        line: 10
         character: 3
       end:
-        line: 9
+        line: 10
         character: 9
     newText: Writer
   - range:
       start:
-        line: 10
+        line: 11
         character: 3
       end:
-        line: 10
+        line: 11
         character: 17
     newText: Writer.Address

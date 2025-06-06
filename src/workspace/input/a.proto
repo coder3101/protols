@@ -3,6 +3,7 @@ syntax = "proto3";
 package com.workspace;
 
 import "c.proto";
+import "b.proto";
 import "inner/x.proto";
 
 // A Book is a book

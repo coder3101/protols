@@ -7,6 +7,7 @@ import "inner/secret/y.proto";
 // Why is a reason with secret
 message Why {
    string reason = 1;
-   com.super.secret.SomeSecret secret = 2;
+   .com.inner.secret.SomeSecret secret = 2;
+   secret.SomeSecret secret2 = 3;
 }
 
