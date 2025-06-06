@@ -34,12 +34,22 @@ impl ProtoLanguageState {
                     package = curr_package;
                 }
 
-                self.get_trees_for_package(package)
-                    .into_iter()
-                    .fold(vec![], |mut v, tree| {
-                        v.extend(tree.definition(identifier, self.get_content(&tree.uri)));
-                        v
-                    })
+                let mut trees = vec![];
+
+                // If package != curr_package, either identifier is from a completely new package
+                // or relative package from within. As per name resolution first resolve relative
+                // packages, add all relative trees in search list
+                if curr_package != package {
+                    let fullpackage = format!("{curr_package}.{package}");
+                    trees.append(&mut self.get_trees_for_package(&fullpackage));
+                }
+
+                // Add all direct package trees
+                trees.append(&mut self.get_trees_for_package(package));
+                trees.into_iter().fold(vec![], |mut v, tree| {
+                    v.extend(tree.definition(identifier, self.get_content(&tree.uri)));
+                    v
+                })
             }
         }
     }

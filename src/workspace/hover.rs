@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_lsp::lsp_types::{MarkupContent, MarkupKind};
 
@@ -6,6 +6,23 @@ use crate::{
     context::hoverable::Hoverables, docs, state::ProtoLanguageState,
     utils::split_identifier_package,
 };
+
+fn format_import_path_hover_text(path: &str, p: &Path) -> String {
+    format!(
+        r#"Import: `{path}` protobuf file,
+---
+Included from {}"#,
+        p.to_string_lossy()
+    )
+}
+
+fn format_identifier_hover_text(identifier: &str, package: &str, result: &str) -> String {
+    format!(
+        r#"`{identifier}` message or enum type, package: `{package}`
+---
+{result}"#
+    )
+}
 
 impl ProtoLanguageState {
     pub fn hover(
@@ -15,58 +32,67 @@ impl ProtoLanguageState {
         hv: Hoverables,
     ) -> Option<MarkupContent> {
         let v = match hv {
-            Hoverables::FieldType(field) => {
-                // Type is a builtin
-                match docs::BUITIN.get(field.as_str()) {
-                    Some(docs) => docs.to_string(),
-                    _ => String::new(),
-                }
-            }
-            Hoverables::ImportPath(path) => {
-                if let Some(p) = ipath.iter().map(|p| p.join(&path)).find(|p| p.exists()) {
-                    format!(
-                        r#"Import: `{path}` protobuf file,
----
-Included from {}"#,
-                        p.to_string_lossy(),
-                    )
-                } else {
-                    String::new()
-                }
-            }
+            Hoverables::FieldType(field) => docs::BUITIN
+                .get(field.as_str())
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+
+            Hoverables::ImportPath(path) => ipath
+                .iter()
+                .map(|p| p.join(&path))
+                .find(|p| p.exists())
+                .map(|p| format_import_path_hover_text(&path, &p))
+                .unwrap_or_default(),
+
             Hoverables::Identifier(identifier) => {
                 let (mut package, identifier) = split_identifier_package(identifier.as_str());
                 if package.is_empty() {
                     package = curr_package;
                 }
 
-                // Node is user defined type or well known type
-                // If user defined,
-                let mut result = docs::WELLKNOWN
+                // Identifier is user defined type or well known type
+
+                // If well known types, check in wellknown docs,
+                // otherwise check in trees
+                match docs::WELLKNOWN
                     .get(format!("{package}.{identifier}").as_str())
                     .map(|&s| s.to_string())
-                    .unwrap_or_default();
+                {
+                    Some(res) => res,
+                    None => {
+                        let mut trees = vec![];
 
-                // If no well known was found; try parsing from trees.
-                if result.is_empty() {
-                    for tree in self.get_trees_for_package(package) {
-                        let res = tree.hover(identifier, self.get_content(&tree.uri));
-
-                        if res.is_empty() {
-                            continue;
+                        // If package != curr_package, either identifier is from a completely new package
+                        // or relative package from within. As per name resolution first resolve relative
+                        // packages, add all relative trees in search list
+                        if curr_package != package {
+                            let fullpackage = format!("{curr_package}.{package}");
+                            trees.append(&mut self.get_trees_for_package(&fullpackage));
                         }
 
-                        result = format!(
-                            r#"`{identifier}` message or enum type, package: `{package}`
----
-{}"#,
-                            res[0].clone()
-                        );
-                        break;
+                        // Add all direct package trees
+                        trees.append(&mut self.get_trees_for_package(package));
+
+                        // Find the first field hovered in the trees
+                        let res = trees.iter().find_map(|tree| {
+                            let content = self.get_content(&tree.uri);
+                            let res = tree.hover(identifier, content);
+                            if res.is_empty() {
+                                None
+                            } else {
+                                Some(res[0].clone())
+                            }
+                        });
+
+                        // Format the hover text and return
+                        // TODO: package here is literally what was hovered, incase of
+                        // relative it is only the relative part, should be full path, should
+                        // probably figure out the package from the tree which provides hover and
+                        // pass here.
+                        res.map(|r| format_identifier_hover_text(identifier, package, &r))
+                            .unwrap_or_default()
                     }
                 }
-
-                result
             }
         };
 
@@ -140,8 +166,14 @@ mod test {
         ));
         assert_yaml_snapshot!(state.hover(
             &ipath,
-            "com.workspace",
-            Hoverables::Identifier("com.super.secret.SomeSecret".to_string())
+            "com.inner",
+            Hoverables::Identifier(".com.inner.secret.SomeSecret".to_string())
         ));
+        // relative path hover
+        assert_yaml_snapshot!(state.hover(
+            &ipath,
+            "com.inner",
+            Hoverables::Identifier("secret.SomeSecret".to_string())
+        ))
     }
 }

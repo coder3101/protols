@@ -1,14 +1,13 @@
 ---
 source: src/workspace/rename.rs
-expression: "state.rename_fields(\"com.utility\", \"Foobar.Baz\", \"Foobar.Baaz\")"
-snapshot_kind: text
+expression: "state.rename_fields(\"com.utility\", \"Foobar.Baz\", \"Foobar.Baaz\",\nPathBuf::from(\"src/workspace/input\"), None)"
 ---
 "file://input/a.proto":
   - range:
       start:
-        line: 11
+        line: 12
         character: 3
       end:
-        line: 11
+        line: 12
         character: 25
     newText: com.utility.Foobar.Baaz

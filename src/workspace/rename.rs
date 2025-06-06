@@ -53,6 +53,16 @@ impl ProtoLanguageState {
                 // Current package: Reference by full or relative name or directly
                 if current_package == package {
                     v.extend(tree.rename_field(&old, &new, content.as_str()));
+                } else if current_package.starts_with(package) {
+                    // Safety: prefix check already done
+                    // get the relative part of the package
+                    let packagepart = current_package
+                        .strip_prefix(package)
+                        .unwrap()
+                        .trim_start_matches('.');
+                    let relative_old = format!("{packagepart}.{old}");
+                    let relative_new = format!("{packagepart}.{new}");
+                    v.extend(tree.rename_field(&relative_old, &relative_new, content.as_str()));
                 }
 
                 // Otherwise, full reference
@@ -81,30 +91,39 @@ impl ProtoLanguageState {
             .fold(Vec::<Location>::new(), |mut v, tree| {
                 let content = self.get_content(&tree.uri);
                 let package = tree.get_package_name(content.as_ref()).unwrap_or(".");
-                let mut old = identifier.to_owned();
+                let mut ident = identifier.to_owned();
                 // Global scope: Reference by only . or within global directly
                 if current_package == "." {
                     if package == "." {
-                        v.extend(tree.reference_field(&old, content.as_str()));
+                        v.extend(tree.reference_field(&ident, content.as_str()));
                     }
 
-                    old = format!(".{old}");
-                    v.extend(tree.reference_field(&old, content.as_str()));
+                    ident = format!(".{ident}");
+                    v.extend(tree.reference_field(&ident, content.as_str()));
 
                     return v;
                 }
 
-                let full_old = format!("{current_package}.{old}");
-                let global_full_old = format!(".{current_package}.{old}");
+                let full_ident = format!("{current_package}.{ident}");
+                let global_full_ident = format!(".{current_package}.{ident}");
 
                 // Current package: Reference by full or relative name or directly
                 if current_package == package {
-                    v.extend(tree.reference_field(&old, content.as_str()));
+                    v.extend(tree.reference_field(&ident, content.as_str()));
+                } else if current_package.starts_with(package) {
+                    // Safety: prefix check already done
+                    // get the relative part of the package
+                    let packagepart = current_package
+                        .strip_prefix(package)
+                        .unwrap()
+                        .trim_start_matches('.');
+                    let relative = format!("{packagepart}.{ident}");
+                    v.extend(tree.reference_field(&relative, content.as_str()));
                 }
 
                 // Otherwise, full reference
-                v.extend(tree.reference_field(&full_old, content.as_str()));
-                v.extend(tree.reference_field(&global_full_old, content.as_str()));
+                v.extend(tree.reference_field(&full_ident, content.as_str()));
+                v.extend(tree.reference_field(&global_full_ident, content.as_str()));
                 v
             });
         if r.is_empty() { None } else { Some(r) }

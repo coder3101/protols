@@ -1,13 +1,12 @@
 ---
 source: src/workspace/rename.rs
-expression: "state.reference_fields(\"com.workspace\", \"Author\")"
-snapshot_kind: text
+expression: "state.reference_fields(\"com.workspace\", \"Author\",\nPathBuf::from(\"src/workspace/input\"), None)"
 ---
 - uri: "file://input/a.proto"
   range:
     start:
-      line: 9
+      line: 10
       character: 3
     end:
-      line: 9
+      line: 10
       character: 9
