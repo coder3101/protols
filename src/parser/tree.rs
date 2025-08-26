@@ -151,7 +151,7 @@ impl ParsedTree {
         self.tree.root_node().descendant_for_point_range(pos, pos)
     }
 
-    pub fn find_all_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+    pub fn find_all_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
         self.find_all_nodes_from(self.tree.root_node(), f)
     }
 
@@ -160,7 +160,7 @@ impl ParsedTree {
         Self::walk_and_filter(&mut cursor, f, false)
     }
 
-    pub fn find_first_node(&self, f: fn(&Node) -> bool) -> Vec<Node> {
+    pub fn find_first_node(&self, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
         self.find_node_from(self.tree.root_node(), f)
     }
 
@@ -175,7 +175,7 @@ impl ParsedTree {
             .map(|n| n.utf8_text(content).expect("utf-8 parse error"))
     }
 
-    pub fn get_import_node(&self) -> Vec<Node> {
+    pub fn get_import_node(&self) -> Vec<Node<'_>> {
         self.find_all_nodes(NodeKind::is_import_path)
             .into_iter()
             .filter_map(|n| n.child_by_field_name("path"))

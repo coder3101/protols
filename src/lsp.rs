@@ -415,10 +415,9 @@ impl ProtoLanguageServer {
         if let Some(diagnostics) =
             self.state
                 .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+            && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-                error!(error=%e, "failed to publish diagnostics")
-            }
+            error!(error=%e, "failed to publish diagnostics")
         }
         ControlFlow::Continue(())
     }
@@ -441,10 +440,9 @@ impl ProtoLanguageServer {
         if let Some(diagnostics) =
             self.state
                 .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+            && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-                error!(error=%e, "failed to publish diagnostics")
-            }
+            error!(error=%e, "failed to publish diagnostics")
         }
         ControlFlow::Continue(())
     }
@@ -467,10 +465,9 @@ impl ProtoLanguageServer {
         if let Some(diagnostics) =
             self.state
                 .upsert_file(&uri, content, &ipath, 8, &pconf.config, false)
+            && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            if let Err(e) = self.client.publish_diagnostics(diagnostics) {
-                error!(error=%e, "failed to publish diagnostics")
-            }
+            error!(error=%e, "failed to publish diagnostics")
         }
         ControlFlow::Continue(())
     }
