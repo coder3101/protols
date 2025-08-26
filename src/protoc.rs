@@ -54,28 +54,27 @@ impl ProtocDiagnostics {
             // Parse protoc error format: file:line:column: message
             if let Some((file_info, message)) = line.split_once(": ") {
                 let parts: Vec<&str> = file_info.split(':').collect();
-                if parts.len() >= 3 {
-                    if let (Ok(line), Ok(col)) = (parts[1].parse::<u32>(), parts[2].parse::<u32>())
-                    {
-                        let point = Point {
-                            row: (line - 1) as usize,
-                            column: (col - 1) as usize,
-                        };
-                        let diagnostic = Diagnostic {
-                            range: Range {
-                                start: ts_to_lsp_position(&point),
-                                end: ts_to_lsp_position(&Point {
-                                    row: point.row,
-                                    column: point.column + 1,
-                                }),
-                            },
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            source: Some("protoc".to_string()),
-                            message: message.to_string(),
-                            ..Default::default()
-                        };
-                        diagnostics.push(diagnostic);
-                    }
+                if parts.len() >= 3
+                    && let (Ok(line), Ok(col)) = (parts[1].parse::<u32>(), parts[2].parse::<u32>())
+                {
+                    let point = Point {
+                        row: (line - 1) as usize,
+                        column: (col - 1) as usize,
+                    };
+                    let diagnostic = Diagnostic {
+                        range: Range {
+                            start: ts_to_lsp_position(&point),
+                            end: ts_to_lsp_position(&Point {
+                                row: point.row,
+                                column: point.column + 1,
+                            }),
+                        },
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        source: Some("protoc".to_string()),
+                        message: message.to_string(),
+                        ..Default::default()
+                    };
+                    diagnostics.push(diagnostic);
                 }
             }
         }

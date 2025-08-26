@@ -114,12 +114,11 @@ impl ProtoLanguageState {
         let imports = self.get_owned_imports(uri, content.as_str());
 
         for import in imports.iter() {
-            if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists()) {
-                if let Ok(uri) = Url::from_file_path(p.clone()) {
-                    if let Ok(content) = std::fs::read_to_string(p) {
-                        self.upsert_content_impl(&uri, content, ipath, depth - 1, parse_session);
-                    }
-                }
+            if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists())
+                && let Ok(uri) = Url::from_file_path(p.clone())
+                && let Ok(content) = std::fs::read_to_string(p)
+            {
+                self.upsert_content_impl(&uri, content, ipath, depth - 1, parse_session);
             }
         }
     }
@@ -179,31 +178,31 @@ impl ProtoLanguageState {
 
         for (idx, file) in files.into_iter().enumerate() {
             let path = file.path();
-            if path.is_absolute() && path.is_file() {
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    if let Ok(uri) = Url::from_file_path(path) {
-                        if self.documents.read().expect("poison").contains_key(&uri) {
-                            continue;
-                        }
-                        self.upsert_content(&uri, content, &[], 1);
+            if path.is_absolute()
+                && path.is_file()
+                && let Ok(content) = std::fs::read_to_string(path)
+                && let Ok(uri) = Url::from_file_path(path)
+            {
+                if self.documents.read().expect("poison").contains_key(&uri) {
+                    continue;
+                }
+                self.upsert_content(&uri, content, &[], 1);
 
-                        if let Some(sender) = &progress_sender {
-                            let percentage = ((idx + 1) as f64 / total_files as f64 * 100.0) as u32;
-                            let _ = sender.send(ProgressParamsValue::WorkDone(
-                                async_lsp::lsp_types::WorkDoneProgress::Report(
-                                    async_lsp::lsp_types::WorkDoneProgressReport {
-                                        cancellable: None,
-                                        message: Some(format!(
-                                            "Parsing file {} of {}",
-                                            idx + 1,
-                                            total_files
-                                        )),
-                                        percentage: Some(percentage),
-                                    },
-                                ),
-                            ));
-                        }
-                    }
+                if let Some(sender) = &progress_sender {
+                    let percentage = ((idx + 1) as f64 / total_files as f64 * 100.0) as u32;
+                    let _ = sender.send(ProgressParamsValue::WorkDone(
+                        async_lsp::lsp_types::WorkDoneProgress::Report(
+                            async_lsp::lsp_types::WorkDoneProgressReport {
+                                cancellable: None,
+                                message: Some(format!(
+                                    "Parsing file {} of {}",
+                                    idx + 1,
+                                    total_files
+                                )),
+                                percentage: Some(percentage),
+                            },
+                        ),
+                    ));
                 }
             }
         }
@@ -231,20 +230,19 @@ impl ProtoLanguageState {
             d.extend(tree.collect_import_diagnostics(content.as_ref(), diag));
 
             // Add protoc diagnostics if enabled
-            if protoc_diagnostics {
-                if let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock() {
-                    if let Ok(file_path) = uri.to_file_path() {
-                        let protoc_diags = protoc_diagnostics.collect_diagnostics(
-                            &config.path.protoc,
-                            file_path.to_str().unwrap_or_default(),
-                            &ipath
-                                .iter()
-                                .map(|p| p.to_str().unwrap_or_default().to_string())
-                                .collect::<Vec<_>>(),
-                        );
-                        d.extend(protoc_diags);
-                    }
-                }
+            if protoc_diagnostics
+                && let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock()
+                && let Ok(file_path) = uri.to_file_path()
+            {
+                let protoc_diags = protoc_diagnostics.collect_diagnostics(
+                    &config.path.protoc,
+                    file_path.to_str().unwrap_or_default(),
+                    &ipath
+                        .iter()
+                        .map(|p| p.to_str().unwrap_or_default().to_string())
+                        .collect::<Vec<_>>(),
+                );
+                d.extend(protoc_diags);
             }
 
             PublishDiagnosticsParams {

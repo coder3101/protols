@@ -120,10 +120,10 @@ impl WorkspaceProtoConfigs {
         let wr = ProtolsConfig::default();
         let rp = if cfg!(target_os = "windows") {
             let mut d = String::from("C");
-            if let Ok(cdir) = env::current_dir() {
-                if let Some(drive) = cdir.components().next() {
-                    d = drive.as_os_str().to_string_lossy().to_string()
-                }
+            if let Ok(cdir) = env::current_dir()
+                && let Some(drive) = cdir.components().next()
+            {
+                d = drive.as_os_str().to_string_lossy().to_string()
             }
             format!("{d}://")
         } else {
