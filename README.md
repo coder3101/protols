@@ -58,6 +58,24 @@ Then, configure it in your `init.lua` using [nvim-lspconfig](https://github.com/
 require'lspconfig'.protols.setup{}
 ```
 
+#### Setting Include Paths in Neovim
+
+For dynamic configuration of include paths, you can use the `before_init` callback to set them via `initializationParams`:
+
+```lua
+require'lspconfig'.protols.setup{
+  before_init = function(_, config)
+    config.init_options = {
+      include_paths = {
+        "/usr/local/include/protobuf",
+        "vendor/protos",
+        "../shared-protos"
+      }
+    }
+  end
+}
+```
+
 ### Command Line Options
 
 Protols supports various command line options to customize its behavior:
@@ -106,7 +124,12 @@ protoc = "protoc"
 
 The `[config]` section contains stable settings that should generally remain unchanged.
 
-- `include_paths`: These are directories where `.proto` files are searched. Paths can be absolute or relative to the LSP workspace root, which is already included in the `include_paths`. You can also specify this using the `--include-paths` flag in the command line. The include paths from the CLI are combined with those from the configuration. While configuration-based include paths are specific to a workspace, the CLI-specified paths apply to all workspaces on the server.
+- `include_paths`: These are directories where `.proto` files are searched. Paths can be absolute or relative to the LSP workspace root, which is already included in the `include_paths`. You can also specify include paths using:
+  - **Configuration file**: Workspace-specific paths defined in `protols.toml`
+  - **Command line**: Global paths using `--include-paths` flag that apply to all workspaces
+  - **Initialization parameters**: Dynamic paths set via LSP `initializationParams` (useful for editors like Neovim)
+  
+  All include paths from these sources are combined when resolving proto imports.
 
 #### Path Configuration
 
