@@ -16,9 +16,6 @@ pub struct ProtolsConfig {
     pub config: Config,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FormatterConfig {}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 pub struct Config {

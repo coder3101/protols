@@ -806,6 +806,7 @@ dependencies = [
  "insta",
  "pkg-config",
  "serde",
+ "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",

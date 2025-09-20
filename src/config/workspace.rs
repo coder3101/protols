@@ -19,6 +19,7 @@ pub struct WorkspaceProtoConfigs {
     formatters: HashMap<Url, ClangFormatter>,
     protoc_include_prefix: Vec<PathBuf>,
     cli_include_paths: Vec<PathBuf>,
+    init_include_paths: Vec<PathBuf>,
 }
 
 impl WorkspaceProtoConfigs {
@@ -40,6 +41,7 @@ impl WorkspaceProtoConfigs {
             configs: HashMap::new(),
             protoc_include_prefix,
             cli_include_paths,
+            init_include_paths: Vec::new(),
         }
     }
 
@@ -90,6 +92,10 @@ impl WorkspaceProtoConfigs {
             .find(|&k| upath.starts_with(k.to_file_path().unwrap()))
     }
 
+    pub fn set_init_include_paths(&mut self, paths: Vec<PathBuf>) {
+        self.init_include_paths = paths;
+    }
+
     pub fn get_include_paths(&self, uri: &Url) -> Option<Vec<PathBuf>> {
         let cfg = self.get_config_for_uri(uri)?;
         let w = self.get_workspace_for_uri(uri)?.to_file_path().ok()?;
@@ -104,6 +110,15 @@ impl WorkspaceProtoConfigs {
 
         // Add CLI include paths
         for path in &self.cli_include_paths {
+            if path.is_relative() {
+                ipath.push(w.join(path));
+            } else {
+                ipath.push(path.clone());
+            }
+        }
+
+        // Add initialization include paths
+        for path in &self.init_include_paths {
             if path.is_relative() {
                 ipath.push(w.join(path));
             } else {
@@ -275,5 +290,39 @@ mod test {
 
         // The absolute path should be included as is
         assert!(include_paths.contains(&PathBuf::from("/path/to/protos")));
+    }
+
+    #[test]
+    fn test_init_include_paths() {
+        let tmpdir = tempdir().expect("failed to create temp directory");
+        let f = tmpdir.path().join("protols.toml");
+        std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
+
+        // Set both CLI and initialization include paths
+        let cli_paths = vec![PathBuf::from("/cli/path")];
+        let init_paths = vec![
+            PathBuf::from("/init/path1"),
+            PathBuf::from("relative/init/path"),
+        ];
+
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths);
+        ws.set_init_include_paths(init_paths);
+        ws.add_workspace(&WorkspaceFolder {
+            uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+            name: "Test".to_string(),
+        });
+
+        let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
+        let include_paths = ws.get_include_paths(&inworkspace).unwrap();
+
+        // Check that initialization paths are included
+        assert!(include_paths.contains(&PathBuf::from("/init/path1")));
+
+        // The relative path should be resolved relative to the workspace
+        let resolved_relative_path = tmpdir.path().join("relative/init/path");
+        assert!(include_paths.contains(&resolved_relative_path));
+
+        // CLI paths should still be included
+        assert!(include_paths.contains(&PathBuf::from("/cli/path")));
     }
 }
