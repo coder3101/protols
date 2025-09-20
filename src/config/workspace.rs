@@ -304,7 +304,7 @@ mod test {
             PathBuf::from("/init/path1"),
             PathBuf::from("relative/init/path"),
         ];
-        
+
         let mut ws = WorkspaceProtoConfigs::new(cli_paths);
         ws.set_init_include_paths(init_paths);
         ws.add_workspace(&WorkspaceFolder {
@@ -317,7 +317,7 @@ mod test {
 
         // Check that initialization paths are included
         assert!(include_paths.contains(&PathBuf::from("/init/path1")));
-        
+
         // The relative path should be resolved relative to the workspace
         let resolved_relative_path = tmpdir.path().join("relative/init/path");
         assert!(include_paths.contains(&resolved_relative_path));

@@ -40,11 +40,14 @@ impl ProtoLanguageServer {
         info!("Connected with client {cname} {cversion}");
 
         // Parse initialization options for include paths
-        if let Some(init_options) = &params.initialization_options {
-            if let Some(include_paths) = parse_init_include_paths(init_options) {
-                info!("Setting include paths from initialization options: {:?}", include_paths);
-                self.configs.set_init_include_paths(include_paths);
-            }
+        if let Some(init_options) = &params.initialization_options
+            && let Some(include_paths) = parse_init_include_paths(init_options)
+        {
+            info!(
+                "Setting include paths from initialization options: {:?}",
+                include_paths
+            );
+            self.configs.set_init_include_paths(include_paths);
         }
 
         let file_operation_filers = vec![FileOperationFilter {
@@ -535,36 +538,25 @@ impl ProtoLanguageServer {
 
 /// Parse include_paths from initialization options
 fn parse_init_include_paths(init_options: &Value) -> Option<Vec<PathBuf>> {
-    match init_options {
-        Value::Object(obj) => {
-            if let Some(Value::Array(paths)) = obj.get("include_paths") {
-                let mut result = Vec::new();
-                for path_value in paths {
-                    if let Value::String(path) = path_value {
-                        result.push(PathBuf::from(path));
-                    } else {
-                        warn!("Invalid include path in initialization options: {:?}", path_value);
-                    }
-                }
-                if !result.is_empty() {
-                    return Some(result);
-                }
-            } else if let Some(Value::String(paths_str)) = obj.get("include_paths") {
-                // Support comma-separated string format like CLI
-                let result: Vec<PathBuf> = paths_str
-                    .split(',')
-                    .map(|s| PathBuf::from(s.trim()))
-                    .collect();
-                if !result.is_empty() {
-                    return Some(result);
-                }
-            }
-        }
-        _ => {
-            warn!("initialization_options is not an object: {:?}", init_options);
+    let mut result = vec![];
+    let paths = init_options["include_paths"].as_array()?;
+
+    for path_value in paths {
+        if let Some(path) = path_value.as_str() {
+            result.push(PathBuf::from(path));
+        } else {
+            warn!(
+                "Invalid include path in initialization options: {:?}",
+                path_value
+            );
         }
     }
-    None
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 #[cfg(test)]
@@ -582,19 +574,6 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], PathBuf::from("/path/to/protos"));
         assert_eq!(result[1], PathBuf::from("relative/path"));
-    }
-
-    #[test]
-    fn test_parse_init_include_paths_string() {
-        let init_options = json!({
-            "include_paths": "/path1,/path2,relative/path"
-        });
-
-        let result = parse_init_include_paths(&init_options).unwrap();
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], PathBuf::from("/path1"));
-        assert_eq!(result[1], PathBuf::from("/path2"));
-        assert_eq!(result[2], PathBuf::from("relative/path"));
     }
 
     #[test]
@@ -639,11 +618,14 @@ mod tests {
                 "../shared-protos"
             ]
         });
-        
+
         let include_paths = parse_init_include_paths(&neovim_style_init_options).unwrap();
-        
+
         assert_eq!(include_paths.len(), 3);
-        assert_eq!(include_paths[0], PathBuf::from("/usr/local/include/protobuf"));
+        assert_eq!(
+            include_paths[0],
+            PathBuf::from("/usr/local/include/protobuf")
+        );
         assert_eq!(include_paths[1], PathBuf::from("vendor/protos"));
         assert_eq!(include_paths[2], PathBuf::from("../shared-protos"));
     }
