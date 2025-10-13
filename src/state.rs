@@ -6,7 +6,10 @@ use std::{
 use tracing::info;
 
 use async_lsp::lsp_types::ProgressParamsValue;
-use async_lsp::lsp_types::{CompletionItem, CompletionItemKind, PublishDiagnosticsParams, Url};
+use async_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, Location, OneOf, PublishDiagnosticsParams, Url,
+    WorkspaceSymbol,
+};
 use std::sync::mpsc::Sender;
 use tree_sitter::Node;
 use walkdir::WalkDir;
@@ -71,6 +74,73 @@ impl ProtoLanguageState {
             })
             .map(ToOwned::to_owned)
             .collect()
+    }
+
+    pub fn find_workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
+        let mut symbols = Vec::new();
+
+        for tree in self.get_trees() {
+            let content = self.get_content(&tree.uri);
+            let doc_symbols = tree.find_document_locations(content.as_bytes());
+
+            for doc_symbol in doc_symbols {
+                self.collect_workspace_symbols(&doc_symbol, &tree.uri, query, None, &mut symbols);
+            }
+        }
+
+        // Sort symbols by name and then by URI for consistent ordering
+        symbols.sort_by(|a, b| {
+            let name_cmp = a.name.cmp(&b.name);
+            if name_cmp != std::cmp::Ordering::Equal {
+                return name_cmp;
+            }
+            // Extract URI from location
+            match (&a.location, &b.location) {
+                (OneOf::Left(loc_a), OneOf::Left(loc_b)) => {
+                    loc_a.uri.as_str().cmp(loc_b.uri.as_str())
+                }
+                _ => std::cmp::Ordering::Equal,
+            }
+        });
+
+        symbols
+    }
+
+    fn collect_workspace_symbols(
+        &self,
+        doc_symbol: &async_lsp::lsp_types::DocumentSymbol,
+        uri: &Url,
+        query: &str,
+        container_name: Option<String>,
+        symbols: &mut Vec<WorkspaceSymbol>,
+    ) {
+        let symbol_name_lower = doc_symbol.name.to_lowercase();
+
+        if query.is_empty() || symbol_name_lower.contains(query) {
+            symbols.push(WorkspaceSymbol {
+                name: doc_symbol.name.clone(),
+                kind: doc_symbol.kind,
+                tags: doc_symbol.tags.clone(),
+                container_name: container_name.clone(),
+                location: OneOf::Left(Location {
+                    uri: uri.clone(),
+                    range: doc_symbol.range,
+                }),
+                data: None,
+            });
+        }
+
+        if let Some(children) = &doc_symbol.children {
+            for child in children {
+                self.collect_workspace_symbols(
+                    child,
+                    uri,
+                    query,
+                    Some(doc_symbol.name.clone()),
+                    symbols,
+                );
+            }
+        }
     }
 
     fn upsert_content_impl(

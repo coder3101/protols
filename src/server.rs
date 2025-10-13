@@ -9,6 +9,7 @@ use async_lsp::{
         request::{
             Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
             Initialize, PrepareRenameRequest, RangeFormatting, References, Rename,
+            WorkspaceSymbolRequest,
         },
     },
     router::Router,
@@ -59,6 +60,7 @@ impl ProtoLanguageServer {
         router.request::<References, _>(|st, params| st.references(params));
         router.request::<GotoDefinition, _>(|st, params| st.definition(params));
         router.request::<DocumentSymbolRequest, _>(|st, params| st.document_symbol(params));
+        router.request::<WorkspaceSymbolRequest, _>(|st, params| st.workspace_symbol(params));
         router.request::<Formatting, _>(|st, params| st.formatting(params));
         router.request::<RangeFormatting, _>(|st, params| st.range_formatting(params));
 
