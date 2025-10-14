@@ -385,6 +385,18 @@ impl ProtoLanguageServer {
         params: WorkspaceSymbolParams,
     ) -> BoxFuture<'static, Result<Option<WorkspaceSymbolResponse>, ResponseError>> {
         let query = params.query.to_lowercase();
+        let work_done_token = params.work_done_progress_params.work_done_token;
+
+        // Parse all files from all workspaces
+        let workspaces = self.configs.get_workspaces();
+        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
+
+        for workspace in workspaces {
+            if let Ok(workspace_path) = workspace.to_file_path() {
+                self.state
+                    .parse_all_from_workspace(workspace_path, progress_sender.clone());
+            }
+        }
 
         let symbols = self.state.find_workspace_symbols(&query);
 
