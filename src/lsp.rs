@@ -14,7 +14,7 @@ use async_lsp::lsp_types::{
     RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    WorkspaceServerCapabilities, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use async_lsp::{LanguageClient, ResponseError};
 use futures::future::BoxFuture;
@@ -113,6 +113,7 @@ impl ProtoLanguageServer {
                 definition_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                workspace_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions::default()),
                 rename_provider: Some(rename_provider),
                 document_formatting_provider: Some(OneOf::Left(true)),
@@ -377,6 +378,35 @@ impl ProtoLanguageServer {
         let response = DocumentSymbolResponse::Nested(locations);
 
         Box::pin(async move { Ok(Some(response)) })
+    }
+
+    pub(super) fn workspace_symbol(
+        &mut self,
+        params: WorkspaceSymbolParams,
+    ) -> BoxFuture<'static, Result<Option<WorkspaceSymbolResponse>, ResponseError>> {
+        let query = params.query.to_lowercase();
+        let work_done_token = params.work_done_progress_params.work_done_token;
+
+        // Parse all files from all workspaces
+        let workspaces = self.configs.get_workspaces();
+        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
+
+        for workspace in workspaces {
+            if let Ok(workspace_path) = workspace.to_file_path() {
+                self.state
+                    .parse_all_from_workspace(workspace_path, progress_sender.clone());
+            }
+        }
+
+        let symbols = self.state.find_workspace_symbols(&query);
+
+        Box::pin(async move {
+            if symbols.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(WorkspaceSymbolResponse::Nested(symbols)))
+            }
+        })
     }
 
     pub(super) fn formatting(
