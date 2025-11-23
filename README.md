@@ -9,7 +9,8 @@
 
 - ✅ **Code Completion**: Auto-complete messages, enums, and keywords in your `.proto` files.
 - ✅ **Diagnostics**: Syntax errors, import error with tree-sitter and advanced diagnostics from `protoc`.
-- ✅ **Document Symbols**: Navigate and view all symbols, including messages and enums.
+- ✅ **Workspace Symbols**: Search and view all symbols across workspaces.
+- ✅ **Document Symbols**: Navigate and view all symbols, including nested messages and enums in from a document.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
 - ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums and imports.
 - ✅ **Hover Information**: Get detailed information and documentation on hover.
@@ -31,6 +32,7 @@
   - [Code Completion](#code-completion)
   - [Diagnostics](#diagnostics)
   - [Code Formatting](#code-formatting)
+  - [Workspace Symbols](#workspace-symbols)
   - [Document Symbols](#document-symbols)
   - [Go to Definition](#go-to-definition)
   - [Hover Information](#hover-information)
@@ -155,6 +157,10 @@ Syntax errors are caught by the tree-sitter parser, which highlights issues dire
 ### Code Formatting
 
 Format your `.proto` files using `clang-format`. To customize the formatting style, add a `.clang-format` file to the root of your project. Both document and range formatting are supported.
+
+### Workspace Symbols
+
+Protols implements workspace symbol capabilities allowing you to search for symbols across workspace or list them, including nested symbols such as messages and enums. This allows for easy navigation and reference across workspace.
 
 ### Document Symbols
 
