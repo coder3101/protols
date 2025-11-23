@@ -5,11 +5,11 @@ use std::{
 };
 use tracing::info;
 
-use async_lsp::lsp_types::{DocumentSymbol, ProgressParamsValue};
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, Location, OneOf, PublishDiagnosticsParams, Url,
     WorkspaceSymbol,
 };
+use async_lsp::lsp_types::{DocumentSymbol, ProgressParamsValue};
 use std::sync::mpsc::Sender;
 use tree_sitter::Node;
 use walkdir::WalkDir;
@@ -84,7 +84,13 @@ impl ProtoLanguageState {
             let doc_symbols = tree.find_document_locations(content.as_bytes());
 
             for doc_symbol in doc_symbols {
-                self.collect_workspace_symbols(&doc_symbol, &tree.uri, query, None, &mut symbols);
+                Self::find_workspace_symbols_impl(
+                    &doc_symbol,
+                    &tree.uri,
+                    query,
+                    None,
+                    &mut symbols,
+                );
             }
         }
 
@@ -106,8 +112,7 @@ impl ProtoLanguageState {
         symbols
     }
 
-    fn collect_workspace_symbols(
-        &self,
+    fn find_workspace_symbols_impl(
         doc_symbol: &DocumentSymbol,
         uri: &Url,
         query: &str,
@@ -132,7 +137,7 @@ impl ProtoLanguageState {
 
         if let Some(children) = &doc_symbol.children {
             for child in children {
-                self.collect_workspace_symbols(
+                Self::find_workspace_symbols_impl(
                     child,
                     uri,
                     query,

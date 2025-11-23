@@ -48,8 +48,7 @@ mod test {
                     .contains(&cdir)
             );
             format!(
-                "file://{}/src/workspace/input/{}",
-                "<redacted>",
+                "file://<redacted>/src/workspace/input/{}",
                 c.as_str().unwrap().split('/').last().unwrap()
             )
 
@@ -65,8 +64,7 @@ mod test {
                     .contains(&cdir)
             );
             format!(
-                "file://{}/src/workspace/input/{}",
-                "<redacted>",
+                "file://<redacted>/src/workspace/input/{}",
                 c.as_str().unwrap().split('/').last().unwrap()
             )
         })});
@@ -80,8 +78,7 @@ mod test {
                     .contains(&current_dir.to_str().unwrap())
             );
             format!(
-                "file://{}/src/workspace/input/{}",
-                "<redacted>",
+                "file://<redacted>/src/workspace/input/{}",
                 c.as_str().unwrap().split('/').last().unwrap()
             )
         })});

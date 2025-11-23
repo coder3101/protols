@@ -60,7 +60,7 @@ mod test {
     use crate::context::jumpable::Jumpable;
     use std::path::PathBuf;
 
-    use insta::{assert_yaml_snapshot};
+    use insta::assert_yaml_snapshot;
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
