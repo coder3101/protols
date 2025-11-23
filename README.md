@@ -10,7 +10,7 @@
 - ✅ **Code Completion**: Auto-complete messages, enums, and keywords in your `.proto` files.
 - ✅ **Diagnostics**: Syntax errors, import error with tree-sitter and advanced diagnostics from `protoc`.
 - ✅ **Workspace Symbols**: Search and view all symbols across workspaces.
-- ✅ **Document Symbols**: Navigate and view all symbols, including nested messages and enums in from a document.
+- ✅ **Document Symbols**: Navigate and view all symbols, including nested messages and enums.
 - ✅ **Code Formatting**: Format `.proto` files using `clang-format` for a consistent style.
 - ✅ **Go to Definition**: Jump to the definition of symbols like messages or enums and imports.
 - ✅ **Hover Information**: Get detailed information and documentation on hover.
