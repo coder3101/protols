@@ -131,6 +131,10 @@ impl WorkspaceProtoConfigs {
         Some(ipath)
     }
 
+    pub fn get_workspaces(&self) -> Vec<&Url> {
+        self.workspaces.iter().collect()
+    }
+
     pub fn no_workspace_mode(&mut self) {
         let wr = ProtolsConfig::default();
         let rp = if cfg!(target_os = "windows") {

@@ -1,0 +1,16 @@
+---
+source: src/workspace/workspace_symbol.rs
+expression: address_symbols
+---
+- name: Address
+  kind: 23
+  containerName: Author
+  location:
+    uri: "file://<redacted>/src/workspace/input/b.proto"
+    range:
+      start:
+        line: 9
+        character: 3
+      end:
+        line: 11
+        character: 4

@@ -32,4 +32,4 @@ pkg-config = "0.3"
 clap = { version = "4.5", features = ["derive"] }
 
 [dev-dependencies]
-insta = { version = "1.43", features = ["yaml"] }
+insta = { version = "1.43", features = ["yaml", "redactions"] }

@@ -107,13 +107,9 @@ mod test {
             Jumpable::Import("c.proto".to_owned()),
         );
 
-        assert_eq!(loc.len(), 1);
-        assert!(
-            loc[0]
-                .uri
-                .to_file_path()
-                .unwrap()
-                .ends_with(ipath[0].join("c.proto"))
-        )
+        assert_yaml_snapshot!(loc, {"[0].uri" => insta::dynamic_redaction(|c, _| {
+            assert!(c.as_str().unwrap().ends_with("c.proto"));
+            "file://<redacted>/c.proto".to_string()
+        })});
     }
 }

@@ -1,0 +1,61 @@
+---
+source: src/workspace/workspace_symbol.rs
+expression: all_symbols
+---
+- name: Address
+  kind: 23
+  containerName: Author
+  location:
+    uri: "file://input/b.proto"
+    range:
+      start:
+        line: 9
+        character: 3
+      end:
+        line: 11
+        character: 4
+- name: Author
+  kind: 23
+  location:
+    uri: "file://input/b.proto"
+    range:
+      start:
+        line: 5
+        character: 0
+      end:
+        line: 14
+        character: 1
+- name: Baz
+  kind: 23
+  containerName: Foobar
+  location:
+    uri: "file://input/c.proto"
+    range:
+      start:
+        line: 8
+        character: 3
+      end:
+        line: 10
+        character: 4
+- name: Book
+  kind: 23
+  location:
+    uri: "file://input/a.proto"
+    range:
+      start:
+        line: 9
+        character: 0
+      end:
+        line: 14
+        character: 1
+- name: Foobar
+  kind: 23
+  location:
+    uri: "file://input/c.proto"
+    range:
+      start:
+        line: 5
+        character: 0
+      end:
+        line: 13
+        character: 1
