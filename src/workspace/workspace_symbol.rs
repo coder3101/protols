@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod test {
     use insta::assert_yaml_snapshot;
-    use insta::internals::{Content, ContentPath};
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
@@ -10,22 +9,22 @@ mod test {
     fn test_workspace_symbols() {
         let current_dir = std::env::current_dir().unwrap();
         let ipath = vec![current_dir.join("src/workspace/input")];
-        let a_uri = (&format!(
+        let a_uri = format!(
             "file://{}/src/workspace/input/a.proto",
             current_dir.to_str().unwrap()
-        ))
+        )
             .parse()
             .unwrap();
-        let b_uri = (&format!(
+        let b_uri = format!(
             "file://{}/src/workspace/input/b.proto",
             current_dir.to_str().unwrap()
-        ))
+        )
             .parse()
             .unwrap();
-        let c_uri = (&format!(
+        let c_uri = format!(
             "file://{}/src/workspace/input/c.proto",
             current_dir.to_str().unwrap()
-        ))
+        )
             .parse()
             .unwrap();
 
@@ -49,7 +48,7 @@ mod test {
             );
             format!(
                 "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').last().unwrap()
+                c.as_str().unwrap().split('/').next_back().unwrap()
             )
 
         })});
@@ -65,7 +64,7 @@ mod test {
             );
             format!(
                 "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').last().unwrap()
+                c.as_str().unwrap().split('/').next_back().unwrap()
             )
         })});
 
@@ -75,11 +74,11 @@ mod test {
             assert!(
                 c.as_str()
                     .unwrap()
-                    .contains(&current_dir.to_str().unwrap())
+                    .contains(current_dir.to_str().unwrap())
             );
             format!(
                 "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').last().unwrap()
+                c.as_str().unwrap().split('/').next_back().unwrap()
             )
         })});
 
