@@ -1,16 +1,33 @@
 #[cfg(test)]
 mod test {
     use insta::assert_yaml_snapshot;
+    use insta::internals::{Content, ContentPath};
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
 
     #[test]
     fn test_workspace_symbols() {
-        let ipath = vec![std::env::current_dir().unwrap().join("src/workspace/input")];
-        let a_uri = "file://input/a.proto".parse().unwrap();
-        let b_uri = "file://input/b.proto".parse().unwrap();
-        let c_uri = "file://input/c.proto".parse().unwrap();
+        let current_dir = std::env::current_dir().unwrap();
+        let ipath = vec![current_dir.join("src/workspace/input")];
+        let a_uri = (&format!(
+            "file://{}/src/workspace/input/a.proto",
+            current_dir.to_str().unwrap()
+        ))
+            .parse()
+            .unwrap();
+        let b_uri = (&format!(
+            "file://{}/src/workspace/input/b.proto",
+            current_dir.to_str().unwrap()
+        ))
+            .parse()
+            .unwrap();
+        let c_uri = (&format!(
+            "file://{}/src/workspace/input/c.proto",
+            current_dir.to_str().unwrap()
+        ))
+            .parse()
+            .unwrap();
 
         let a = include_str!("input/a.proto");
         let b = include_str!("input/b.proto");
@@ -23,15 +40,51 @@ mod test {
 
         // Test empty query - should return all symbols
         let all_symbols = state.find_workspace_symbols("");
-        assert_yaml_snapshot!("all_symbols", all_symbols);
+        let cdir = current_dir.to_str().unwrap().to_string();
+        assert_yaml_snapshot!(all_symbols, { "[].location.uri" => insta::dynamic_redaction(move |c, _| {
+            assert!(
+                c.as_str()
+                    .unwrap()
+                    .contains(&cdir)
+            );
+            format!(
+                "file://{}/src/workspace/input/{}",
+                "<redacted>",
+                c.as_str().unwrap().split('/').last().unwrap()
+            )
+
+        })});
 
         // Test query for "author" - should match Author and Address
         let author_symbols = state.find_workspace_symbols("author");
-        assert_yaml_snapshot!("author_symbols", author_symbols);
+        let cdir = current_dir.to_str().unwrap().to_string();
+        assert_yaml_snapshot!(author_symbols, {"[].location.uri" => insta::dynamic_redaction(move |c ,_|{
+            assert!(
+                c.as_str()
+                    .unwrap()
+                    .contains(&cdir)
+            );
+            format!(
+                "file://{}/src/workspace/input/{}",
+                "<redacted>",
+                c.as_str().unwrap().split('/').last().unwrap()
+            )
+        })});
 
         // Test query for "address" - should match Address
         let address_symbols = state.find_workspace_symbols("address");
-        assert_yaml_snapshot!("address_symbols", address_symbols);
+        assert_yaml_snapshot!(address_symbols, {"[].location.uri" => insta::dynamic_redaction(move |c ,_|{
+            assert!(
+                c.as_str()
+                    .unwrap()
+                    .contains(&current_dir.to_str().unwrap())
+            );
+            format!(
+                "file://{}/src/workspace/input/{}",
+                "<redacted>",
+                c.as_str().unwrap().split('/').last().unwrap()
+            )
+        })});
 
         // Test query that should not match anything
         let no_match = state.find_workspace_symbols("nonexistent");

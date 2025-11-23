@@ -5,7 +5,7 @@ use std::{
 };
 use tracing::info;
 
-use async_lsp::lsp_types::ProgressParamsValue;
+use async_lsp::lsp_types::{DocumentSymbol, ProgressParamsValue};
 use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, Location, OneOf, PublishDiagnosticsParams, Url,
     WorkspaceSymbol,
@@ -108,7 +108,7 @@ impl ProtoLanguageState {
 
     fn collect_workspace_symbols(
         &self,
-        doc_symbol: &async_lsp::lsp_types::DocumentSymbol,
+        doc_symbol: &DocumentSymbol,
         uri: &Url,
         query: &str,
         container_name: Option<String>,

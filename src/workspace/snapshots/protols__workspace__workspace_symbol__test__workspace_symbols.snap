@@ -6,7 +6,7 @@ expression: all_symbols
   kind: 23
   containerName: Author
   location:
-    uri: "file://input/b.proto"
+    uri: "file://<redacted>/src/workspace/input/b.proto"
     range:
       start:
         line: 9
@@ -17,7 +17,7 @@ expression: all_symbols
 - name: Author
   kind: 23
   location:
-    uri: "file://input/b.proto"
+    uri: "file://<redacted>/src/workspace/input/b.proto"
     range:
       start:
         line: 5
@@ -29,7 +29,7 @@ expression: all_symbols
   kind: 23
   containerName: Foobar
   location:
-    uri: "file://input/c.proto"
+    uri: "file://<redacted>/src/workspace/input/c.proto"
     range:
       start:
         line: 8
@@ -40,7 +40,7 @@ expression: all_symbols
 - name: Book
   kind: 23
   location:
-    uri: "file://input/a.proto"
+    uri: "file://<redacted>/src/workspace/input/a.proto"
     range:
       start:
         line: 9
@@ -51,11 +51,33 @@ expression: all_symbols
 - name: Foobar
   kind: 23
   location:
-    uri: "file://input/c.proto"
+    uri: "file://<redacted>/src/workspace/input/c.proto"
     range:
       start:
         line: 5
         character: 0
       end:
         line: 13
+        character: 1
+- name: SomeSecret
+  kind: 23
+  location:
+    uri: "file://<redacted>/src/workspace/input/y.proto"
+    range:
+      start:
+        line: 5
+        character: 0
+      end:
+        line: 7
+        character: 1
+- name: Why
+  kind: 23
+  location:
+    uri: "file://<redacted>/src/workspace/input/x.proto"
+    range:
+      start:
+        line: 7
+        character: 0
+      end:
+        line: 11
         character: 1
