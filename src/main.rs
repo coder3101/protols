@@ -48,14 +48,18 @@ async fn main() {
         .with_writer(file_appender.0)
         .init();
 
+    let fallback_include_path = option_env!("FALLBACK_INCLUDE_PATH").map(Into::into);
+
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         tracing::info!("Using CLI options: {:?}", cli);
+        tracing::info!("Using fallback include path: {:?}", fallback_include_path);
         let router = ProtoLanguageServer::new_router(
             client.clone(),
             cli.include_paths
                 .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
                 .unwrap_or_default(),
+            fallback_include_path,
         );
 
         tokio::spawn({
