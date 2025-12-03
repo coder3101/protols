@@ -6,6 +6,7 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
 use clap::Parser;
+use const_format::concatcp;
 use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 use tracing::Level;
@@ -25,12 +26,31 @@ mod workspace;
 
 /// Language server for proto3 files
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, ignore_errors(true))]
+#[command(
+    author,
+    version = concatcp!(
+        env!("CARGO_PKG_VERSION"),
+        "\n",
+        BUILD_INFO
+    ),
+    about,
+    long_about = None,
+    ignore_errors(true)
+)]
 struct Cli {
     /// Include paths for proto files
     #[arg(short, long, value_delimiter = ',')]
     include_paths: Option<Vec<String>>,
 }
+
+const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH");
+const BUILD_INFO: &str = concatcp!(
+    "fallback include path: ",
+    match FALLBACK_INCLUDE_PATH {
+        Some(path) => path,
+        None => "not set",
+    }
+);
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -48,14 +68,18 @@ async fn main() {
         .with_writer(file_appender.0)
         .init();
 
+    let fallback_include_path = FALLBACK_INCLUDE_PATH.map(Into::into);
+
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         tracing::info!("Using CLI options: {:?}", cli);
+        tracing::info!("Using fallback include path: {:?}", fallback_include_path);
         let router = ProtoLanguageServer::new_router(
             client.clone(),
             cli.include_paths
                 .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
                 .unwrap_or_default(),
+            fallback_include_path,
         );
 
         tokio::spawn({

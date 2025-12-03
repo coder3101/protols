@@ -20,10 +20,11 @@ pub struct WorkspaceProtoConfigs {
     protoc_include_prefix: Vec<PathBuf>,
     cli_include_paths: Vec<PathBuf>,
     init_include_paths: Vec<PathBuf>,
+    fallback_include_path: Option<PathBuf>,
 }
 
 impl WorkspaceProtoConfigs {
-    pub fn new(cli_include_paths: Vec<PathBuf>) -> Self {
+    pub fn new(cli_include_paths: Vec<PathBuf>, fallback_include_path: Option<PathBuf>) -> Self {
         // Try to find protobuf library and get its include paths
         // Do not emit metadata on stdout as LSP programs can consider
         // it part of spec
@@ -39,6 +40,7 @@ impl WorkspaceProtoConfigs {
             workspaces: HashSet::new(),
             formatters: HashMap::new(),
             configs: HashMap::new(),
+            fallback_include_path,
             protoc_include_prefix,
             cli_include_paths,
             init_include_paths: Vec::new(),
@@ -128,6 +130,7 @@ impl WorkspaceProtoConfigs {
 
         ipath.push(w.to_path_buf());
         ipath.extend_from_slice(&self.protoc_include_prefix);
+        ipath.extend_from_slice(self.fallback_include_path.as_slice());
         Some(ipath)
     }
 
@@ -180,7 +183,7 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-        let mut ws = WorkspaceProtoConfigs::new(vec![]);
+        let mut ws = WorkspaceProtoConfigs::new(vec![], None);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
@@ -214,7 +217,7 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-        let mut ws = WorkspaceProtoConfigs::new(vec![]);
+        let mut ws = WorkspaceProtoConfigs::new(vec![], None);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
@@ -249,7 +252,7 @@ mod test {
             let f = tmpdir.path().join(file);
             std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-            let mut ws = WorkspaceProtoConfigs::new(vec![]);
+            let mut ws = WorkspaceProtoConfigs::new(vec![], None);
             ws.add_workspace(&WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
                 name: "Test".to_string(),
@@ -272,7 +275,7 @@ mod test {
             PathBuf::from("/path/to/protos"),
             PathBuf::from("relative/path"),
         ];
-        let mut ws = WorkspaceProtoConfigs::new(cli_paths);
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
@@ -309,7 +312,7 @@ mod test {
             PathBuf::from("relative/init/path"),
         ];
 
-        let mut ws = WorkspaceProtoConfigs::new(cli_paths);
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
         ws.set_init_include_paths(init_paths);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
@@ -328,5 +331,38 @@ mod test {
 
         // CLI paths should still be included
         assert!(include_paths.contains(&PathBuf::from("/cli/path")));
+    }
+
+    #[test]
+    fn test_fallback_include_path() {
+        let tmpdir = tempdir().expect("failed to create temp directory");
+        let f = tmpdir.path().join("protols.toml");
+        std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
+
+        // Set both CLI and initialization include paths
+        let cli_paths = vec![PathBuf::from("/cli/path")];
+        let init_paths = vec![
+            PathBuf::from("/init/path1"),
+            PathBuf::from("relative/init/path"),
+        ];
+
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, Some("fallback_path".into()));
+        ws.set_init_include_paths(init_paths);
+        ws.add_workspace(&WorkspaceFolder {
+            uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+            name: "Test".to_string(),
+        });
+
+        let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
+        let include_paths = ws.get_include_paths(&inworkspace).unwrap();
+
+        // Fallback path should be included and on the last position
+        assert_eq!(
+            include_paths
+                .iter()
+                .rev()
+                .position(|p| p == "fallback_path"),
+            Some(0)
+        );
     }
 }

@@ -38,6 +38,8 @@
   - [Hover Information](#hover-information)
   - [Rename Symbols](#rename-symbols)
   - [Find References](#find-references)
+- [Protocol Buffers Well-Known Types](#protocol-buffers-well-known-types)
+- [Packaging](#📦-packaging)
 - [Contributing](#contributing)
   - [Setting Up Locally](#setting-up-locally)
 - [License](#license)
@@ -130,7 +132,12 @@ The `[config]` section contains stable settings that should generally remain unc
   - **Configuration file**: Workspace-specific paths defined in `protols.toml`
   - **Command line**: Global paths using `--include-paths` flag that apply to all workspaces
   - **Initialization parameters**: Dynamic paths set via LSP `initializationParams` (useful for editors like Neovim)
-  
+
+  When a file is not found in any of the paths above, the following directories are searched:
+  - **Protobuf Include Path**: the path containing the [Protocol Buffers Well-Known Types](https://protobuf.dev/reference/protobuf/google.protobuf/) as detected by [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/) (requires `pkg-config` present in environment and capable of finding the installation of `protobuf`)
+  - **Fallback Include Path**: the fallback include path configured at compile time
+
+
   All include paths from these sources are combined when resolving proto imports.
 
 #### Path Configuration
@@ -182,7 +189,26 @@ Rename symbols like messages or enums, and Propagate the changes throughout the 
 
 Find all references to user-defined types like messages or enums. Nested fields are fully supported, making it easier to track symbol usage across your project.
 
+## Protocol Buffers Well-Known Types
+
+Protols does not ship with the [Protocol Buffers Well-Known Types](https://protobuf.dev/reference/protobuf/google.protobuf/) unless configured to do so by a distribution.
+In order for features above to work for the well-known types, the well-known imports must either resolve against one of the configured import paths or the environment must contain in `PATH` a `pkg-config` executable capable of resolving the package `protobuf`.
+You can verify this by running
+
+```bash
+pkg-config --modversion protobuf
+```
+
+in protols' environment.
+
 ---
+
+## 📦 Packaging
+
+Distributions may set an absolute include path which contains the Protocol Buffers Well-Known Types,
+for example pointing to the files provided by the `protobuf` package, by compiling protols with the
+environment variable `FALLBACK_INCLUDE_PATH` set to the desired path. This path will be used by the
+compiled executable for resolution of any proto files that could not be resolved otherwise.
 
 ## 🤝 Contributing
 

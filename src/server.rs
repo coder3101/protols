@@ -32,12 +32,16 @@ pub struct ProtoLanguageServer {
 }
 
 impl ProtoLanguageServer {
-    pub fn new_router(client: ClientSocket, cli_include_paths: Vec<PathBuf>) -> Router<Self> {
+    pub fn new_router(
+        client: ClientSocket,
+        cli_include_paths: Vec<PathBuf>,
+        fallback_include_path: Option<PathBuf>,
+    ) -> Router<Self> {
         let mut router = Router::new(Self {
             client,
             counter: 0,
             state: ProtoLanguageState::new(),
-            configs: WorkspaceProtoConfigs::new(cli_include_paths),
+            configs: WorkspaceProtoConfigs::new(cli_include_paths, fallback_include_path),
         });
 
         router.event::<TickEvent>(|st, _| {
