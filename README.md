@@ -21,14 +21,17 @@
 
 ## Table of Contents
 
-- [Installation](#installation)
+- [Installation](#-installation)
   - [For Neovim](#for-neovim)
+    - [Setting Include Paths in Neovim](#setting-include-paths-in-neovim)
   - [Command Line Options](#command-line-options)
   - [For Visual Studio Code](#for-visual-studio-code)
-- [Configuration](#configuration)
-  - [Basic Configuration](#basic-configuration)
-  - [Path Configuration](#path-configuration)
-- [Usage](#usage)
+- [Configuration](#%EF%B8%8Fconfiguration)
+  - [Sample `protols.toml`](#sample-protolstoml)
+  - [Configuration Sections](#configuration-sections)
+    - [Basic Configuration](#basic-configuration)
+    - [Path Configuration](#path-configuration)
+- [Usage](#-usage)
   - [Code Completion](#code-completion)
   - [Diagnostics](#diagnostics)
   - [Code Formatting](#code-formatting)
@@ -39,10 +42,10 @@
   - [Rename Symbols](#rename-symbols)
   - [Find References](#find-references)
 - [Protocol Buffers Well-Known Types](#protocol-buffers-well-known-types)
-- [Packaging](#📦-packaging)
-- [Contributing](#contributing)
+- [Packaging](#-packaging)
+- [Contributing](#-contributing)
   - [Setting Up Locally](#setting-up-locally)
-- [License](#license)
+- [License](#-license)
 
 ---
 
@@ -107,7 +110,7 @@ If you're using Visual Studio Code, you can install the [Protobuf Language Suppo
 
 ---
 
-## ⚙️ Configuration
+## ⚙️Configuration
 
 Protols can be configured using a `protols.toml` file, which you can place in root of your project directory.
 
@@ -149,7 +152,7 @@ The `[config.path]` section contains path for various tools used by LSP.
 
 ---
 
-## 🛠️ Usage
+## 🛠 Usage
 
 Protols offers a rich set of features to enhance your `.proto` file editing experience.
 
