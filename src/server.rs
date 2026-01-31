@@ -29,6 +29,7 @@ pub struct ProtoLanguageServer {
     pub counter: i32,
     pub state: ProtoLanguageState,
     pub configs: WorkspaceProtoConfigs,
+    pub shutdown_received: bool,
 }
 
 impl ProtoLanguageServer {
@@ -42,6 +43,7 @@ impl ProtoLanguageServer {
             counter: 0,
             state: ProtoLanguageState::new(),
             configs: WorkspaceProtoConfigs::new(cli_include_paths, fallback_include_path),
+            shutdown_received: false,
         });
 
         router.event::<TickEvent>(|st, _| {

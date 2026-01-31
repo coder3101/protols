@@ -136,6 +136,7 @@ impl ProtoLanguageServer {
         _params: (),
     ) -> BoxFuture<'static, Result<(), ResponseError>> {
         info!("Received shutdown request");
+        self.shutdown_received = true;
         Box::pin(async move { Ok(()) })
     }
 
@@ -574,8 +575,13 @@ impl ProtoLanguageServer {
     }
 
     pub(super) fn exit(&mut self, _params: ()) -> ControlFlow<async_lsp::Result<()>> {
-        info!("Received exit notification");
-        ControlFlow::Continue(())
+        if self.shutdown_received {
+            info!("Received exit notification after shutdown, exiting with code 0");
+            std::process::exit(0);
+        } else {
+            warn!("Received exit notification without shutdown, exiting with code 1");
+            std::process::exit(1);
+        }
     }
 }
 
