@@ -13,20 +13,20 @@ mod test {
             "file://{}/src/workspace/input/a.proto",
             current_dir.to_str().unwrap()
         )
-            .parse()
-            .unwrap();
+        .parse()
+        .unwrap();
         let b_uri = format!(
             "file://{}/src/workspace/input/b.proto",
             current_dir.to_str().unwrap()
         )
-            .parse()
-            .unwrap();
+        .parse()
+        .unwrap();
         let c_uri = format!(
             "file://{}/src/workspace/input/c.proto",
             current_dir.to_str().unwrap()
         )
-            .parse()
-            .unwrap();
+        .parse()
+        .unwrap();
 
         let a = include_str!("input/a.proto");
         let b = include_str!("input/b.proto");

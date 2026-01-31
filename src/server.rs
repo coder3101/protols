@@ -4,11 +4,11 @@ use async_lsp::{
         NumberOrString, ProgressParams, ProgressParamsValue,
         notification::{
             DidChangeTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
-            DidRenameFiles, DidSaveTextDocument,
+            DidRenameFiles, DidSaveTextDocument, Exit,
         },
         request::{
             Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
-            Initialize, PrepareRenameRequest, RangeFormatting, References, Rename,
+            Initialize, PrepareRenameRequest, RangeFormatting, References, Rename, Shutdown,
             WorkspaceSymbolRequest,
         },
     },
@@ -29,6 +29,7 @@ pub struct ProtoLanguageServer {
     pub counter: i32,
     pub state: ProtoLanguageState,
     pub configs: WorkspaceProtoConfigs,
+    pub shutdown_received: bool,
 }
 
 impl ProtoLanguageServer {
@@ -42,6 +43,7 @@ impl ProtoLanguageServer {
             counter: 0,
             state: ProtoLanguageState::new(),
             configs: WorkspaceProtoConfigs::new(cli_include_paths, fallback_include_path),
+            shutdown_received: false,
         });
 
         router.event::<TickEvent>(|st, _| {
@@ -57,6 +59,7 @@ impl ProtoLanguageServer {
 
         // Handling request
         router.request::<Initialize, _>(|st, params| st.initialize(params));
+        router.request::<Shutdown, _>(|st, params| st.shutdown(params));
         router.request::<HoverRequest, _>(|st, params| st.hover(params));
         router.request::<Completion, _>(|st, params| st.completion(params));
         router.request::<PrepareRenameRequest, _>(|st, params| st.prepare_rename(params));
@@ -75,6 +78,7 @@ impl ProtoLanguageServer {
         router.notification::<DidCreateFiles>(|st, params| st.did_create_files(params));
         router.notification::<DidRenameFiles>(|st, params| st.did_rename_files(params));
         router.notification::<DidDeleteFiles>(|st, params| st.did_delete_files(params));
+        router.notification::<Exit>(|st, params| st.exit(params));
 
         router
     }
