@@ -131,6 +131,14 @@ impl ProtoLanguageServer {
         Box::pin(async move { Ok(response) })
     }
 
+    pub(super) fn shutdown(
+        &mut self,
+        _params: (),
+    ) -> BoxFuture<'static, Result<(), ResponseError>> {
+        info!("Received shutdown request");
+        Box::pin(async move { Ok(()) })
+    }
+
     pub(super) fn hover(
         &mut self,
         param: HoverParams,
@@ -562,6 +570,11 @@ impl ProtoLanguageServer {
                 error!(uri = file.uri, "failed to parse uri");
             }
         }
+        ControlFlow::Continue(())
+    }
+
+    pub(super) fn exit(&mut self, _params: ()) -> ControlFlow<async_lsp::Result<()>> {
+        info!("Received exit notification");
         ControlFlow::Continue(())
     }
 }
