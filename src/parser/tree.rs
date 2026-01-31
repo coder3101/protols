@@ -123,7 +123,7 @@ impl ParsedTree {
         while let Some(p) = n.parent() {
             if NodeKind::is_message(&p) {
                 for i in 0..p.child_count() {
-                    let t = p.child(i).unwrap();
+                    let t = p.child(i as u32).unwrap();
                     if NodeKind::is_message_name(&t) {
                         nodes.push(t);
                     }
