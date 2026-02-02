@@ -46,7 +46,11 @@ impl Replacement<'_> {
         let up_to_offset = &content[..offset];
         let line = up_to_offset.matches('\n').count();
         let last_newline = up_to_offset.rfind('\n').map_or(0, |pos| pos + 1);
-        let character = offset - last_newline;
+
+        // LSP uses UTF-16 code units for character positions
+        // Count UTF-16 code units from last newline to offset
+        let text_after_newline = &up_to_offset[last_newline..];
+        let character = text_after_newline.encode_utf16().count();
 
         Some(Position {
             line: line as u32,
@@ -177,5 +181,45 @@ mod test {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
             })
         }
+    }
+
+    #[test]
+    fn test_offset_to_position_cyrillic() {
+        // Test with Cyrillic characters (multi-byte UTF-8)
+        let c = include_str!("input/test_cyrillic.proto");
+        // Byte offset 134 corresponds to UTF-16 code unit 77 from the start of line 1
+        // (the comment line contains multi-byte UTF-8 characters)
+        let pos = vec![0, 15, 134];
+        for i in pos {
+            with_settings!({description => c, info => &i}, {
+                assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
+            })
+        }
+    }
+
+    #[test]
+    fn test_textedit_from_clang_output_cyrillic() {
+        // Test that the complete flow works with Cyrillic characters
+        // This simulates what clang-format would output for the Cyrillic comment
+        let content = include_str!("input/test_cyrillic.proto");
+        let xml_output = r#"<?xml version='1.0'?>
+<replacements xml:space='preserve' incomplete_format='false'>
+<replacement offset='134' length='1'>
+  // </replacement>
+</replacements>"#;
+
+        let r = Replacements::from_str(xml_output).unwrap();
+        assert_eq!(r.replacements.len(), 1);
+
+        let replacement = &r.replacements[0];
+        assert_eq!(replacement.offset, 134);
+        assert_eq!(replacement.length, 1);
+
+        let text_edit = replacement.as_text_edit(content).unwrap();
+        // The edit should be at line 1, character 77 (not 119)
+        assert_eq!(text_edit.range.start.line, 1);
+        assert_eq!(text_edit.range.start.character, 77);
+        assert_eq!(text_edit.range.end.line, 1);
+        assert_eq!(text_edit.range.end.character, 78);
     }
 }

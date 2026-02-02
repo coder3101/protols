@@ -1,0 +1,4 @@
+message Test {
+  // Обратная совместимость: если true, применяет фильтры enabled_not_false и removed_not_true.
+  int32 x = 1;
+}
