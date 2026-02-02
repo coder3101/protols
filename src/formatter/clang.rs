@@ -187,8 +187,8 @@ mod test {
     fn test_offset_to_position_cyrillic() {
         // Test with Cyrillic characters (multi-byte UTF-8)
         let c = include_str!("input/test_cyrillic.proto");
-        // Byte offset 134 corresponds to character position 92, which is UTF-16 position 77
-        // (77 characters from the last newline at position 15)
+        // Byte offset 134 corresponds to UTF-16 code unit 77 from the start of line 1
+        // (the comment line contains multi-byte UTF-8 characters)
         let pos = vec![0, 15, 134];
         for i in pos {
             with_settings!({description => c, info => &i}, {
