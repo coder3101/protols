@@ -196,4 +196,30 @@ mod test {
             })
         }
     }
+
+    #[test]
+    fn test_textedit_from_clang_output_cyrillic() {
+        // Test that the complete flow works with Cyrillic characters
+        // This simulates what clang-format would output for the Cyrillic comment
+        let content = include_str!("input/test_cyrillic.proto");
+        let xml_output = r#"<?xml version='1.0'?>
+<replacements xml:space='preserve' incomplete_format='false'>
+<replacement offset='134' length='1'>
+  // </replacement>
+</replacements>"#;
+
+        let r = Replacements::from_str(xml_output).unwrap();
+        assert_eq!(r.replacements.len(), 1);
+
+        let replacement = &r.replacements[0];
+        assert_eq!(replacement.offset, 134);
+        assert_eq!(replacement.length, 1);
+
+        let text_edit = replacement.as_text_edit(content).unwrap();
+        // The edit should be at line 1, character 77 (not 119)
+        assert_eq!(text_edit.range.start.line, 1);
+        assert_eq!(text_edit.range.start.character, 77);
+        assert_eq!(text_edit.range.end.line, 1);
+        assert_eq!(text_edit.range.end.character, 78);
+    }
 }
