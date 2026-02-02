@@ -1,0 +1,8 @@
+---
+source: src/formatter/clang.rs
+description: "message Test {\n  // Обратная совместимость: если true, применяет фильтры enabled_not_false и removed_not_true.\n  int32 x = 1;\n}\n"
+expression: "Replacement::offset_to_position(i, c)"
+info: 15
+---
+line: 1
+character: 0

@@ -46,7 +46,11 @@ impl Replacement<'_> {
         let up_to_offset = &content[..offset];
         let line = up_to_offset.matches('\n').count();
         let last_newline = up_to_offset.rfind('\n').map_or(0, |pos| pos + 1);
-        let character = offset - last_newline;
+
+        // LSP uses UTF-16 code units for character positions
+        // Count UTF-16 code units from last newline to offset
+        let text_after_newline = &up_to_offset[last_newline..];
+        let character = text_after_newline.encode_utf16().count();
 
         Some(Position {
             line: line as u32,
@@ -172,6 +176,20 @@ mod test {
     fn test_offset_to_position() {
         let c = include_str!("input/test.proto");
         let pos = vec![0, 4, 22, 999];
+        for i in pos {
+            with_settings!({description => c, info => &i}, {
+                assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
+            })
+        }
+    }
+
+    #[test]
+    fn test_offset_to_position_cyrillic() {
+        // Test with Cyrillic characters (multi-byte UTF-8)
+        let c = include_str!("input/test_cyrillic.proto");
+        // Byte offset 134 corresponds to character position 92, which is UTF-16 position 77
+        // (77 characters from the last newline at position 15)
+        let pos = vec![0, 15, 134];
         for i in pos {
             with_settings!({description => c, info => &i}, {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
