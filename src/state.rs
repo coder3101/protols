@@ -245,8 +245,12 @@ impl ProtoLanguageState {
         let files: Vec<_> = WalkDir::new(workspace.to_str().unwrap_or_default())
             .into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().is_some())
-            .filter(|e| e.path().extension().unwrap() == "proto")
+            .filter(|e| {
+                if let Some(ext) = e.path().extension() {
+                    return ext == "proto";
+                }
+                false
+            })
             .collect();
 
         let total_files = files.len();
