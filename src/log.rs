@@ -4,6 +4,7 @@ use tracing::{
     Level, Subscriber,
     field::{Field, Visit},
 };
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, filter::Directive, layer::SubscriberExt, reload,
     util::SubscriberInitExt,
@@ -91,22 +92,37 @@ impl<S: Subscriber> Layer<S> for ClientLogger {
 /// Handle to dynamically reload the log filter at runtime.
 pub type LogReloadHandle = reload::Handle<EnvFilter, Registry>;
 
-/// Installs the global tracing subscriber with a reloadable filter and the LSP logger.
-///
-/// Returns a [`self::LogReloadHandle`] that can be used to update the log level.
-pub fn install(tx: mpsc::Sender<LogMessageParams>) -> LogReloadHandle {
+/// Installs the global tracing subscriber with a reloadable filter, the LSP logger, 
+/// and a file-based backup logger.
+/// 
+/// Returns a tuple containing:
+/// 
+/// 1. A [`self::LogReloadHandle`] to dynamically update the log level.
+/// 2. A [`WorkerGuard`] that must be kept alive in the main function to ensure 
+///    non-blocking file logging continues.
+pub fn install(tx: mpsc::Sender<LogMessageParams>) -> (LogReloadHandle, WorkerGuard) {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
     let (filter_layer, reload_handle) = reload::Layer::new(filter);
 
     let lsp_layer = ClientLogger { tx };
 
+    let dir = std::env::temp_dir();
+    eprintln!("file logging at directory: {dir:?}");
+    let file_appender = tracing_appender::rolling::daily(dir, "protols.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
     tracing_subscriber::registry()
         .with(filter_layer)
         .with(lsp_layer)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(non_blocking),
+        )
         .init();
 
-    reload_handle
+    (reload_handle, guard)
 }
 
 /// Updates the log filter level based on the provided LSP [`TraceValue`].

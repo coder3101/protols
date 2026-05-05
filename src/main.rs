@@ -58,7 +58,7 @@ async fn main() {
     let cli = Cli::parse();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
-    let reload_handle = log::install(tx);
+    let (reload_handle, _log_guard) = log::install(tx);
 
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
 
