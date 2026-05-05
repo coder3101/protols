@@ -4,7 +4,7 @@ use async_lsp::{
         NumberOrString, ProgressParams, ProgressParamsValue,
         notification::{
             DidChangeTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
-            DidRenameFiles, DidSaveTextDocument, Exit,
+            DidRenameFiles, DidSaveTextDocument, Exit, SetTrace,
         },
         request::{
             Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
@@ -21,11 +21,12 @@ use std::{
     thread,
 };
 
-use crate::{config::workspace::WorkspaceProtoConfigs, state::ProtoLanguageState};
+use crate::{config::workspace::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
 
 pub struct TickEvent;
 pub struct ProtoLanguageServer {
     pub client: ClientSocket,
+    pub(crate) log_handle: log::LogReloadHandle,
     pub counter: i32,
     pub state: ProtoLanguageState,
     pub configs: WorkspaceProtoConfigs,
@@ -35,11 +36,13 @@ pub struct ProtoLanguageServer {
 impl ProtoLanguageServer {
     pub fn new_router(
         client: ClientSocket,
+        log_handle: log::LogReloadHandle,
         cli_include_paths: Vec<PathBuf>,
         fallback_include_path: Option<PathBuf>,
     ) -> Router<Self> {
         let mut router = Router::new(Self {
             client,
+            log_handle,
             counter: 0,
             state: ProtoLanguageState::new(),
             configs: WorkspaceProtoConfigs::new(cli_include_paths, fallback_include_path),
@@ -72,6 +75,7 @@ impl ProtoLanguageServer {
         router.request::<RangeFormatting, _>(|st, params| st.range_formatting(params));
 
         // Handling notification
+        router.notification::<SetTrace>(|st, params| st.set_trace(params));
         router.notification::<DidSaveTextDocument>(|st, params| st.did_save(params));
         router.notification::<DidOpenTextDocument>(|st, params| st.did_open(params));
         router.notification::<DidChangeTextDocument>(|st, params| st.did_change(params));

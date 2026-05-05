@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use async_lsp::LanguageClient;
 use async_lsp::client_monitor::ClientProcessMonitorLayer;
 use async_lsp::concurrency::ConcurrencyLayer;
 use async_lsp::panic::CatchUnwindLayer;
@@ -9,12 +10,12 @@ use clap::Parser;
 use const_format::concatcp;
 use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
-use tracing::Level;
 
 mod config;
 mod context;
 mod docs;
 mod formatter;
+mod log;
 mod lsp;
 mod nodekind;
 mod parser;
@@ -56,29 +57,35 @@ const BUILD_INFO: &str = concatcp!(
 async fn main() {
     let cli = Cli::parse();
 
-    let dir = std::env::temp_dir();
-    eprintln!("file logging at directory: {dir:?}");
-
-    let file_appender = tracing_appender::rolling::daily(dir.clone(), "protols.log");
-    let file_appender = tracing_appender::non_blocking(file_appender);
-
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .with_ansi(false)
-        .with_writer(file_appender.0)
-        .init();
-
-    let fallback_include_path = FALLBACK_INCLUDE_PATH.map(Into::into);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+    let reload_handle = log::install(tx);
 
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
+
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
+        let mut log_client = client.clone();
+
+        tokio::spawn(async move {
+            while let Some(params) = rx.recv().await {
+                let _ = log_client.log_message(params);
+            }
+        });
+
         tracing::info!("Using CLI options: {:?}", cli);
+
+        let include_paths = cli
+            .include_paths
+            .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
+            .unwrap_or_default();
+
+        let fallback_include_path = FALLBACK_INCLUDE_PATH.map(std::path::PathBuf::from);
+
         tracing::info!("Using fallback include path: {:?}", fallback_include_path);
+
         let router = ProtoLanguageServer::new_router(
             client.clone(),
-            cli.include_paths
-                .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
-                .unwrap_or_default(),
+            reload_handle,
+            include_paths,
             fallback_include_path,
         );
 

@@ -11,18 +11,18 @@ use async_lsp::lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
     HoverProviderCapability, InitializeParams, InitializeResult, Location, MarkupContent,
     MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions,
-    RenameParams, ServerCapabilities, ServerInfo, TextDocumentPositionParams,
+    RenameParams, ServerCapabilities, ServerInfo, SetTraceParams, TextDocumentPositionParams,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-use async_lsp::{LanguageClient, ResponseError};
+use async_lsp::{Error, LanguageClient, ResponseError};
 use futures::future::BoxFuture;
 use serde_json::Value;
 
-use crate::docs;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
+use crate::{docs, log};
 
 impl ProtoLanguageServer {
     pub(super) fn initialize(
@@ -571,6 +571,13 @@ impl ProtoLanguageServer {
                 error!(uri = file.uri, "failed to parse uri");
             }
         }
+        ControlFlow::Continue(())
+    }
+
+    /// Handles the `$/setTrace` notification to dynamically update log verbosity.
+    pub(super) fn set_trace(&mut self, params: SetTraceParams) -> ControlFlow<Result<(), Error>> {
+        log::update_level(&self.log_handle, params.value);
+
         ControlFlow::Continue(())
     }
 
