@@ -1,6 +1,9 @@
 use async_lsp::lsp_types::{LogMessageParams, MessageType, TraceValue};
 use tokio::sync::mpsc;
-use tracing::{Level, Subscriber};
+use tracing::{
+    Level, Subscriber,
+    field::{Field, Visit},
+};
 use tracing_subscriber::{
     EnvFilter, Layer, Registry, filter::Directive, layer::SubscriberExt, reload,
     util::SubscriberInitExt,
@@ -10,6 +13,33 @@ use tracing_subscriber::{
 pub struct ClientLogger {
     /// The sender half of a channel connected to the LSP client's log message handler.
     pub tx: mpsc::Sender<LogMessageParams>,
+}
+
+struct MessageVisitor {
+    message: String,
+    fields: String,
+}
+
+impl Visit for MessageVisitor {
+    fn record_str(&mut self, field: &Field, value: &str) {
+        if field.name() == "message" {
+            self.message.push_str(value);
+        } else {
+            self.fields
+                .push_str(&format!(" {}={}", field.name(), value));
+        }
+    }
+
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            if self.message.is_empty() {
+                self.message = format!("{:?}", value);
+            }
+        } else {
+            self.fields
+                .push_str(&format!(" {}={:?}", field.name(), value));
+        }
+    }
 }
 
 impl<S: Subscriber> Layer<S> for ClientLogger {
@@ -28,34 +58,6 @@ impl<S: Subscriber> Layer<S> for ClientLogger {
         event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        use tracing::field::{Field, Visit};
-
-        struct MessageVisitor {
-            message: String,
-            fields: String,
-        }
-        impl Visit for MessageVisitor {
-            fn record_str(&mut self, field: &Field, value: &str) {
-                if field.name() == "message" {
-                    self.message.push_str(value);
-                } else {
-                    self.fields
-                        .push_str(&format!(" {}={}", field.name(), value));
-                }
-            }
-
-            fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-                if field.name() == "message" {
-                    if self.message.is_empty() {
-                        self.message = format!("{:?}", value);
-                    }
-                } else {
-                    self.fields
-                        .push_str(&format!(" {}={:?}", field.name(), value));
-                }
-            }
-        }
-
         let mut visitor = MessageVisitor {
             message: String::with_capacity(256),
             fields: String::with_capacity(256),
