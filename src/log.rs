@@ -1,7 +1,10 @@
 use async_lsp::lsp_types::{LogMessageParams, MessageType, TraceValue};
 use tokio::sync::mpsc;
 use tracing::{Level, Subscriber};
-use tracing_subscriber::{EnvFilter, Layer, Registry, filter::Directive, prelude::*, reload};
+use tracing_subscriber::{
+    EnvFilter, Layer, Registry, filter::Directive, layer::SubscriberExt, reload,
+    util::SubscriberInitExt,
+};
 
 /// A `tracing` layer that forwards log events to an LSP client via a channel.
 pub struct ClientLogger {
