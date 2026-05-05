@@ -1,0 +1,19 @@
+# Excludes local build artifacts and metadata from the Docker build context to 
+# speed up image building and prevent bloating the context.
+
+# Build Artifacts
+target/
+
+# Source Control
+.git/
+.gitignore
+
+# Logs and Temporary Files
+*.log
+logs/
+.tmp/
+
+# IDE Metadata
+.vscode/
+.idea/
+*.swp

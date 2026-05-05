@@ -224,6 +224,33 @@ We welcome contributions from developers of all experience levels! To get starte
 
 ### Setting Up Locally
 
+#### Option 1: Using Dev Containers (Easiest)
+
+The project includes a pre-configured **Dev Container**, which sets up Rust,
+Neovim, and all dependencies automatically.
+
+**Prerequisites:**
+
+- [Docker](https://docker.com) installed and running.
+  - (Windows users)
+  [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) must be enabled.
+- An IDE that supports Dev Containers (e.g., **Visual Studio Code** with the
+[Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)).
+
+**Steps:**
+
+1. Open the project folder in your IDE.
+2. If using Visual Studio Code, click **"Reopen in Container"** in the pop-up
+notification or via the Command Palette (`F1` -> `Dev Containers: Reopen in Container`).
+3. The environment will be built automatically. Once finished, you can start
+developing immediately.
+
+> [!TIP]
+> A pre-configured **Neovim** is included in the container for instant LSP
+testing.
+
+#### Option 2: Manual Setup
+
 1. Clone the repository:
 
    ```bash
