@@ -15,10 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Run lints
-      run: cargo clippy --all-targets -- -D warnings
+    - uses: actions/checkout@v6
+    - name: Run CI in Dev Container
+      uses: devcontainers/ci@v0.3
+      with:
+        imageName: ghcr.io/${{ github.repository }}/devcontainer
+        cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
+        push: never
+        runCmd: |
+          export CARGO_TERM_COLOR=always &&
+          echo "::group::Check formatting" && cargo fmt --all -- --check && echo "::endgroup::" &&
+          echo "::group::Build" && cargo build --verbose && echo "::endgroup::" &&
+          echo "::group::Run tests" && cargo test --verbose && echo "::endgroup::" &&
+          echo "::group::Run lints" && cargo clippy --all-targets -- -D warnings
