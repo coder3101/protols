@@ -92,13 +92,13 @@ impl<S: Subscriber> Layer<S> for ClientLogger {
 /// Handle to dynamically reload the log filter at runtime.
 pub type LogReloadHandle = reload::Handle<EnvFilter, Registry>;
 
-/// Installs the global tracing subscriber with a reloadable filter, the LSP logger, 
+/// Installs the global tracing subscriber with a reloadable filter, the LSP logger,
 /// and a file-based backup logger.
-/// 
+///
 /// Returns a tuple containing:
-/// 
+///
 /// 1. A [`self::LogReloadHandle`] to dynamically update the log level.
-/// 2. A [`WorkerGuard`] that must be kept alive in the main function to ensure 
+/// 2. A [`WorkerGuard`] that must be kept alive in the main function to ensure
 ///    non-blocking file logging continues.
 pub fn install(tx: mpsc::Sender<LogMessageParams>) -> (LogReloadHandle, WorkerGuard) {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());

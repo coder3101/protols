@@ -1,5 +1,6 @@
 {
   "name": "Rust",
+  "image": "ghcr.io/coder3101/protols/devcontainer:latest",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
