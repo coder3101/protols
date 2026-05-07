@@ -136,11 +136,11 @@ impl ParsedTree {
 
     pub fn get_user_defined_node<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
         self.get_node_at_position(pos)
-            .map(|n| {
+            .and_then(|n| {
                 if NodeKind::is_actionable(&n) {
-                    n
+                    Some(n)
                 } else {
-                    n.parent().unwrap()
+                    n.parent()
                 }
             })
             .filter(NodeKind::is_actionable)

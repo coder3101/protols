@@ -59,6 +59,9 @@ impl ParsedTree {
                 let name = node.utf8_text(content).unwrap();
                 let kind = NodeKind::to_symbolkind(&node);
                 let detail = self.find_preceding_comments(node.id(), content);
+
+                // Safety: Userdefined nodes usually have a parent as
+                // the document itself.
                 let message = node.parent().unwrap();
 
                 // https://github.com/rust-lang/rust/issues/102777
