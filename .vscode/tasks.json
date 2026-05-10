@@ -1,0 +1,104 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "icon": {
+        "id": "package"
+      },
+      "type": "cargo",
+      "command": "build",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "label": "Rust: cargo build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "icon": {
+        "id": "check-all"
+      },
+      "type": "cargo",
+      "command": "clippy",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "none",
+      "label": "Rust: cargo clippy",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "icon": {
+        "id": "beaker"
+      },
+      "type": "cargo",
+      "command": "test",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "label": "Rust: cargo test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Neovim (TCP Debug Mode)",
+      "icon": {
+        "id": "debug-console"
+      },
+      "type": "process",
+      "command": "nvim",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "."
+        }
+      },
+      "options": {
+        "env": {
+          "LSP_DEBUG_PORT": "${config:protols.debugPort}"
+        }
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "lsp-debug",
+        "focus": true,
+        "close": false,
+        "clear": true,
+      }
+    }
+  ]
+}

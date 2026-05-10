@@ -1,6 +1,6 @@
 [package]
 name = "protols"
-description = "Language server for proto3 files"
+description = "Language server for Protocol Buffers files"
 version = "0.13.4"
 edition = "2024"
 license = "MIT"
