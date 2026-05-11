@@ -43,7 +43,13 @@ impl Replacement<'_> {
         if offset > content.len() {
             return None;
         }
-        let up_to_offset = &content[..offset];
+
+        // Use floor_char_boundary to ensure we don't slice in the middle of a
+        // multi-byte UTF-8 character (e.g., Cyrillic), which would cause a panic.
+        // This handles slight offset shifts caused by different OS line endings.
+        let safe_offset = content.floor_char_boundary(offset);
+
+        let up_to_offset = &content[..safe_offset];
         let line = up_to_offset.matches('\n').count();
         let last_newline = up_to_offset.rfind('\n').map_or(0, |pos| pos + 1);
 
@@ -202,13 +208,27 @@ mod test {
         // Test that the complete flow works with Cyrillic characters
         // This simulates what clang-format would output for the Cyrillic comment
         let content = include_str!("input/test_cyrillic.proto");
-        let xml_output = r#"<?xml version='1.0'?>
-<replacements xml:space='preserve' incomplete_format='false'>
-<replacement offset='134' length='1'>
-  // </replacement>
-</replacements>"#;
 
-        let r = Replacements::from_str(xml_output).unwrap();
+        // We use a dynamic offset instead of a hardcoded byte index (like 134)
+        // because Windows uses CRLF (\r\n) while Linux uses LF (\n).
+        // Git's autocrlf can shift byte positions on Windows, potentially
+        // landing a fixed offset in the middle of a multi-byte UTF-8 character
+        // (like Cyrillic). Finding the target string in memory ensures we hit
+        // the correct character boundary regardless of the OS line endings.
+        let target = " removed_not_true";
+        let offset = content
+            .find(target)
+            .expect("Could not find target in content");
+        let xml_output = format!(
+            r#"<?xml version='1.0'?>
+<replacements xml:space='preserve' incomplete_format='false'>
+<replacement offset='{}' length='1'>
+  // </replacement>
+</replacements>"#,
+            offset
+        );
+
+        let r = Replacements::from_str(&xml_output).unwrap();
         assert_eq!(r.replacements.len(), 1);
 
         let replacement = &r.replacements[0];
