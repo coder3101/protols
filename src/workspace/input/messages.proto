@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.workspace;
+
+message GetBookRequest {}
+message GetBookResponse {
+    string title = 1;
+}
+message FrobRequest {}
+message Bar {}
+message SharedReq {}
+message SharedResp {}

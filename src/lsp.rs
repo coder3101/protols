@@ -260,8 +260,7 @@ impl ProtoLanguageServer {
         // node), pivot to the declaration and rename from there. The existing
         // workspace pass then handles all references — including the one the
         // user is standing on.
-        let (rename_uri, rename_pos) = match tree.rename_pivot_identifier(&pos, content.as_bytes())
-        {
+        let (decl_uri, decl_pos) = match tree.rename_pivot_identifier(&pos, content.as_bytes()) {
             Some(decl_path) => {
                 let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
                 let locations =
@@ -276,51 +275,249 @@ impl ProtoLanguageServer {
             None => (uri.clone(), pos),
         };
 
-        let Some(rename_tree) = self.state.get_tree(&rename_uri) else {
-            error!(uri=%rename_uri, "failed to get tree at declaration");
-            return Box::pin(async move { Ok(None) });
+        // Always apply the user's primary rename. If the declaration is part
+        // of an `rpc <Name>(<Name>Request) returns (<Name>Response)` trio and
+        // the user's new name preserves the convention, also rename the
+        // sibling(s).
+        let primary = RenameOp {
+            uri: decl_uri.clone(),
+            pos: decl_pos,
+            new_name: new_name.clone(),
         };
-        let rename_content = self.state.get_content(&rename_uri);
-        let rename_package = rename_tree
-            .get_package_name(rename_content.as_bytes())
-            .unwrap_or(".");
-
-        let Some((edit, otext, ntext)) =
-            rename_tree.rename_tree(&rename_pos, &new_name, rename_content.as_bytes())
-        else {
-            error!(uri=%rename_uri, "failed to rename in a tree");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let Some(workspace) = self.configs.get_workspace_for_uri(&rename_uri) else {
-            error!(uri=%rename_uri, "failed to get workspace");
-            return Box::pin(async move { Ok(None) });
-        };
+        let mut ops = vec![primary];
+        ops.extend(self.compute_rpc_chain_siblings(&decl_uri, decl_pos, &new_name));
 
         let work_done_token = params.work_done_progress_params.work_done_token;
-        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
+        let mut progress_sender = work_done_token.map(|token| self.with_report_progress(token));
 
-        let mut h = HashMap::new();
-        h.extend(self.state.rename_fields(
-            rename_package,
-            &otext,
-            &ntext,
-            workspace.to_file_path().unwrap(),
-            progress_sender,
-        ));
+        let mut all_edits: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        for op in ops {
+            // Only send progress for the first op; subsequent ops would
+            // double-report.
+            let sender = progress_sender.take();
+            let Some(op_edits) = self.run_single_rename(&op, sender) else {
+                continue;
+            };
+            for (u, edits) in op_edits {
+                all_edits.entry(u).or_default().extend(edits);
+            }
+        }
 
-        h.entry(rename_tree.uri.clone())
-            .or_insert(edit.clone())
-            .extend(edit);
-
-        let response = Some(WorkspaceEdit {
-            changes: Some(h),
-            ..Default::default()
-        });
+        let response = if all_edits.is_empty() {
+            None
+        } else {
+            Some(WorkspaceEdit {
+                changes: Some(all_edits),
+                ..Default::default()
+            })
+        };
 
         Box::pin(async move { Ok(response) })
     }
 
+    fn run_single_rename(
+        &mut self,
+        op: &RenameOp,
+        progress_sender: Option<std::sync::mpsc::Sender<async_lsp::lsp_types::ProgressParamsValue>>,
+    ) -> Option<HashMap<Url, Vec<TextEdit>>> {
+        let tree = self.state.get_tree(&op.uri)?;
+        let content = self.state.get_content(&op.uri);
+        let package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
+
+        let (edit, otext, ntext) = tree.rename_tree(&op.pos, &op.new_name, content.as_bytes())?;
+        let workspace = self.configs.get_workspace_for_uri(&op.uri)?;
+
+        let mut h: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        h.extend(self.state.rename_fields(
+            package,
+            &otext,
+            &ntext,
+            workspace.to_file_path().ok()?,
+            progress_sender,
+        ));
+        h.entry(tree.uri.clone()).or_default().extend(edit);
+        Some(h)
+    }
+
+    /// Compute the additional rpc/request/response sibling renames triggered
+    /// by the user's primary rename at `(decl_uri, decl_pos) → new_name`.
+    /// Returns an empty vec when no chain applies. The user's primary rename
+    /// is *not* included in the returned ops — the caller always applies it
+    /// separately, so a primary on a convention-named message still happens
+    /// even if uniqueness checks block the siblings.
+    fn compute_rpc_chain_siblings(
+        &mut self,
+        decl_uri: &Url,
+        decl_pos: async_lsp::lsp_types::Position,
+        new_name: &str,
+    ) -> Vec<RenameOp> {
+        if new_name.is_empty() {
+            return vec![];
+        }
+        let Some(tree) = self.state.get_tree(decl_uri) else {
+            return vec![];
+        };
+        let content = self.state.get_content(decl_uri);
+        let bytes = content.as_bytes();
+
+        // Case A: user invoked rename on an rpc_name. The primary is the rpc
+        // rename; siblings are the convention-matching request/response.
+        if let Some((old_rpc_name, request_text, response_text)) =
+            tree.rpc_at_position(&decl_pos, bytes)
+        {
+            return self.sibling_message_ops(
+                decl_uri,
+                &old_rpc_name,
+                new_name,
+                &[
+                    ("Request", request_text.as_str()),
+                    ("Response", response_text.as_str()),
+                ],
+            );
+        }
+
+        // Case B: user invoked rename on a message_name matching the
+        // convention. The primary is the message rename; we additionally
+        // rename the rpc and the opposite sibling (if it follows convention
+        // and the new name preserves the convention).
+        let Some(msg_name) = tree.message_name_at_position(&decl_pos, bytes) else {
+            return vec![];
+        };
+        let (rpc_base, primary_suffix, new_rpc_base) = if let (Some(rpc), Some(new_rpc)) = (
+            msg_name.strip_suffix("Request"),
+            new_name.strip_suffix("Request"),
+        ) {
+            (rpc.to_owned(), "Request", new_rpc.to_owned())
+        } else if let (Some(rpc), Some(new_rpc)) = (
+            msg_name.strip_suffix("Response"),
+            new_name.strip_suffix("Response"),
+        ) {
+            (rpc.to_owned(), "Response", new_rpc.to_owned())
+        } else {
+            return vec![];
+        };
+        if rpc_base.is_empty() || new_rpc_base.is_empty() {
+            return vec![];
+        }
+
+        // Locate the rpc and confirm it matches both the rpc base name and
+        // uses this message in the expected slot.
+        let Some(rpc_loc) = self.state.find_rpc_decl(&rpc_base) else {
+            return vec![];
+        };
+        let Some(rpc_tree) = self.state.get_tree(&rpc_loc.uri) else {
+            return vec![];
+        };
+        let rpc_content = self.state.get_content(&rpc_loc.uri);
+        let Some((_, rpc_req, rpc_resp)) =
+            rpc_tree.rpc_at_position(&rpc_loc.range.start, rpc_content.as_bytes())
+        else {
+            return vec![];
+        };
+        let expected_primary = format!("{rpc_base}{primary_suffix}");
+        let primary_slot_matches = if primary_suffix == "Request" {
+            trailing_segment(&rpc_req) == expected_primary
+        } else {
+            trailing_segment(&rpc_resp) == expected_primary
+        };
+        if !primary_slot_matches {
+            return vec![];
+        }
+
+        // Uniqueness: only chain the rpc + opposite sibling if the user's
+        // primary message is referenced by exactly this one rpc. Otherwise a
+        // chained rename would silently break another rpc that shares the
+        // type.
+        if self.state.count_rpc_uses_of_type(&expected_primary) != 1 {
+            return vec![];
+        }
+
+        let mut ops = vec![RenameOp {
+            uri: rpc_loc.uri.clone(),
+            pos: rpc_loc.range.start,
+            new_name: new_rpc_base.clone(),
+        }];
+
+        let opposite_suffix = if primary_suffix == "Request" {
+            "Response"
+        } else {
+            "Request"
+        };
+        let opposite_text = if opposite_suffix == "Request" {
+            rpc_req.as_str()
+        } else {
+            rpc_resp.as_str()
+        };
+        ops.extend(self.sibling_message_ops(
+            &rpc_loc.uri,
+            &rpc_base,
+            &new_rpc_base,
+            &[(opposite_suffix, opposite_text)],
+        ));
+        ops
+    }
+
+    /// Resolve each `(suffix, type_text)` slot to a message declaration and
+    /// build the corresponding rename op, gated on convention + uniqueness.
+    fn sibling_message_ops(
+        &mut self,
+        anchor_uri: &Url,
+        old_rpc_name: &str,
+        new_rpc_name: &str,
+        slots: &[(&str, &str)],
+    ) -> Vec<RenameOp> {
+        let Some(anchor_tree) = self.state.get_tree(anchor_uri) else {
+            return vec![];
+        };
+        let anchor_content = self.state.get_content(anchor_uri);
+        let anchor_package = anchor_tree
+            .get_package_name(anchor_content.as_bytes())
+            .unwrap_or(".")
+            .to_owned();
+        let ipath = self
+            .configs
+            .get_include_paths(anchor_uri)
+            .unwrap_or_default();
+
+        let mut ops = vec![];
+        for (suffix, type_text) in slots {
+            let expected_name = format!("{old_rpc_name}{suffix}");
+            if trailing_segment(type_text) != expected_name {
+                continue;
+            }
+            if self.state.count_rpc_uses_of_type(&expected_name) != 1 {
+                continue;
+            }
+            let locations = self.state.definition(
+                &ipath,
+                &anchor_package,
+                Jumpable::Identifier((*type_text).to_owned()),
+            );
+            let Some(decl) = locations.into_iter().next() else {
+                continue;
+            };
+            ops.push(RenameOp {
+                uri: decl.uri,
+                pos: decl.range.start,
+                new_name: format!("{new_rpc_name}{suffix}"),
+            });
+        }
+        ops
+    }
+}
+
+#[derive(Clone, Debug)]
+struct RenameOp {
+    uri: Url,
+    pos: async_lsp::lsp_types::Position,
+    new_name: String,
+}
+
+fn trailing_segment(qualified: &str) -> &str {
+    qualified.rsplit('.').next().unwrap_or(qualified)
+}
+
+impl ProtoLanguageServer {
     pub(super) fn references(
         &mut self,
         param: ReferenceParams,

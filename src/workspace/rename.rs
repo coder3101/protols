@@ -1,8 +1,9 @@
-use crate::utils::split_identifier_package;
+use crate::nodekind::NodeKind;
+use crate::utils::{split_identifier_package, ts_to_lsp_position};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use async_lsp::lsp_types::{Location, TextEdit, Url};
+use async_lsp::lsp_types::{Location, Range, TextEdit, Url};
 
 use crate::state::ProtoLanguageState;
 use async_lsp::lsp_types::ProgressParamsValue;
@@ -128,6 +129,58 @@ impl ProtoLanguageState {
             });
         if r.is_empty() { None } else { Some(r) }
     }
+
+    /// Find the declaration of an rpc by simple name across the workspace.
+    /// Returns the first match. Used by the rpc/request/response chain rename
+    /// to anchor the chain when the user invokes rename on a matching message.
+    pub fn find_rpc_decl(&self, rpc_name: &str) -> Option<Location> {
+        for tree in self.get_trees() {
+            let content = self.get_content(&tree.uri);
+            for node in tree.find_all_nodes(NodeKind::is_identifier) {
+                let Some(parent) = node.parent() else {
+                    continue;
+                };
+                if parent.kind() != NodeKind::RpcName.as_str() {
+                    continue;
+                }
+                let Ok(text) = node.utf8_text(content.as_bytes()) else {
+                    continue;
+                };
+                if text == rpc_name {
+                    return Some(Location {
+                        uri: tree.uri.clone(),
+                        range: Range {
+                            start: ts_to_lsp_position(&node.start_position()),
+                            end: ts_to_lsp_position(&node.end_position()),
+                        },
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Count the number of rpcs in the workspace whose request or response
+    /// type's trailing identifier segment matches `type_simple_name`. Used for
+    /// the uniqueness check before chain-renaming a request/response message.
+    pub fn count_rpc_uses_of_type(&self, type_simple_name: &str) -> usize {
+        let mut count = 0;
+        for tree in self.get_trees() {
+            let content = self.get_content(&tree.uri);
+            for (req, resp) in tree.all_rpc_signatures(content.as_bytes()) {
+                if trailing_segment(&req) == type_simple_name
+                    || trailing_segment(&resp) == type_simple_name
+                {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+}
+
+fn trailing_segment(qualified: &str) -> &str {
+    qualified.rsplit('.').next().unwrap_or(qualified)
 }
 
 #[cfg(test)]
@@ -206,5 +259,50 @@ mod test {
             PathBuf::from("src/workspace/input"),
             None
         ));
+    }
+
+    #[test]
+    fn test_find_rpc_decl_and_count_uses() {
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let svc_uri = "file://input/service.proto".parse().unwrap();
+        let msg_uri = "file://input/messages.proto".parse().unwrap();
+        let svc = include_str!("input/service.proto");
+        let msg = include_str!("input/messages.proto");
+
+        let mut state: ProtoLanguageState = ProtoLanguageState::new();
+        state.upsert_file(
+            &svc_uri,
+            svc.to_owned(),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+        state.upsert_file(
+            &msg_uri,
+            msg.to_owned(),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+
+        // Lookup hits the rpc_name node in service.proto.
+        let loc = state.find_rpc_decl("GetBook").expect("rpc not found");
+        assert!(loc.uri.as_str().ends_with("service.proto"));
+        assert_eq!(loc.range.start.line, 7);
+
+        assert!(state.find_rpc_decl("DoesNotExist").is_none());
+
+        // Convention-following types are uniquely used.
+        assert_eq!(state.count_rpc_uses_of_type("GetBookRequest"), 1);
+        assert_eq!(state.count_rpc_uses_of_type("GetBookResponse"), 1);
+        // Shared types are seen twice.
+        assert_eq!(state.count_rpc_uses_of_type("SharedReq"), 2);
+        assert_eq!(state.count_rpc_uses_of_type("SharedResp"), 2);
+        // Non-convention type still uniquely used as a response.
+        assert_eq!(state.count_rpc_uses_of_type("Bar"), 1);
+        // Unrelated names see no uses.
+        assert_eq!(state.count_rpc_uses_of_type("Unrelated"), 0);
     }
 }

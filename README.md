@@ -188,6 +188,8 @@ Hover over any symbol or imports to get detailed documentation and comments asso
 
 Rename symbols like messages, enums, services and RPC methods, and propagate the changes throughout the codebase. Rename also works when invoked on a type reference (e.g. the request or response type of an `rpc`) — the LSP pivots to the declaration and applies the rename from there. Field names, oneof names, and enum values can also be renamed at their declaration site (single-site rename, since they aren't referenced as types from other `.proto` files).
 
+When an `rpc` follows the standard `rpc <Name>(<Name>Request) returns (<Name>Response)` convention (enforced by `buf lint`'s `RPC_REQUEST_STANDARD_NAME` and `RPC_RESPONSE_STANDARD_NAME` rules), renaming any one of the three triggers a chained rename of the other two — but only when (a) the matching message name follows the convention exactly, (b) the request/response is used by exactly one rpc in the workspace, and (c) the user's new name preserves the convention. If any check fails, only the symbol the user invoked rename on is renamed.
+
 ### Find References
 
 Find all references to user-defined types like messages or enums. Nested fields are fully supported, making it easier to track symbol usage across your project.

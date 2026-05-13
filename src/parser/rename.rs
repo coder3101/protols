@@ -59,6 +59,73 @@ impl ParsedTree {
         Some(path)
     }
 
+    /// If the given position is on the rpc name of an rpc declaration, returns
+    /// the rpc's name along with its declared request and response type texts.
+    /// Used to drive the rpc/request/response chained rename.
+    pub fn rpc_at_position(
+        &self,
+        pos: &Position,
+        content: impl AsRef<[u8]>,
+    ) -> Option<(String, String, String)> {
+        let n = self.get_node_at_position(pos)?;
+        if !NodeKind::is_identifier(&n) {
+            return None;
+        }
+        let parent = n.parent()?;
+        if parent.kind() != NodeKind::RpcName.as_str() {
+            return None;
+        }
+        let rpc = parent.parent()?;
+        let bytes = content.as_ref();
+        let mut cursor = rpc.walk();
+        let mut types = rpc
+            .children(&mut cursor)
+            .filter(|c| c.kind() == NodeKind::FieldName.as_str());
+        let request = types.next()?.utf8_text(bytes).ok()?.to_owned();
+        let response = types.next()?.utf8_text(bytes).ok()?.to_owned();
+        let rpc_name = n.utf8_text(bytes).ok()?.to_owned();
+        Some((rpc_name, request, response))
+    }
+
+    /// If the given position is on a message name, returns that name.
+    pub fn message_name_at_position(
+        &self,
+        pos: &Position,
+        content: impl AsRef<[u8]>,
+    ) -> Option<String> {
+        let n = self.get_node_at_position(pos)?;
+        if !NodeKind::is_identifier(&n) {
+            return None;
+        }
+        let parent = n.parent()?;
+        if parent.kind() != NodeKind::MessageName.as_str() {
+            return None;
+        }
+        Some(n.utf8_text(content.as_ref()).ok()?.to_owned())
+    }
+
+    /// Returns the (request, response) type texts for every `rpc` node in this
+    /// tree. Used to verify that a request/response type is uniquely used by a
+    /// single rpc before chain-renaming it.
+    pub fn all_rpc_signatures(&self, content: impl AsRef<[u8]>) -> Vec<(String, String)> {
+        let bytes = content.as_ref();
+        let mut out = vec![];
+        for rpc in self.find_all_nodes(|n: &Node| n.kind() == "rpc") {
+            let mut cursor = rpc.walk();
+            let mut types = rpc
+                .children(&mut cursor)
+                .filter(|c| c.kind() == NodeKind::FieldName.as_str());
+            let Some(req) = types.next().and_then(|c| c.utf8_text(bytes).ok()) else {
+                continue;
+            };
+            let Some(resp) = types.next().and_then(|c| c.utf8_text(bytes).ok()) else {
+                continue;
+            };
+            out.push((req.to_owned(), resp.to_owned()));
+        }
+        out
+    }
+
     fn nodes_within<'a>(
         &self,
         n: Node<'a>,
@@ -408,6 +475,64 @@ mod test {
             Some("Book".to_owned())
         );
         assert_eq!(parsed.rename_pivot_identifier(&pos_decl, contents), None);
+    }
+
+    #[test]
+    fn test_rpc_at_position_and_signatures() {
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_service.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+
+        // `GetBook` rpc at line 11 chars 8..15
+        let pos_rpc = Position {
+            line: 11,
+            character: 10,
+        };
+        assert_eq!(
+            parsed.rpc_at_position(&pos_rpc, contents),
+            Some(("GetBook".to_owned(), "Empty".to_owned(), "Book".to_owned(),)),
+        );
+
+        // Cursor on a non-rpc identifier should return None.
+        let pos_service = Position {
+            line: 10,
+            character: 10,
+        };
+        assert_eq!(parsed.rpc_at_position(&pos_service, contents), None);
+
+        // all_rpc_signatures should pick up both rpcs in the file.
+        let sigs = parsed.all_rpc_signatures(contents);
+        assert_eq!(
+            sigs,
+            vec![
+                ("Empty".to_owned(), "Book".to_owned()),
+                ("Empty".to_owned(), "Book".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_message_name_at_position() {
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_service.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+
+        // `Book` declaration at line 6 chars 8..12
+        let pos = Position {
+            line: 6,
+            character: 9,
+        };
+        assert_eq!(
+            parsed.message_name_at_position(&pos, contents),
+            Some("Book".to_owned())
+        );
+
+        // RPC name shouldn't match.
+        let pos_rpc = Position {
+            line: 11,
+            character: 10,
+        };
+        assert_eq!(parsed.message_name_at_position(&pos_rpc, contents), None);
     }
 
     #[test]
