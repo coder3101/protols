@@ -11,7 +11,7 @@ impl ParsedTree {
             .filter(NodeKind::is_identifier)
             .and_then(|n| {
                 if let Some(parent) = n.parent()
-                    && NodeKind::is_userdefined(&parent)
+                    && NodeKind::is_renameable(&parent)
                 {
                     Some(Range {
                         start: ts_to_lsp_position(&n.start_position()),
@@ -83,6 +83,18 @@ impl ParsedTree {
         }];
 
         let nodes = self.get_ancestor_nodes_at_position(pos);
+
+        // Renameable symbols that don't sit inside a message (services, RPCs, top-level
+        // enums) have no qualifying ancestors. Hand the unqualified name to the workspace
+        // pass so it can update any references; services and RPCs have none.
+        if nodes.is_empty() {
+            let otext = self
+                .get_node_at_position(pos)?
+                .utf8_text(content.as_ref())
+                .ok()?
+                .to_owned();
+            return Some((v, otext, new_name.to_owned()));
+        }
 
         let mut i = 1;
         let mut otext = nodes.first()?.utf8_text(content.as_ref()).ok()?.to_owned();
@@ -261,5 +273,63 @@ mod test {
         assert_yaml_snapshot!(tree.can_rename(&pos_non_rename));
         assert_yaml_snapshot!(tree.can_rename(&pos_inner_type));
         assert_yaml_snapshot!(tree.can_rename(&pos_outer_type));
+    }
+
+    #[test]
+    fn test_can_rename_service_and_rpc() {
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_service.proto");
+        let parsed = ProtoParser::new().parse(uri, contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+
+        let pos_service = Position {
+            line: 10,
+            character: 10,
+        };
+        let pos_rpc = Position {
+            line: 11,
+            character: 9,
+        };
+        let pos_rpc_request_type = Position {
+            line: 11,
+            character: 17,
+        };
+
+        assert_yaml_snapshot!(tree.can_rename(&pos_service));
+        assert_yaml_snapshot!(tree.can_rename(&pos_rpc));
+        // Type references inside an RPC declaration are not (yet) renameable
+        // from the reference site itself — that's a separate change.
+        assert_yaml_snapshot!(tree.can_rename(&pos_rpc_request_type));
+    }
+
+    #[test]
+    fn test_rename_service_and_rpc() {
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_service.proto");
+        let parsed = ProtoParser::new().parse(uri, contents);
+        assert!(parsed.is_some());
+        let tree = parsed.unwrap();
+
+        let pos_service = Position {
+            line: 10,
+            character: 10,
+        };
+        let pos_rpc = Position {
+            line: 11,
+            character: 9,
+        };
+
+        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+            Some(k) => {
+                let mut v = tree.rename_field(&k.1, &k.2, contents);
+                v.extend(k.0);
+                v
+            }
+            _ => vec![],
+        };
+
+        assert_yaml_snapshot!(rename_fn("Catalog", &pos_service));
+        assert_yaml_snapshot!(rename_fn("FetchBook", &pos_rpc));
     }
 }

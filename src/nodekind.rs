@@ -67,6 +67,12 @@ impl NodeKind {
         n.kind() == Self::EnumName.as_str() || n.kind() == Self::MessageName.as_str()
     }
 
+    pub fn is_renameable(n: &Node) -> bool {
+        Self::is_userdefined(n)
+            || n.kind() == Self::ServiceName.as_str()
+            || n.kind() == Self::RpcName.as_str()
+    }
+
     pub fn is_actionable(n: &Node) -> bool {
         n.kind() == Self::MessageName.as_str()
             || n.kind() == Self::EnumName.as_str()
