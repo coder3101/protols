@@ -71,6 +71,7 @@ impl NodeKind {
         Self::is_userdefined(n)
             || n.kind() == Self::ServiceName.as_str()
             || n.kind() == Self::RpcName.as_str()
+            || n.kind() == Self::FieldName.as_str()
     }
 
     pub fn is_actionable(n: &Node) -> bool {

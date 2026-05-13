@@ -20,6 +20,7 @@ use async_lsp::{Error, LanguageClient, ResponseError};
 use futures::future::BoxFuture;
 use serde_json::Value;
 
+use crate::context::jumpable::Jumpable;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 use crate::{docs, log};
@@ -253,17 +254,46 @@ impl ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-
         let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
-        let Some((edit, otext, ntext)) = tree.rename_tree(&pos, &new_name, content.as_bytes())
+        // If the cursor is on a type reference (inside a message_or_enum_type
+        // node), pivot to the declaration and rename from there. The existing
+        // workspace pass then handles all references — including the one the
+        // user is standing on.
+        let (rename_uri, rename_pos) = match tree.rename_pivot_identifier(&pos, content.as_bytes())
+        {
+            Some(decl_path) => {
+                let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
+                let locations =
+                    self.state
+                        .definition(&ipath, current_package, Jumpable::Identifier(decl_path));
+                let Some(decl) = locations.into_iter().next() else {
+                    error!(uri=%uri, "failed to resolve declaration for reference-site rename");
+                    return Box::pin(async move { Ok(None) });
+                };
+                (decl.uri, decl.range.start)
+            }
+            None => (uri.clone(), pos),
+        };
+
+        let Some(rename_tree) = self.state.get_tree(&rename_uri) else {
+            error!(uri=%rename_uri, "failed to get tree at declaration");
+            return Box::pin(async move { Ok(None) });
+        };
+        let rename_content = self.state.get_content(&rename_uri);
+        let rename_package = rename_tree
+            .get_package_name(rename_content.as_bytes())
+            .unwrap_or(".");
+
+        let Some((edit, otext, ntext)) =
+            rename_tree.rename_tree(&rename_pos, &new_name, rename_content.as_bytes())
         else {
-            error!(uri=%uri, "failed to rename in a tree");
+            error!(uri=%rename_uri, "failed to rename in a tree");
             return Box::pin(async move { Ok(None) });
         };
 
-        let Some(workspace) = self.configs.get_workspace_for_uri(&uri) else {
-            error!(uri=%uri, "failed to get workspace");
+        let Some(workspace) = self.configs.get_workspace_for_uri(&rename_uri) else {
+            error!(uri=%rename_uri, "failed to get workspace");
             return Box::pin(async move { Ok(None) });
         };
 
@@ -272,14 +302,16 @@ impl ProtoLanguageServer {
 
         let mut h = HashMap::new();
         h.extend(self.state.rename_fields(
-            current_package,
+            rename_package,
             &otext,
             &ntext,
             workspace.to_file_path().unwrap(),
             progress_sender,
         ));
 
-        h.entry(tree.uri).or_insert(edit.clone()).extend(edit);
+        h.entry(rename_tree.uri.clone())
+            .or_insert(edit.clone())
+            .extend(edit);
 
         let response = Some(WorkspaceEdit {
             changes: Some(h),

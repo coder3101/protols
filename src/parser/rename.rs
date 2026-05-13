@@ -23,6 +23,42 @@ impl ParsedTree {
             })
     }
 
+    /// When the cursor is on a type-reference identifier (inside a
+    /// `message_or_enum_type` node), return the partial qualified path up to
+    /// and including the segment under cursor. This is the identifier whose
+    /// declaration the rename should pivot to.
+    ///
+    /// For `Outer.Inner` with cursor on `Inner`, returns `Some("Outer.Inner")`.
+    /// For `Outer.Inner` with cursor on `Outer`, returns `Some("Outer")`.
+    /// For a non-reference position, returns `None`.
+    pub fn rename_pivot_identifier(
+        &self,
+        pos: &Position,
+        content: impl AsRef<[u8]>,
+    ) -> Option<String> {
+        let n = self.get_node_at_position(pos)?;
+        if !NodeKind::is_identifier(&n) {
+            return None;
+        }
+        let parent = n.parent()?;
+        if !NodeKind::is_field_name(&parent) {
+            return None;
+        }
+
+        let cursor_end = n.end_byte();
+        let bytes = content.as_ref();
+        let mut path = String::new();
+        let mut cursor = parent.walk();
+        for child in parent.children(&mut cursor) {
+            let text = child.utf8_text(bytes).ok()?;
+            path.push_str(text);
+            if child.end_byte() >= cursor_end {
+                break;
+            }
+        }
+        Some(path)
+    }
+
     fn nodes_within<'a>(
         &self,
         n: Node<'a>,
@@ -298,8 +334,8 @@ mod test {
 
         assert_yaml_snapshot!(tree.can_rename(&pos_service));
         assert_yaml_snapshot!(tree.can_rename(&pos_rpc));
-        // Type references inside an RPC declaration are not (yet) renameable
-        // from the reference site itself — that's a separate change.
+        // Type references inside an RPC declaration are renameable from the
+        // reference site; the LSP layer pivots to the declaration.
         assert_yaml_snapshot!(tree.can_rename(&pos_rpc_request_type));
     }
 
@@ -331,5 +367,66 @@ mod test {
 
         assert_yaml_snapshot!(rename_fn("Catalog", &pos_service));
         assert_yaml_snapshot!(rename_fn("FetchBook", &pos_rpc));
+    }
+
+    #[test]
+    fn test_rename_pivot_identifier() {
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_service.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+
+        // `Empty` reference at line 11 (the rpc Get(Empty) ...): char 16 = 'E'
+        let pos_unqualified_ref = Position {
+            line: 11,
+            character: 17,
+        };
+        // `Book` return type at line 11 char 32..36
+        let pos_other_ref = Position {
+            line: 11,
+            character: 33,
+        };
+        // Service declaration site — not a reference, so no pivot needed
+        let pos_decl = Position {
+            line: 10,
+            character: 10,
+        };
+
+        assert_eq!(
+            parsed.rename_pivot_identifier(&pos_unqualified_ref, contents),
+            Some("Empty".to_owned())
+        );
+        assert_eq!(
+            parsed.rename_pivot_identifier(&pos_other_ref, contents),
+            Some("Book".to_owned())
+        );
+        assert_eq!(parsed.rename_pivot_identifier(&pos_decl, contents), None);
+    }
+
+    #[test]
+    fn test_rename_pivot_identifier_qualified() {
+        // `Book.Author a = 1;` at line 19 of test_can_rename.proto
+        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
+        let contents = include_str!("input/test_can_rename.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+
+        // Cursor on `Book` (the outer segment): chars 4..8
+        let pos_outer = Position {
+            line: 19,
+            character: 5,
+        };
+        // Cursor on `Author` (the inner segment): chars 9..15
+        let pos_inner = Position {
+            line: 19,
+            character: 11,
+        };
+
+        assert_eq!(
+            parsed.rename_pivot_identifier(&pos_outer, contents),
+            Some("Book".to_owned())
+        );
+        assert_eq!(
+            parsed.rename_pivot_identifier(&pos_inner, contents),
+            Some("Book.Author".to_owned())
+        );
     }
 }
