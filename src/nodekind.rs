@@ -72,6 +72,20 @@ impl NodeKind {
             || n.kind() == Self::ServiceName.as_str()
             || n.kind() == Self::RpcName.as_str()
             || n.kind() == Self::FieldName.as_str()
+            || Self::is_field_decl_parent(n)
+    }
+
+    /// Kinds whose direct identifier child is the *name* of a field-like
+    /// declaration: regular fields, map fields, oneof fields, the oneof itself,
+    /// and enum values. For `string title = 1;`, the identifier `title` has
+    /// parent `field` — that's what we match here. The type identifier (e.g.
+    /// `Author` in `Author author = 2;`) is nested deeper under
+    /// `message_or_enum_type`, so it isn't caught by this predicate.
+    pub fn is_field_decl_parent(n: &Node) -> bool {
+        matches!(
+            n.kind(),
+            "field" | "map_field" | "oneof_field" | "oneof" | "enum_field"
+        )
     }
 
     pub fn is_actionable(n: &Node) -> bool {

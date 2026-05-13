@@ -1,0 +1,12 @@
+---
+source: src/parser/rename.rs
+expression: "rename_fn(\"writer\", &pos_user_type_field)"
+---
+- range:
+    start:
+      line: 15
+      character: 11
+    end:
+      line: 15
+      character: 17
+  newText: writer

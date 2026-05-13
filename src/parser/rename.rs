@@ -120,16 +120,24 @@ impl ParsedTree {
 
         let nodes = self.get_ancestor_nodes_at_position(pos);
 
-        // Renameable symbols that don't sit inside a message (services, RPCs, top-level
-        // enums) have no qualifying ancestors. Hand the unqualified name to the workspace
-        // pass so it can update any references; services and RPCs have none.
+        // Renameable symbols with no message ancestor: top-level enums, services, RPCs,
+        // and the various field-like declarations (regular fields, map fields, oneof,
+        // oneof fields, enum values). Only top-level enums are referenced as types
+        // from other files; the rest are single-site, so we hand the workspace pass
+        // a name it won't find — making it a harmless no-op without risking that a
+        // field named the same as some lowercase type triggers an unwanted rename.
         if nodes.is_empty() {
-            let otext = self
-                .get_node_at_position(pos)?
-                .utf8_text(content.as_ref())
-                .ok()?
-                .to_owned();
-            return Some((v, otext, new_name.to_owned()));
+            let n = self.get_node_at_position(pos)?;
+            let identifier = n.utf8_text(content.as_ref()).ok()?.to_owned();
+            let is_type_symbol = n
+                .parent()
+                .is_some_and(|p| p.kind() == NodeKind::EnumName.as_str());
+            let (otext, ntext) = if is_type_symbol {
+                (identifier, new_name.to_owned())
+            } else {
+                (new_name.to_owned(), new_name.to_owned())
+            };
+            return Some((v, otext, ntext));
         }
 
         let mut i = 1;
@@ -400,6 +408,89 @@ mod test {
             Some("Book".to_owned())
         );
         assert_eq!(parsed.rename_pivot_identifier(&pos_decl, contents), None);
+    }
+
+    #[test]
+    fn test_rename_field_and_enum_value() {
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_field.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let tree = parsed;
+
+        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+            Some(k) => {
+                let mut v = tree.rename_field(&k.1, &k.2, contents);
+                v.extend(k.0);
+                v
+            }
+            _ => vec![],
+        };
+
+        // Enum value: RED at line 5 chars 4..7
+        let pos_enum_value = Position {
+            line: 5,
+            character: 5,
+        };
+        // Plain field: title at line 14 chars 11..16
+        let pos_plain_field = Position {
+            line: 14,
+            character: 12,
+        };
+        // User-type field: author at line 15 chars 11..17
+        let pos_user_type_field = Position {
+            line: 15,
+            character: 12,
+        };
+        // Map field: counts at line 16 chars 23..29
+        let pos_map_field = Position {
+            line: 16,
+            character: 24,
+        };
+        // Oneof name: body at line 17 chars 10..14
+        let pos_oneof_name = Position {
+            line: 17,
+            character: 11,
+        };
+        // Oneof field: text at line 18 chars 15..19
+        let pos_oneof_field = Position {
+            line: 18,
+            character: 16,
+        };
+
+        assert_yaml_snapshot!(rename_fn("CRIMSON", &pos_enum_value));
+        assert_yaml_snapshot!(rename_fn("name", &pos_plain_field));
+        assert_yaml_snapshot!(rename_fn("writer", &pos_user_type_field));
+        assert_yaml_snapshot!(rename_fn("tallies", &pos_map_field));
+        assert_yaml_snapshot!(rename_fn("content", &pos_oneof_name));
+        assert_yaml_snapshot!(rename_fn("words", &pos_oneof_field));
+    }
+
+    #[test]
+    fn test_can_rename_field_and_enum_value() {
+        let uri: Url = "file://foo/bar.proto".parse().unwrap();
+        let contents = include_str!("input/test_rename_field.proto");
+        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+
+        // Cursor on a type identifier inside a field (`Author` at line 15
+        // chars 4..10) is a reference site — already supported.
+        let pos_type_ref = Position {
+            line: 15,
+            character: 6,
+        };
+        // Cursor on the field name should now be renameable.
+        let pos_plain_field = Position {
+            line: 14,
+            character: 12,
+        };
+        // Cursor on the int_lit `1` is not a renameable identifier.
+        let pos_field_number = Position {
+            line: 14,
+            character: 19,
+        };
+
+        assert_yaml_snapshot!(parsed.can_rename(&pos_type_ref));
+        assert_yaml_snapshot!(parsed.can_rename(&pos_plain_field));
+        assert_yaml_snapshot!(parsed.can_rename(&pos_field_number));
     }
 
     #[test]

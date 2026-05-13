@@ -1,0 +1,12 @@
+---
+source: src/parser/rename.rs
+expression: "rename_fn(\"content\", &pos_oneof_name)"
+---
+- range:
+    start:
+      line: 17
+      character: 10
+    end:
+      line: 17
+      character: 14
+  newText: content
