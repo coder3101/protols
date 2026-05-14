@@ -475,10 +475,36 @@ fn strip_convention_suffix(
 mod test {
     use std::path::PathBuf;
 
+    use async_lsp::lsp_types::Position;
     use insta::assert_yaml_snapshot;
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
+    use crate::workspace::rename::RenameOp;
+
+    fn make_state(files: &[(&str, &str)], ipath: &[PathBuf]) -> ProtoLanguageState {
+        let mut state = ProtoLanguageState::new();
+        for (uri, content) in files {
+            let parsed_uri = uri.parse().unwrap();
+            state.upsert_file(
+                &parsed_uri,
+                (*content).to_owned(),
+                ipath,
+                2,
+                &Config::default(),
+                false,
+            );
+        }
+        state
+    }
+
+    fn op(uri: &str, line: u32, character: u32, new_name: &str) -> RenameOp {
+        RenameOp {
+            uri: uri.parse().unwrap(),
+            pos: Position { line, character },
+            new_name: new_name.to_owned(),
+        }
+    }
 
     #[test]
     fn test_rename() {
@@ -606,30 +632,22 @@ mod test {
         // resolving its request slot back to the user's primary message.
         let ipath = vec![PathBuf::from("src/workspace/input")];
         let foo_uri = "file://input/collision_foo.proto".parse().unwrap();
-        let bar_uri = "file://input/collision_bar.proto".parse().unwrap();
-        let foo = include_str!("input/collision_foo.proto");
-        let bar = include_str!("input/collision_bar.proto");
-
-        let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(
-            &foo_uri,
-            foo.to_owned(),
+        let state = make_state(
+            &[
+                (
+                    "file://input/collision_foo.proto",
+                    include_str!("input/collision_foo.proto"),
+                ),
+                (
+                    "file://input/collision_bar.proto",
+                    include_str!("input/collision_bar.proto"),
+                ),
+            ],
             &ipath,
-            2,
-            &Config::default(),
-            false,
-        );
-        state.upsert_file(
-            &bar_uri,
-            bar.to_owned(),
-            &ipath,
-            2,
-            &Config::default(),
-            false,
         );
 
         // Cursor on foo.GetBookRequest message_name (line 4, col 8..22).
-        let pos = async_lsp::lsp_types::Position {
+        let pos = Position {
             line: 4,
             character: 12,
         };
@@ -643,5 +661,242 @@ mod test {
                 "chain leaked into bar: {op:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_compute_rename_ops_chain_from_rpc_cursor() {
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let svc_uri = "file://input/service.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on the `GetBook` rpc name (line 7, col 8..15).
+        let pos = Position {
+            line: 7,
+            character: 10,
+        };
+        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath);
+
+        // Primary + Request + Response.
+        assert_eq!(
+            ops.len(),
+            3,
+            "expected primary rpc + two sibling ops, got {ops:?}"
+        );
+        assert_eq!(ops[0], op("file://input/service.proto", 7, 10, "FetchBook"));
+        assert_eq!(
+            ops[1],
+            op("file://input/messages.proto", 4, 8, "FetchBookRequest")
+        );
+        assert_eq!(
+            ops[2],
+            op("file://input/messages.proto", 5, 8, "FetchBookResponse")
+        );
+    }
+
+    #[test]
+    fn test_compute_rename_ops_chain_from_request_cursor() {
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let msg_uri = "file://input/messages.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on `GetBookRequest` message name (line 4, col 8..22).
+        let pos = Position {
+            line: 4,
+            character: 12,
+        };
+        let ops = state.compute_rename_ops(&msg_uri, pos, "FetchBookRequest", &ipath);
+
+        // Primary (request) + rpc + response.
+        assert_eq!(
+            ops.len(),
+            3,
+            "expected primary + rpc + response sibling ops, got {ops:?}"
+        );
+        assert_eq!(
+            ops[0],
+            op("file://input/messages.proto", 4, 12, "FetchBookRequest")
+        );
+        assert_eq!(ops[1], op("file://input/service.proto", 7, 8, "FetchBook"));
+        assert_eq!(
+            ops[2],
+            op("file://input/messages.proto", 5, 8, "FetchBookResponse")
+        );
+    }
+
+    #[test]
+    fn test_compute_rename_ops_shared_request_blocks_chain() {
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let msg_uri = "file://input/messages.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on `SharedReq` message name (line 10). Both ListA and ListB
+        // reference SharedReq — chain must not fire.
+        let pos = Position {
+            line: 10,
+            character: 12,
+        };
+        let ops = state.compute_rename_ops(&msg_uri, pos, "RenamedReq", &ipath);
+        assert_eq!(
+            ops.len(),
+            1,
+            "expected primary-only (no chain), got {ops:?}"
+        );
+        assert_eq!(
+            ops[0],
+            op("file://input/messages.proto", 10, 12, "RenamedReq")
+        );
+    }
+
+    #[test]
+    fn test_compute_rename_ops_new_name_breaks_convention() {
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let msg_uri = "file://input/messages.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on GetBookRequest, but new name doesn't preserve the
+        // `<Rpc>Request` convention — primary-only.
+        let pos = Position {
+            line: 4,
+            character: 12,
+        };
+        let ops = state.compute_rename_ops(&msg_uri, pos, "Whatever", &ipath);
+        assert_eq!(
+            ops.len(),
+            1,
+            "expected primary-only (no chain), got {ops:?}"
+        );
+        assert_eq!(ops[0], op("file://input/messages.proto", 4, 12, "Whatever"));
+    }
+
+    #[test]
+    fn test_compute_rename_ops_reference_site_pivot_unsupported() {
+        // compute_rename_ops requires the caller to have pivoted to the
+        // declaration. As a sanity check, calling it with a cursor on a
+        // reference site (not a declaration) yields a primary-only op that
+        // would no-op the workspace pass. The LSP layer is responsible for
+        // resolving the reference to its declaration *before* calling this.
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let svc_uri = "file://input/service.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on the `GetBookRequest` reference inside the rpc signature
+        // (line 7, col 16..30).
+        let pos = Position {
+            line: 7,
+            character: 20,
+        };
+        let ops = state.compute_rename_ops(&svc_uri, pos, "RenamedRequest", &ipath);
+        // Single op (the primary at the reference site) — no chain. This
+        // documents the contract: the LSP layer must pivot first.
+        assert_eq!(ops.len(), 1, "{ops:?}");
+    }
+
+    #[test]
+    fn test_apply_rename_ops_chain_from_rpc_cursor() {
+        // End-to-end snapshot of the full `rpc <Name>(<Name>Request) returns
+        // (<Name>Response)` convention chain. Renaming `GetBook` →
+        // `FetchBook` should fan out into:
+        //   - the rpc_name span in service.proto,
+        //   - the request type-reference inside that rpc's signature,
+        //   - the response type-reference inside that rpc's signature,
+        //   - the `GetBookRequest` message decl in messages.proto,
+        //   - the `GetBookResponse` message decl in messages.proto.
+        // The snapshot pins both the URIs and the exact edit ranges so any
+        // regression in chain detection, edit merging, or workspace-pass
+        // resolution will show up here.
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let svc_uri = "file://input/service.proto".parse().unwrap();
+        let mut state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        let pos = Position {
+            line: 7,
+            character: 10,
+        };
+        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath);
+        let edits = state
+            .apply_rename_ops(&ops, PathBuf::from("src/workspace/input"), None)
+            .expect("primary rename should not fail");
+
+        // Sort within each file so the snapshot is order-independent across
+        // unrelated implementation changes (e.g. op evaluation order).
+        let mut normalized: std::collections::BTreeMap<String, Vec<_>> =
+            std::collections::BTreeMap::new();
+        for (url, mut v) in edits {
+            v.sort_by_key(|e| (e.range.start.line, e.range.start.character));
+            normalized.insert(url.to_string(), v);
+        }
+        assert_yaml_snapshot!(normalized);
     }
 }
