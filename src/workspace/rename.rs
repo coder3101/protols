@@ -141,10 +141,13 @@ impl ProtoLanguageState {
         if r.is_empty() { None } else { Some(r) }
     }
 
-    /// Find the declaration of an rpc by simple name across the workspace.
-    /// Returns the first match. Used by the rpc/request/response chain rename
-    /// to anchor the chain when the user invokes rename on a matching message.
-    pub fn find_rpc_decl(&self, rpc_name: &str) -> Option<Location> {
+    /// Find every rpc declaration in the workspace whose simple name matches
+    /// `rpc_name`. Used by the rpc/request/response chain rename to enumerate
+    /// candidate rpcs when the user invokes rename on a convention-named
+    /// message; the caller then narrows the list by checking which candidate
+    /// actually references the user's primary message.
+    pub fn find_rpc_decls(&self, rpc_name: &str) -> Vec<Location> {
+        let mut out = vec![];
         for tree in self.get_trees() {
             let content = self.get_content(&tree.uri);
             for node in tree.find_all_nodes(NodeKind::is_rpc_name) {
@@ -152,7 +155,7 @@ impl ProtoLanguageState {
                     continue;
                 };
                 if text == rpc_name {
-                    return Some(Location {
+                    out.push(Location {
                         uri: tree.uri.clone(),
                         range: Range {
                             start: ts_to_lsp_position(&node.start_position()),
@@ -162,7 +165,7 @@ impl ProtoLanguageState {
                 }
             }
         }
-        None
+        out
     }
 
     /// Count the number of rpcs in the workspace whose request or response
@@ -307,6 +310,12 @@ impl ProtoLanguageState {
     /// Case B: user invoked rename on a `message_name` matching the
     /// `<Rpc>Request` / `<Rpc>Response` convention. Primary is the message
     /// rename; we additionally rename the rpc and the opposite sibling.
+    ///
+    /// To guard against unrelated rpcs in other packages that happen to share
+    /// the same simple name, we enumerate *all* candidate rpcs and pick the
+    /// unique one whose request/response slot resolves (via the workspace's
+    /// name-resolution rules) to the user's primary message. If zero or more
+    /// than one rpc matches, the chain is silently dropped.
     fn chain_from_message_cursor(
         &self,
         decl_uri: &Url,
@@ -329,32 +338,44 @@ impl ProtoLanguageState {
             return vec![];
         }
 
-        // Locate the rpc and confirm it uses this message in the expected slot.
-        let Some(rpc_loc) = self.find_rpc_decl(&rpc_base) else {
-            return vec![];
-        };
-        let Some(rpc_tree) = self.get_tree(&rpc_loc.uri) else {
-            return vec![];
-        };
-        let rpc_content = self.get_content(&rpc_loc.uri);
-        let Some((_, rpc_req, rpc_resp)) =
-            rpc_tree.rpc_at_position(&rpc_loc.range.start, rpc_content.as_bytes())
-        else {
-            return vec![];
-        };
-        let expected_primary = format!("{rpc_base}{primary_suffix}");
-        let primary_slot_matches = if primary_suffix == "Request" {
-            trailing_segment(&rpc_req) == expected_primary
-        } else {
-            trailing_segment(&rpc_resp) == expected_primary
-        };
-        if !primary_slot_matches {
+        // Enumerate rpcs by simple name, then keep only those whose primary
+        // slot resolves to the user's actual declaration.
+        let mut matching: Vec<(Location, String, String)> = vec![];
+        for rpc_loc in self.find_rpc_decls(&rpc_base) {
+            let Some(rpc_tree) = self.get_tree(&rpc_loc.uri) else {
+                continue;
+            };
+            let rpc_content = self.get_content(&rpc_loc.uri);
+            let Some((_, rpc_req, rpc_resp)) =
+                rpc_tree.rpc_at_position(&rpc_loc.range.start, rpc_content.as_bytes())
+            else {
+                continue;
+            };
+            let slot_text = if primary_suffix == "Request" {
+                &rpc_req
+            } else {
+                &rpc_resp
+            };
+            let rpc_pkg = rpc_tree
+                .get_package_name(rpc_content.as_bytes())
+                .unwrap_or(".");
+            let resolves_to_primary = self
+                .definition(ipath, rpc_pkg, Jumpable::Identifier(slot_text.clone()))
+                .iter()
+                .any(|l| l.uri == *decl_uri && position_in_range(decl_pos, l.range));
+            if resolves_to_primary {
+                matching.push((rpc_loc, rpc_req, rpc_resp));
+            }
+        }
+        if matching.len() != 1 {
             return vec![];
         }
+        let (rpc_loc, rpc_req, rpc_resp) = matching.into_iter().next().unwrap();
 
         // Uniqueness: only chain if the user's primary message is referenced
         // by exactly one rpc. Otherwise a chained rename would silently break
         // another rpc that shares the type.
+        let expected_primary = format!("{rpc_base}{primary_suffix}");
         if self.count_rpc_uses_of_type(&expected_primary) != 1 {
             return vec![];
         }
@@ -423,6 +444,14 @@ impl ProtoLanguageState {
         }
         ops
     }
+}
+
+/// True iff `pos` falls within `range` (inclusive of both endpoints). Used to
+/// match a possibly mid-identifier cursor against a definition's full-span
+/// range when verifying that two locations refer to the same symbol.
+fn position_in_range(pos: Position, range: Range) -> bool {
+    (pos.line, pos.character) >= (range.start.line, range.start.character)
+        && (pos.line, pos.character) <= (range.end.line, range.end.character)
 }
 
 /// If `msg_name` ends with `Request` or `Response` and `new_name` ends with
@@ -521,7 +550,7 @@ mod test {
     }
 
     #[test]
-    fn test_find_rpc_decl_and_count_uses() {
+    fn test_find_rpc_decls_and_count_uses() {
         let ipath = vec![PathBuf::from("src/workspace/input")];
         let svc_uri = "file://input/service.proto".parse().unwrap();
         let msg_uri = "file://input/messages.proto".parse().unwrap();
@@ -547,11 +576,13 @@ mod test {
         );
 
         // Lookup hits the rpc_name node in service.proto.
-        let loc = state.find_rpc_decl("GetBook").expect("rpc not found");
+        let mut locs = state.find_rpc_decls("GetBook");
+        assert_eq!(locs.len(), 1, "expected exactly one GetBook rpc");
+        let loc = locs.pop().unwrap();
         assert!(loc.uri.as_str().ends_with("service.proto"));
         assert_eq!(loc.range.start.line, 7);
 
-        assert!(state.find_rpc_decl("DoesNotExist").is_none());
+        assert!(state.find_rpc_decls("DoesNotExist").is_empty());
 
         // Convention-following types are uniquely used.
         assert_eq!(state.count_rpc_uses_of_type("GetBookRequest"), 1);
@@ -563,5 +594,54 @@ mod test {
         assert_eq!(state.count_rpc_uses_of_type("Bar"), 1);
         // Unrelated names see no uses.
         assert_eq!(state.count_rpc_uses_of_type("Unrelated"), 0);
+    }
+
+    #[test]
+    fn test_compute_rename_ops_cross_package_collision_blocks_chain() {
+        // Two services in different packages each declare `rpc GetBook`. Only
+        // pkg foo follows the convention; pkg bar uses unrelated message
+        // names. Without the per-candidate full-qualified resolution check,
+        // find_rpc_decls' iteration order could let bar's GetBook poison the
+        // chain. With the fix, foo's GetBook is uniquely identified by
+        // resolving its request slot back to the user's primary message.
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let foo_uri = "file://input/collision_foo.proto".parse().unwrap();
+        let bar_uri = "file://input/collision_bar.proto".parse().unwrap();
+        let foo = include_str!("input/collision_foo.proto");
+        let bar = include_str!("input/collision_bar.proto");
+
+        let mut state: ProtoLanguageState = ProtoLanguageState::new();
+        state.upsert_file(
+            &foo_uri,
+            foo.to_owned(),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+        state.upsert_file(
+            &bar_uri,
+            bar.to_owned(),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+
+        // Cursor on foo.GetBookRequest message_name (line 4, col 8..22).
+        let pos = async_lsp::lsp_types::Position {
+            line: 4,
+            character: 12,
+        };
+        let ops = state.compute_rename_ops(&foo_uri, pos, "FetchBookRequest", &ipath);
+
+        // Primary + foo's rpc + foo's response. bar's GetBook is NOT touched.
+        assert_eq!(ops.len(), 3, "expected exactly the foo trio, got {ops:?}");
+        for op in &ops {
+            assert!(
+                op.uri.as_str().contains("collision_foo"),
+                "chain leaked into bar: {op:?}"
+            );
+        }
     }
 }
