@@ -31,6 +31,16 @@ impl ParsedTree {
     /// For `Outer.Inner` with cursor on `Inner`, returns `Some("Outer.Inner")`.
     /// For `Outer.Inner` with cursor on `Outer`, returns `Some("Outer")`.
     /// For a non-reference position, returns `None`.
+    ///
+    /// The reconstruction walks every child of `message_or_enum_type` (named
+    /// *and* anonymous) and concatenates their `utf8_text`. This depends on
+    /// tree-sitter-proto emitting the `.` separators as anonymous children
+    /// whose `utf8_text` is literally `"."`, and on the grammar leaving no
+    /// whitespace between identifier tokens. Both invariants are exercised by
+    /// `test_rename_pivot_identifier_qualified`, which asserts the exact
+    /// `"Book.Author"` reconstruction — a grammar change that violated either
+    /// invariant would fail that test rather than silently produce e.g.
+    /// `"BookAuthor"`.
     pub fn rename_pivot_identifier(
         &self,
         pos: &Position,

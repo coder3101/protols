@@ -1,5 +1,5 @@
 use crate::nodekind::NodeKind;
-use crate::utils::{split_identifier_package, ts_to_lsp_position};
+use crate::utils::{split_identifier_package, trailing_segment, ts_to_lsp_position};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -136,13 +136,7 @@ impl ProtoLanguageState {
     pub fn find_rpc_decl(&self, rpc_name: &str) -> Option<Location> {
         for tree in self.get_trees() {
             let content = self.get_content(&tree.uri);
-            for node in tree.find_all_nodes(NodeKind::is_identifier) {
-                let Some(parent) = node.parent() else {
-                    continue;
-                };
-                if parent.kind() != NodeKind::RpcName.as_str() {
-                    continue;
-                }
+            for node in tree.find_all_nodes(NodeKind::is_rpc_name) {
                 let Ok(text) = node.utf8_text(content.as_bytes()) else {
                     continue;
                 };
@@ -177,10 +171,6 @@ impl ProtoLanguageState {
         }
         count
     }
-}
-
-fn trailing_segment(qualified: &str) -> &str {
-    qualified.rsplit('.').next().unwrap_or(qualified)
 }
 
 #[cfg(test)]

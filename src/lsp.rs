@@ -23,6 +23,7 @@ use serde_json::Value;
 use crate::context::jumpable::Jumpable;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
+use crate::utils::trailing_segment;
 use crate::{docs, log};
 
 impl ProtoLanguageServer {
@@ -511,10 +512,6 @@ struct RenameOp {
     uri: Url,
     pos: async_lsp::lsp_types::Position,
     new_name: String,
-}
-
-fn trailing_segment(qualified: &str) -> &str {
-    qualified.rsplit('.').next().unwrap_or(qualified)
 }
 
 impl ProtoLanguageServer {
