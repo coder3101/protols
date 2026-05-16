@@ -126,7 +126,18 @@ mod test {
 
     #[test]
     fn test_get_include_paths_transformation() {
-        let args = vec!["protols", "-i", "rel/path,/abs/path"];
+        let args = {
+            #[cfg(unix)]
+            {
+                vec!["protols", "-i", "rel/path,/abs/path"]
+            }
+            #[cfg(windows)]
+            {
+                // Using a standard Windows absolute path format
+                vec!["protols", "-i", r"rel/path,C:\Users\abs\path"]
+            }
+        };
+
         let cli = Cli::parse_from(args);
         let paths = cli.get_include_paths();
 
