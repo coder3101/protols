@@ -37,6 +37,4 @@ jobs:
           imageName: ghcr.io/${{ github.repository }}/devcontainer
           cacheFrom: ghcr.io/${{ github.repository }}/devcontainer
           cacheTo: ghcr.io/${{ github.repository }}/devcontainer
-          push: filter
-          refFilterForPush: refs/heads/main
-push: always
+          push: always
