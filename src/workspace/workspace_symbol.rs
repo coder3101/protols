@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod test {
+    use async_lsp::lsp_types::Url;
     use insta::assert_yaml_snapshot;
 
     use crate::config::Config;
@@ -9,24 +10,14 @@ mod test {
     fn test_workspace_symbols() {
         let current_dir = std::env::current_dir().unwrap();
         let ipath = vec![current_dir.join("src/workspace/input")];
-        let a_uri = format!(
-            "file://{}/src/workspace/input/a.proto",
-            current_dir.to_str().unwrap()
-        )
-        .parse()
-        .unwrap();
-        let b_uri = format!(
-            "file://{}/src/workspace/input/b.proto",
-            current_dir.to_str().unwrap()
-        )
-        .parse()
-        .unwrap();
-        let c_uri = format!(
-            "file://{}/src/workspace/input/c.proto",
-            current_dir.to_str().unwrap()
-        )
-        .parse()
-        .unwrap();
+        let base_uri_str = Url::from_directory_path(&current_dir)
+            .unwrap()
+            .to_string()
+            .trim_end_matches('/')
+            .to_string();
+        let a_uri = Url::from_file_path(current_dir.join("src/workspace/input/a.proto")).unwrap();
+        let b_uri = Url::from_file_path(current_dir.join("src/workspace/input/b.proto")).unwrap();
+        let c_uri = Url::from_file_path(current_dir.join("src/workspace/input/c.proto")).unwrap();
 
         let a = include_str!("input/a.proto");
         let b = include_str!("input/b.proto");
@@ -39,47 +30,49 @@ mod test {
 
         // Test empty query - should return all symbols
         let all_symbols = state.find_workspace_symbols("");
-        let cdir = current_dir.to_str().unwrap().to_string();
+        let base_uri_1 = base_uri_str.clone();
         assert_yaml_snapshot!(all_symbols, { "[].location.uri" => insta::dynamic_redaction(move |c, _| {
+            let uri_str = c.as_str().unwrap();
+
             assert!(
-                c.as_str()
-                    .unwrap()
-                    .contains(&cdir)
+                uri_str.contains(&base_uri_1),
+                "URI {} should contain {}", uri_str, base_uri_1
             );
-            format!(
-                "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').next_back().unwrap()
-            )
+
+            let file_name = uri_str.split('/').next_back().unwrap();
+            format!("file://<redacted>/src/workspace/input/{}", file_name)
 
         })});
 
         // Test query for "author" - should match Author and Address
         let author_symbols = state.find_workspace_symbols("author");
-        let cdir = current_dir.to_str().unwrap().to_string();
+        let base_uri_2 = base_uri_str.clone();
         assert_yaml_snapshot!(author_symbols, {"[].location.uri" => insta::dynamic_redaction(move |c ,_|{
+            let uri_str = c.as_str().unwrap();
+
             assert!(
-                c.as_str()
-                    .unwrap()
-                    .contains(&cdir)
+                uri_str.contains(&base_uri_2),
+                "URI {} should contain {}", uri_str, base_uri_2
             );
-            format!(
-                "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').next_back().unwrap()
-            )
+
+            let file_name = uri_str.split('/').next_back().unwrap();
+            format!("file://<redacted>/src/workspace/input/{}", file_name)
         })});
 
         // Test query for "address" - should match Address
         let address_symbols = state.find_workspace_symbols("address");
+        let base_uri_3 = base_uri_str.clone();
         assert_yaml_snapshot!(address_symbols, {"[].location.uri" => insta::dynamic_redaction(move |c ,_|{
+            let uri_str = c.as_str().unwrap();
+
             assert!(
-                c.as_str()
-                    .unwrap()
-                    .contains(current_dir.to_str().unwrap())
+                uri_str.contains(&base_uri_3),
+                "URI {} should contain {}", uri_str, base_uri_3
             );
-            format!(
-                "file://<redacted>/src/workspace/input/{}",
-                c.as_str().unwrap().split('/').next_back().unwrap()
-            )
+
+
+            let file_name = uri_str.split('/').next_back().unwrap();
+            format!("file://<redacted>/src/workspace/input/{}", file_name)
         })});
 
         // Test query that should not match anything
