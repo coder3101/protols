@@ -1,9 +1,9 @@
 {
   "name": "Rust",
-  "image": "ghcr.io/coder3101/protols/devcontainer:latest",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": ".."
+    "context": "..",
+    "cacheFrom": "ghcr.io/coder3101/protols/devcontainer:latest"
   },
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {
