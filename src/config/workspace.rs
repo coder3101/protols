@@ -270,11 +270,11 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
+        let absolute_path = tmpdir.path().join("absolute_test_path");
+
         // Set CLI include paths
-        let cli_paths = vec![
-            PathBuf::from("/path/to/protos"),
-            PathBuf::from("relative/path"),
-        ];
+        let cli_paths = vec![absolute_path.clone(), PathBuf::from("relative/path")];
+
         let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
         ws.add_workspace(&WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
@@ -284,19 +284,12 @@ mod test {
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();
 
-        // Check that CLI paths are included in the result
-        assert!(
-            include_paths
-                .iter()
-                .any(|p| p.ends_with("relative/path") || p == &PathBuf::from("/path/to/protos"))
-        );
+        // The absolute path should be included as is
+        assert!(include_paths.contains(&absolute_path));
 
         // The relative path should be resolved relative to the workspace
         let resolved_relative_path = tmpdir.path().join("relative/path");
         assert!(include_paths.contains(&resolved_relative_path));
-
-        // The absolute path should be included as is
-        assert!(include_paths.contains(&PathBuf::from("/path/to/protos")));
     }
 
     #[test]
@@ -305,10 +298,13 @@ mod test {
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
+        let cli_absolute_path = tmpdir.path().join("cli/path");
+        let init_absolute_path = tmpdir.path().join("init/path1");
+
         // Set both CLI and initialization include paths
-        let cli_paths = vec![PathBuf::from("/cli/path")];
+        let cli_paths = vec![cli_absolute_path.clone()];
         let init_paths = vec![
-            PathBuf::from("/init/path1"),
+            init_absolute_path.clone(),
             PathBuf::from("relative/init/path"),
         ];
 
@@ -323,14 +319,14 @@ mod test {
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();
 
         // Check that initialization paths are included
-        assert!(include_paths.contains(&PathBuf::from("/init/path1")));
+        assert!(include_paths.contains(&init_absolute_path));
 
         // The relative path should be resolved relative to the workspace
         let resolved_relative_path = tmpdir.path().join("relative/init/path");
         assert!(include_paths.contains(&resolved_relative_path));
 
         // CLI paths should still be included
-        assert!(include_paths.contains(&PathBuf::from("/cli/path")));
+        assert!(include_paths.contains(&cli_absolute_path));
     }
 
     #[test]
