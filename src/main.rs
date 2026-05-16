@@ -7,10 +7,13 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
 use clap::Parser;
-use const_format::concatcp;
+use cli::Cli;
 use server::{ProtoLanguageServer, TickEvent};
 use tower::ServiceBuilder;
 
+use crate::transport::create_transport;
+
+mod cli;
 mod config;
 mod context;
 mod docs;
@@ -22,45 +25,21 @@ mod parser;
 mod protoc;
 mod server;
 mod state;
+mod transport;
 mod utils;
 mod workspace;
 
-/// Language server for proto3 files
-#[derive(Parser, Debug)]
-#[command(
-    author,
-    version = concatcp!(
-        env!("CARGO_PKG_VERSION"),
-        "\n",
-        BUILD_INFO
-    ),
-    about,
-    long_about = None,
-    ignore_errors(true)
-)]
-struct Cli {
-    /// Include paths for proto files
-    #[arg(short, long, value_delimiter = ',')]
-    include_paths: Option<Vec<String>>,
-}
-
 const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH");
-const BUILD_INFO: &str = concatcp!(
-    "fallback include path: ",
-    match FALLBACK_INCLUDE_PATH {
-        Some(path) => path,
-        None => "not set",
-    }
-);
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() {
+async fn main() -> Result<(), transport::TransportError> {
     let cli = Cli::parse();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
     let (reload_handle, _log_guard) = log::install(tx);
 
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
+    tracing::info!("CLI include paths: {:?}", &cli.include_paths);
 
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         let mut log_client = client.clone();
@@ -71,12 +50,7 @@ async fn main() {
             }
         });
 
-        tracing::info!("Using CLI options: {:?}", cli);
-
-        let include_paths = cli
-            .include_paths
-            .map(|ic| ic.into_iter().map(std::path::PathBuf::from).collect())
-            .unwrap_or_default();
+        let include_paths = cli.get_include_paths();
 
         let fallback_include_path = FALLBACK_INCLUDE_PATH.map(std::path::PathBuf::from);
 
@@ -111,49 +85,9 @@ async fn main() {
             .service(router)
     });
 
-    // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
-    #[cfg(unix)]
-    let (stdin, stdout) = (
-        async_lsp::stdio::PipeStdin::lock_tokio().unwrap(),
-        async_lsp::stdio::PipeStdout::lock_tokio().unwrap(),
-    );
-    // Fallback to spawn blocking read/write otherwise.
-    #[cfg(not(unix))]
-    let (stdin, stdout) = (
-        tokio_util::compat::TokioAsyncReadCompatExt::compat(tokio::io::stdin()),
-        tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(tokio::io::stdout()),
-    );
+    let (input, output) = create_transport(&cli).await?;
 
-    server.run_buffered(stdin, stdout).await.unwrap();
-}
+    server.run_buffered(input, output).await?;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_cli_parsing() {
-        // Test with no arguments
-        let args = vec!["protols"];
-        let cli = Cli::parse_from(args);
-        assert!(cli.include_paths.is_none());
-
-        // Test with include paths
-        let args = vec!["protols", "--include-paths=/path1,/path2"];
-        let cli = Cli::parse_from(args);
-        assert!(cli.include_paths.is_some());
-        let paths = cli.include_paths.unwrap();
-        assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0], "/path1");
-        assert_eq!(paths[1], "/path2");
-
-        // Test with short form
-        let args = vec!["protols", "-i", "/path1,/path2"];
-        let cli = Cli::parse_from(args);
-        assert!(cli.include_paths.is_some());
-        let paths = cli.include_paths.unwrap();
-        assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0], "/path1");
-        assert_eq!(paths[1], "/path2");
-    }
+    Ok(())
 }
