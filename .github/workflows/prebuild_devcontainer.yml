@@ -39,4 +39,4 @@ jobs:
           cacheTo: ghcr.io/${{ github.repository }}/devcontainer
           push: filter
           refFilterForPush: refs/heads/main
-          eventFilterForPush: push, workflow_dispatch
+push: always
