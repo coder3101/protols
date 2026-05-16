@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug protols via TCP",
+      "program": "${workspaceFolder}/target/debug/protols",
+      "args": [
+        "--port",
+        "${config:protols.debugPort}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": [
+        "rust"
+      ],
+      "terminal": "console",
+      "presentation": {
+        "hidden": false,
+        "group": "lsp-debug",
+        "order": 1
+      },
+      "preLaunchTask": "Neovim (TCP Debug Mode)",
+      "expressions": "native"
+    }
+  ]
+}

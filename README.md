@@ -25,6 +25,7 @@
   - [For Neovim](#for-neovim)
     - [Setting Include Paths in Neovim](#setting-include-paths-in-neovim)
   - [Command Line Options](#command-line-options)
+    - [Examples](#examples)
   - [For Visual Studio Code](#for-visual-studio-code)
 - [Configuration](#%EF%B8%8Fconfiguration)
   - [Sample `protols.toml`](#sample-protolstoml)
@@ -45,6 +46,9 @@
 - [Packaging](#-packaging)
 - [Contributing](#-contributing)
   - [Setting Up Locally](#setting-up-locally)
+    - [Option 1: Using Dev Containers (Easiest)](#option-1-using-dev-containers-easiest)
+    - [Option 2: Manual Setup](#option-2-manual-setup)
+  - [Debugging](#-debugging)
 - [License](#-license)
 
 ---
@@ -87,19 +91,62 @@ require'lspconfig'.protols.setup{
 
 Protols supports various command line options to customize its behavior:
 
-```
-protols [OPTIONS]
+```text
+Usage: protols [OPTIONS]
 
 Options:
-  -i, --include-paths <INCLUDE_PATHS>  Include paths for proto files, comma-separated
-  -V, --version                        Print version information
-  -h, --help                           Print help information
+  -i, --include-paths <INCLUDE_PATHS>  Include paths for proto files, comma-separated (can be used multiple times)
+  -h, --help                           Print help
+  -V, --version                        Print version
+
+Transport:
+      --stdio          Use stdin/stdout for communication (default)
+      --socket <ADDR>  Use TCP communication with a specific address and port. Examples: "192.168.1.10:5005" or "0.0.0.0:5005"
+      --port <PORT>    Use TCP communication on localhost with a specific port. Example: "5005"
+      --pipe <PATH>    Use Unix domain socket (Linux/macOS) or Named Pipe (Windows). Examples: "/tmp/protols.sock" or "protols-pipe" (Windows)
 ```
 
-For example, to specify include paths when starting the language server:
+#### Examples
+
+##### Specify include paths
+
+You can provide include paths using a comma-separated list or by repeating the
+flag:
 
 ```bash
 protols --include-paths=/path/to/protos,/another/path/to/protos
+# or
+protols -i /path/to/protos -i /another/path/to/protos
+```
+
+##### Communication via TCP
+TCP transport is useful when the language server and the IDE run in different
+environments.
+
+-   **Localhost only**: Connect within the same machine.
+    ```bash
+    protols --port 7301
+    ```
+-   **Container/Docker mode**: Listen on all interfaces to allow access from the
+    host machine to the container.
+    ```bash
+    protols --socket 0.0.0.0:7301
+    ```
+-   **Specific interface**: Listen on a specific network IP.
+    ```bash
+    protols --socket 192.168.1.10:7301
+    ```
+
+##### Communication via Unix Domain Socket
+On Linux or macOS, you can use a socket file for communication:
+```bash
+protols --pipe /tmp/protols.sock
+```
+
+##### Communication via Named Pipes (Windows)
+On Windows, you can specify a pipe name. `protols` handles the `\\.\pipe\` prefix automatically:
+```bash
+protols --pipe protols-pipe
 ```
 
 ### For Visual Studio Code
@@ -266,6 +313,12 @@ testing.
    cargo build
    cargo test
    ```
+
+### 🐞 Debugging
+
+If you want to contribute or debug the server logic, please refer to the
+[Debugging Guide](docs/debugging.md) for instructions on setting up a TCP-based
+debug session with VS Code and Neovim.
 
 ---
 
