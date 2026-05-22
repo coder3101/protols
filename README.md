@@ -32,6 +32,7 @@
   - [Configuration Sections](#configuration-sections)
     - [Basic Configuration](#basic-configuration)
     - [Path Configuration](#path-configuration)
+    - [Rename Configuration](#rename-configuration)
 - [Usage](#-usage)
   - [Code Completion](#code-completion)
   - [Diagnostics](#diagnostics)
@@ -170,6 +171,9 @@ include_paths = ["foobar", "bazbaaz"] # Include paths to look for protofiles dur
 [config.path]
 clang_format = "clang-format"
 protoc = "protoc"
+
+[config.rename]
+chain_rpc_request_response = false # Also rename <Rpc>Request/<Rpc>Response messages when renaming an rpc
 ```
 
 ### Configuration Sections
@@ -196,6 +200,16 @@ The `[config.path]` section contains path for various tools used by LSP.
 
 - `clang_format`: Uses clang_format from this path for formatting
 - `protoc`: Uses protoc from this path for diagnostics
+
+#### Rename Configuration
+
+The `[config.rename]` section tunes rename behaviour.
+
+- `chain_rpc_request_response` (default `false`): when enabled, renaming an `rpc`
+  also renames its convention-named `<Rpc>Request` and `<Rpc>Response` messages —
+  and renaming such a message renames the `rpc` and its sibling message. The chain
+  only fires when the names follow the [Google API design guide](https://cloud.google.com/apis/design/naming_convention#request_and_response_messages)
+  convention and the messages are used by exactly one `rpc`.
 
 ---
 

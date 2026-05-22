@@ -288,9 +288,21 @@ impl ProtoLanguageServer {
             .work_done_token
             .map(|token| self.with_report_progress(token));
 
-        let ops = self
-            .state
-            .compute_rename_ops(&decl_uri, decl_pos, &new_name, &ipath);
+        // The rpc/request/response chain rename is opt-in via the workspace's
+        // `[config.rename]` settings; without a config it stays off.
+        let chain_rpc_request_response = self
+            .configs
+            .get_config_for_uri(&uri)
+            .map(|c| c.config.rename.chain_rpc_request_response)
+            .unwrap_or_default();
+
+        let ops = self.state.compute_rename_ops(
+            &decl_uri,
+            decl_pos,
+            &new_name,
+            &ipath,
+            chain_rpc_request_response,
+        );
         let Some(all_edits) = self
             .state
             .apply_rename_ops(&ops, workspace_path, progress_sender)

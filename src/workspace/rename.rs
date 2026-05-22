@@ -193,19 +193,26 @@ impl ProtoLanguageState {
     /// `decl_uri`/`decl_pos` must already point at the *declaration* of the
     /// symbol being renamed — the caller is responsible for pivoting from a
     /// reference site to the declaration before calling this.
+    ///
+    /// `chain_rpc_request_response` gates the rpc/request/response chain: when
+    /// `false`, only the primary op is returned. It is wired to the
+    /// `[config.rename]` `chain_rpc_request_response` setting.
     pub fn compute_rename_ops(
         &self,
         decl_uri: &Url,
         decl_pos: Position,
         new_name: &str,
         ipath: &[PathBuf],
+        chain_rpc_request_response: bool,
     ) -> Vec<RenameOp> {
         let mut ops = vec![RenameOp {
             uri: decl_uri.clone(),
             pos: decl_pos,
             new_name: new_name.to_owned(),
         }];
-        ops.extend(self.compute_chain_siblings(decl_uri, decl_pos, new_name, ipath));
+        if chain_rpc_request_response {
+            ops.extend(self.compute_chain_siblings(decl_uri, decl_pos, new_name, ipath));
+        }
         ops
     }
 
@@ -651,7 +658,7 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&foo_uri, pos, "FetchBookRequest", &ipath);
+        let ops = state.compute_rename_ops(&foo_uri, pos, "FetchBookRequest", &ipath, true);
 
         // Primary + foo's rpc + foo's response. bar's GetBook is NOT touched.
         assert_eq!(ops.len(), 3, "expected exactly the foo trio, got {ops:?}");
@@ -686,7 +693,7 @@ mod test {
             line: 7,
             character: 10,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath);
+        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, true);
 
         // Primary + Request + Response.
         assert_eq!(
@@ -703,6 +710,38 @@ mod test {
             ops[2],
             op("file://input/messages.proto", 5, 8, "FetchBookResponse")
         );
+    }
+
+    #[test]
+    fn test_compute_rename_ops_chain_disabled() {
+        // Same setup as `chain_from_rpc_cursor`, but with the chain flag off:
+        // the rpc/request/response chain is gated behind the `[config.rename]`
+        // `chain_rpc_request_response` setting, so only the primary op fires.
+        let ipath = vec![PathBuf::from("src/workspace/input")];
+        let svc_uri = "file://input/service.proto".parse().unwrap();
+        let state = make_state(
+            &[
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
+            ],
+            &ipath,
+        );
+
+        // Cursor on the `GetBook` rpc name (line 7, col 8..15).
+        let pos = Position {
+            line: 7,
+            character: 10,
+        };
+        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, false);
+
+        assert_eq!(ops.len(), 1, "expected primary-only (chain off), got {ops:?}");
+        assert_eq!(ops[0], op("file://input/service.proto", 7, 10, "FetchBook"));
     }
 
     #[test]
@@ -728,7 +767,7 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "FetchBookRequest", &ipath);
+        let ops = state.compute_rename_ops(&msg_uri, pos, "FetchBookRequest", &ipath, true);
 
         // Primary (request) + rpc + response.
         assert_eq!(
@@ -771,7 +810,7 @@ mod test {
             line: 10,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "RenamedReq", &ipath);
+        let ops = state.compute_rename_ops(&msg_uri, pos, "RenamedReq", &ipath, true);
         assert_eq!(
             ops.len(),
             1,
@@ -807,7 +846,7 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "Whatever", &ipath);
+        let ops = state.compute_rename_ops(&msg_uri, pos, "Whatever", &ipath, true);
         assert_eq!(
             ops.len(),
             1,
@@ -845,7 +884,7 @@ mod test {
             line: 7,
             character: 20,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "RenamedRequest", &ipath);
+        let ops = state.compute_rename_ops(&svc_uri, pos, "RenamedRequest", &ipath, true);
         // Single op (the primary at the reference site) — no chain. This
         // documents the contract: the LSP layer must pivot first.
         assert_eq!(ops.len(), 1, "{ops:?}");
@@ -884,7 +923,7 @@ mod test {
             line: 7,
             character: 10,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath);
+        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, true);
         let edits = state
             .apply_rename_ops(&ops, PathBuf::from("src/workspace/input"), None)
             .expect("primary rename should not fail");

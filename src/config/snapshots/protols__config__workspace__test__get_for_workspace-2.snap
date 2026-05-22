@@ -7,3 +7,5 @@ config:
   path:
     clang_format: clang-format
     protoc: protoc
+  rename:
+    chain_rpc_request_response: false
