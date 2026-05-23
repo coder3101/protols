@@ -740,7 +740,11 @@ mod test {
         };
         let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, false);
 
-        assert_eq!(ops.len(), 1, "expected primary-only (chain off), got {ops:?}");
+        assert_eq!(
+            ops.len(),
+            1,
+            "expected primary-only (chain off), got {ops:?}"
+        );
         assert_eq!(ops[0], op("file://input/service.proto", 7, 10, "FetchBook"));
     }
 

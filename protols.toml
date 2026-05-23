@@ -1,2 +1,5 @@
 [config]
 include_paths = ["src/workspace/input"]
+
+[config.rename]
+chain_rpc_request_response = true
