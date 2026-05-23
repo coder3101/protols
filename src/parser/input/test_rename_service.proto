@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.parser;
+
+message Empty {}
+
+message Book {
+    string title = 1;
+}
+
+service Library {
+    rpc GetBook(Empty) returns (Book);
+    rpc ListBooks(Empty) returns (Book);
+}

@@ -1,0 +1,12 @@
+---
+source: src/parser/rename.rs
+expression: "rename_fn(\"CRIMSON\", &pos_enum_value)"
+---
+- range:
+    start:
+      line: 5
+      character: 4
+    end:
+      line: 5
+      character: 7
+  newText: CRIMSON

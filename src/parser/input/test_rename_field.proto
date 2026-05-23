@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package com.parser;
+
+enum Color {
+    RED = 0;
+    GREEN = 1;
+}
+
+message Author {
+    string name = 1;
+}
+
+message Book {
+    string title = 1;
+    Author author = 2;
+    map<string, int32> counts = 3;
+    oneof body {
+        string text = 4;
+        bytes blob = 5;
+    }
+}

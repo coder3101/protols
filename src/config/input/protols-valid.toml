@@ -4,3 +4,6 @@ include_paths = ["foobar", "bazbaaz"]
 [config.path]
 protoc = "/usr/bin/protoc"
 clang_format = "/usr/bin/clang-format"
+
+[config.rename]
+chain_rpc_request_response = true

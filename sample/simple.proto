@@ -51,6 +51,7 @@ service BookService {
   rpc GetBooksViaAuthor(GetBookViaAuthor) returns (stream Book) {}
   rpc GetGreatestBook(stream GetBookRequest) returns (Book) {}
   rpc GetBooks(stream GetBookRequest) returns (stream Book) {}
+  rpc ReadBook(ReadBookRequest) returns (ReadBookResponse) {}
 }
 
 message BookStore {
@@ -60,6 +61,9 @@ message BookStore {
   map<int64, string> books = 3;
   EnumSample sample = 4;
 }
+
+message ReadBookRequest {}
+message ReadBookResponse {}
 
 // These are enum options representing some operation in the proto
 // these are meant to be ony called from one place,

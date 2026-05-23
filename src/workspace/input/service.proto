@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.workspace;
+
+import "messages.proto";
+
+service Library {
+    rpc GetBook(GetBookRequest) returns (GetBookResponse);
+    rpc Frob(FrobRequest) returns (Bar);
+    rpc ListA(SharedReq) returns (SharedResp);
+    rpc ListB(SharedReq) returns (SharedResp);
+}

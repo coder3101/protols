@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package com.foo;
+
+message GetBookRequest {}
+message GetBookResponse {}
+
+service Library {
+    rpc GetBook(GetBookRequest) returns (GetBookResponse);
+}

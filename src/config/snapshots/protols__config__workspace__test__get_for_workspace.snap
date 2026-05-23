@@ -9,3 +9,5 @@ config:
   path:
     clang_format: /usr/bin/clang-format
     protoc: /usr/bin/protoc
+  rename:
+    chain_rpc_request_response: true

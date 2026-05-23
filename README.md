@@ -32,6 +32,7 @@
   - [Configuration Sections](#configuration-sections)
     - [Basic Configuration](#basic-configuration)
     - [Path Configuration](#path-configuration)
+    - [Rename Configuration](#rename-configuration)
 - [Usage](#-usage)
   - [Code Completion](#code-completion)
   - [Diagnostics](#diagnostics)
@@ -170,6 +171,9 @@ include_paths = ["foobar", "bazbaaz"] # Include paths to look for protofiles dur
 [config.path]
 clang_format = "clang-format"
 protoc = "protoc"
+
+[config.rename]
+chain_rpc_request_response = false # Also rename <Rpc>Request/<Rpc>Response messages when renaming an rpc
 ```
 
 ### Configuration Sections
@@ -196,6 +200,16 @@ The `[config.path]` section contains path for various tools used by LSP.
 
 - `clang_format`: Uses clang_format from this path for formatting
 - `protoc`: Uses protoc from this path for diagnostics
+
+#### Rename Configuration
+
+The `[config.rename]` section tunes rename behaviour.
+
+- `chain_rpc_request_response` (default `false`): when enabled, renaming an `rpc`
+  also renames its convention-named `<Rpc>Request` and `<Rpc>Response` messages —
+  and renaming such a message renames the `rpc` and its sibling message. The chain
+  only fires when the names follow the [Google API design guide](https://cloud.google.com/apis/design/naming_convention#request_and_response_messages)
+  convention and the messages are used by exactly one `rpc`.
 
 ---
 
@@ -233,7 +247,9 @@ Hover over any symbol or imports to get detailed documentation and comments asso
 
 ### Rename Symbols
 
-Rename symbols like messages or enums, and Propagate the changes throughout the codebase. Currently, field renaming within symbols is not supported.
+Rename symbols like messages, enums, services and RPC methods, and propagate the changes throughout the codebase. Rename also works when invoked on a type reference (e.g. the request or response type of an `rpc`) — the LSP pivots to the declaration and applies the rename from there. Field names, oneof names, and enum values can also be renamed at their declaration site (single-site rename, since they aren't referenced as types from other `.proto` files).
+
+When an `rpc` follows the `rpc <Name>(<Name>Request) returns (<Name>Response)` convention from the [Google API design guide](https://google.aip.dev/) (AIPs 131–136), renaming any one of the three triggers a chained rename of the other two — but only when (a) the matching message name follows the convention exactly, (b) the request/response is used by exactly one rpc in the workspace, and (c) the user's new name preserves the convention. If any check fails, only the symbol the user invoked rename on is renamed.
 
 ### Find References
 

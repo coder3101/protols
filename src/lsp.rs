@@ -1,5 +1,5 @@
 use std::ops::ControlFlow;
-use std::{collections::HashMap, fs::read_to_string, path::PathBuf};
+use std::{fs::read_to_string, path::PathBuf};
 use tracing::{error, info, warn};
 
 use async_lsp::lsp_types::{
@@ -20,6 +20,7 @@ use async_lsp::{Error, LanguageClient, ResponseError};
 use futures::future::BoxFuture;
 use serde_json::Value;
 
+use crate::context::jumpable::Jumpable;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 use crate::{docs, log};
@@ -244,7 +245,6 @@ impl ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<WorkspaceEdit>, ResponseError>> {
         let uri = params.text_document_position.text_document.uri;
         let pos = params.text_document_position.position;
-
         let new_name = params.new_name;
 
         let Some(tree) = self.state.get_tree(&uri) else {
@@ -253,38 +253,72 @@ impl ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-
         let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
+        let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
 
-        let Some((edit, otext, ntext)) = tree.rename_tree(&pos, &new_name, content.as_bytes())
+        // If the cursor is on a type reference (inside a message_or_enum_type
+        // node), pivot to the declaration and rename from there. The workspace
+        // pass then handles all references — including the one the user is
+        // standing on.
+        let (decl_uri, decl_pos) = match tree.rename_pivot_identifier(&pos, content.as_bytes()) {
+            Some(decl_path) => {
+                let locations =
+                    self.state
+                        .definition(&ipath, current_package, Jumpable::Identifier(decl_path));
+                let Some(decl) = locations.into_iter().next() else {
+                    error!(uri=%uri, "failed to resolve declaration for reference-site rename");
+                    return Box::pin(async move { Ok(None) });
+                };
+                (decl.uri, decl.range.start)
+            }
+            None => (uri.clone(), pos),
+        };
+
+        let Some(workspace) = self.configs.get_workspace_for_uri(&decl_uri) else {
+            error!(uri=%decl_uri, "failed to get workspace");
+            return Box::pin(async move { Ok(None) });
+        };
+        let Ok(workspace_path) = workspace.to_file_path() else {
+            error!(uri=%workspace, "workspace url is not a file path");
+            return Box::pin(async move { Ok(None) });
+        };
+
+        let progress_sender = params
+            .work_done_progress_params
+            .work_done_token
+            .map(|token| self.with_report_progress(token));
+
+        // The rpc/request/response chain rename is opt-in via the workspace's
+        // `[config.rename]` settings; without a config it stays off.
+        let chain_rpc_request_response = self
+            .configs
+            .get_config_for_uri(&uri)
+            .map(|c| c.config.rename.chain_rpc_request_response)
+            .unwrap_or_default();
+
+        let ops = self.state.compute_rename_ops(
+            &decl_uri,
+            decl_pos,
+            &new_name,
+            &ipath,
+            chain_rpc_request_response,
+        );
+        let Some(all_edits) = self
+            .state
+            .apply_rename_ops(&ops, workspace_path, progress_sender)
         else {
-            error!(uri=%uri, "failed to rename in a tree");
+            error!(uri=%decl_uri, "failed to apply primary rename");
             return Box::pin(async move { Ok(None) });
         };
 
-        let Some(workspace) = self.configs.get_workspace_for_uri(&uri) else {
-            error!(uri=%uri, "failed to get workspace");
-            return Box::pin(async move { Ok(None) });
+        let response = if all_edits.is_empty() {
+            None
+        } else {
+            Some(WorkspaceEdit {
+                changes: Some(all_edits),
+                ..Default::default()
+            })
         };
-
-        let work_done_token = params.work_done_progress_params.work_done_token;
-        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
-
-        let mut h = HashMap::new();
-        h.extend(self.state.rename_fields(
-            current_package,
-            &otext,
-            &ntext,
-            workspace.to_file_path().unwrap(),
-            progress_sender,
-        ));
-
-        h.entry(tree.uri).or_insert(edit.clone()).extend(edit);
-
-        let response = Some(WorkspaceEdit {
-            changes: Some(h),
-            ..Default::default()
-        });
 
         Box::pin(async move { Ok(response) })
     }

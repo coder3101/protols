@@ -36,6 +36,12 @@ pub fn is_inner_identifier(s: &str) -> bool {
     s.split('.').all(is_title_case)
 }
 
+/// Returns the segment after the last `.` in a dotted identifier, or the whole
+/// string if it contains no dot.
+pub fn trailing_segment(qualified: &str) -> &str {
+    qualified.rsplit_once('.').map_or(qualified, |(_, t)| t)
+}
+
 pub fn split_identifier_package(s: &str) -> (&str, &str) {
     let s = s.trim_start_matches(".");
     if is_inner_identifier(s) || !s.contains('.') {
@@ -59,7 +65,16 @@ pub fn split_identifier_package(s: &str) -> (&str, &str) {
 
 #[cfg(test)]
 mod test {
-    use crate::utils::{is_inner_identifier, split_identifier_package};
+    use crate::utils::{is_inner_identifier, split_identifier_package, trailing_segment};
+
+    #[test]
+    fn test_trailing_segment() {
+        assert_eq!(trailing_segment("Foo"), "Foo");
+        assert_eq!(trailing_segment("foo.Bar"), "Bar");
+        assert_eq!(trailing_segment("foo.bar.Baz"), "Baz");
+        assert_eq!(trailing_segment(".foo.Bar"), "Bar");
+        assert_eq!(trailing_segment(""), "");
+    }
 
     #[test]
     fn test_is_inner_identifier() {

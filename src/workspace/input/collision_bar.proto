@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package com.bar;
+
+message ListReq {}
+message ListResp {}
+
+service Other {
+    rpc GetBook(ListReq) returns (ListResp);
+}

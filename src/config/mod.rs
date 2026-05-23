@@ -21,6 +21,7 @@ pub struct ProtolsConfig {
 pub struct Config {
     pub include_paths: Vec<String>,
     pub path: PathConfig,
+    pub rename: RenameConfig,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -37,4 +38,15 @@ impl Default for PathConfig {
             protoc: default_protoc_path(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(default)]
+pub struct RenameConfig {
+    /// When renaming an `rpc`, also rename its convention-named
+    /// `<Rpc>Request` / `<Rpc>Response` messages — and, when renaming such a
+    /// message, the `rpc` and its sibling message. Opt-in: defaults to `false`
+    /// since not every codebase follows the `<Rpc>Request`/`Response` naming
+    /// convention.
+    pub chain_rpc_request_response: bool,
 }
