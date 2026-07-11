@@ -65,7 +65,63 @@ pub fn split_identifier_package(s: &str) -> (&str, &str) {
 
 #[cfg(test)]
 mod test {
-    use crate::utils::{is_inner_identifier, split_identifier_package, trailing_segment};
+    use crate::utils::{
+        is_inner_identifier, lsp_to_ts_point, split_identifier_package, trailing_segment,
+        ts_to_lsp_position,
+    };
+    use async_lsp::lsp_types::Position;
+    use tree_sitter::Point;
+
+    #[test]
+    fn test_ts_to_lsp_position() {
+        let p = Point { row: 5, column: 10 };
+        let pos = ts_to_lsp_position(&p);
+        assert_eq!(pos.line, 5);
+        assert_eq!(pos.character, 10);
+    }
+
+    #[test]
+    fn test_lsp_to_ts_point() {
+        let pos = Position {
+            line: 3,
+            character: 7,
+        };
+        let p = lsp_to_ts_point(&pos);
+        assert_eq!(p.row, 3);
+        assert_eq!(p.column, 7);
+    }
+
+    #[test]
+    fn test_position_roundtrip() {
+        let original = Point {
+            row: 42,
+            column: 15,
+        };
+        let pos = ts_to_lsp_position(&original);
+        let back = lsp_to_ts_point(&pos);
+        assert_eq!(original, back);
+    }
+
+    #[test]
+    fn test_position_zero() {
+        let p = Point { row: 0, column: 0 };
+        let pos = ts_to_lsp_position(&p);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.character, 0);
+        let back = lsp_to_ts_point(&pos);
+        assert_eq!(p, back);
+    }
+
+    #[test]
+    fn test_position_large_values() {
+        let p = Point {
+            row: 999999,
+            column: 999999,
+        };
+        let pos = ts_to_lsp_position(&p);
+        assert_eq!(pos.line, 999999);
+        assert_eq!(pos.character, 999999);
+    }
 
     #[test]
     fn test_trailing_segment() {
@@ -105,5 +161,42 @@ mod test {
         assert_eq!(split_identifier_package("Book"), ("", "Book"));
         assert_eq!(split_identifier_package("Book.Author"), ("", "Book.Author"));
         assert_eq!(split_identifier_package("com.book"), ("com.book", ""));
+    }
+
+    #[test]
+    fn test_split_identifier_package_single_segment_package() {
+        assert_eq!(split_identifier_package("foo.Bar"), ("foo", "Bar"));
+        assert_eq!(split_identifier_package("a.B.C"), ("a", "B.C"));
+    }
+
+    #[test]
+    fn test_split_identifier_package_leading_dot() {
+        assert_eq!(split_identifier_package(".foo.bar.Baz"), ("foo.bar", "Baz"));
+        assert_eq!(split_identifier_package(".Bar"), ("", "Bar"));
+    }
+
+    #[test]
+    fn test_split_identifier_package_all_lowercase() {
+        assert_eq!(
+            split_identifier_package("com.example.package"),
+            ("com.example.package", "")
+        );
+    }
+
+    #[test]
+    fn test_split_identifier_package_all_uppercase() {
+        assert_eq!(split_identifier_package("Foo.Bar"), ("", "Foo.Bar"));
+    }
+
+    #[test]
+    fn test_split_identifier_package_mixed_case_segments() {
+        assert_eq!(
+            split_identifier_package("my.pkg.MyMessage"),
+            ("my.pkg", "MyMessage")
+        );
+        assert_eq!(
+            split_identifier_package("org.example.api.V1.Request"),
+            ("org.example.api", "V1.Request")
+        );
     }
 }

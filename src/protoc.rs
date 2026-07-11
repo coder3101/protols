@@ -47,6 +47,7 @@ impl ProtocDiagnostics {
         }
     }
 
+    // Visible for testing
     fn parse_protoc_output(&self, output: &str) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -80,5 +81,78 @@ impl ProtocDiagnostics {
         }
 
         diagnostics
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_parse_protoc_output_single_error() {
+        let d = ProtocDiagnostics::new();
+        let output = "foo.proto:5:3: Expected field name.\n";
+        let diags = d.parse_protoc_output(output);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].message, "Expected field name.");
+        assert_eq!(diags[0].source, Some("protoc".to_string()));
+        assert_eq!(diags[0].severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(diags[0].range.start.line, 4);
+        assert_eq!(diags[0].range.start.character, 2);
+        assert_eq!(diags[0].range.end.line, 4);
+        assert_eq!(diags[0].range.end.character, 3);
+    }
+
+    #[test]
+    fn test_parse_protoc_output_multiple_errors() {
+        let d = ProtocDiagnostics::new();
+        let output = "a.proto:1:1: Syntax error.\nb.proto:2:3: Unknown type.\n";
+        let diags = d.parse_protoc_output(output);
+        assert_eq!(diags.len(), 2);
+        assert_eq!(diags[0].message, "Syntax error.");
+        assert_eq!(diags[1].message, "Unknown type.");
+    }
+
+    #[test]
+    fn test_parse_protoc_output_empty() {
+        let d = ProtocDiagnostics::new();
+        assert!(d.parse_protoc_output("").is_empty());
+    }
+
+    #[test]
+    fn test_parse_protoc_output_malformed_line() {
+        let d = ProtocDiagnostics::new();
+        let output = "not a valid protoc error line\n";
+        let diags = d.parse_protoc_output(output);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_parse_protoc_output_partial_format() {
+        let d = ProtocDiagnostics::new();
+        // Missing column number
+        let output = "foo.proto:5: Expected field name.\n";
+        let diags = d.parse_protoc_output(output);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_parse_protoc_output_non_numeric_line_col() {
+        let d = ProtocDiagnostics::new();
+        let output = "foo.proto:abc:def: some message\n";
+        let diags = d.parse_protoc_output(output);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_parse_protoc_output_message_with_colons() {
+        let d = ProtocDiagnostics::new();
+        let output = "foo.proto:3:1: 'Foo' is not defined. It could be a typo for 'Bar'.\n";
+        let diags = d.parse_protoc_output(output);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(
+            diags[0].message,
+            "'Foo' is not defined. It could be a typo for 'Bar'."
+        );
     }
 }
