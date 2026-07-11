@@ -339,17 +339,21 @@ impl ProtoLanguageState {
     }
 
     pub fn rename_file(&mut self, new_uri: &Url, old_uri: &Url) {
-        info!(%new_uri, %new_uri, "renaming file");
+        info!(%new_uri, %old_uri, "renaming file");
 
-        if let Some(v) = self.documents.write().expect("poison").remove(old_uri) {
+        let content = self.documents.write().expect("poison").remove(old_uri);
+        if let Some(v) = content {
             self.documents
                 .write()
                 .expect("poison")
                 .insert(new_uri.clone(), v);
         }
 
-        if let Some(mut v) = self.trees.write().expect("poison").remove(old_uri) {
+        let mut tree = self.trees.write().expect("poison").remove(old_uri);
+        if let Some(ref mut v) = tree {
             v.uri = new_uri.clone();
+        }
+        if let Some(v) = tree {
             self.trees
                 .write()
                 .expect("poison")
@@ -382,5 +386,301 @@ impl ProtoLanguageState {
         result.sort_by_key(|k| k.label.clone());
         result.dedup_by_key(|k| k.label.clone());
         result
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use async_lsp::lsp_types::Url;
+    use std::path::PathBuf;
+
+    fn uri(s: &str) -> Url {
+        Url::parse(s).unwrap()
+    }
+
+    fn setup_state() -> ProtoLanguageState {
+        let mut state = ProtoLanguageState::new();
+        let ipath: &[PathBuf] = &[];
+
+        state.upsert_content(
+            &uri("file:///test.proto"),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { string title = 1; }\nenum Color { RED = 0; }\n".into(),
+            ipath,
+            1,
+        );
+        state.upsert_content(
+            &uri("file:///other.proto"),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Author { string name = 1; }\n".into(),
+            ipath,
+            1,
+        );
+        state.upsert_content(
+            &uri("file:///diff.proto"),
+            "syntax = \"proto3\";\npackage com.other;\nmessage Foo { int32 bar = 1; }\n".into(),
+            ipath,
+            1,
+        );
+        state
+    }
+
+    #[test]
+    fn test_get_content() {
+        let state = setup_state();
+        assert_eq!(
+            state.get_content(&uri("file:///test.proto")),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { string title = 1; }\nenum Color { RED = 0; }\n"
+        );
+        assert_eq!(state.get_content(&uri("file:///nonexistent.proto")), "");
+    }
+
+    #[test]
+    fn test_get_tree() {
+        let state = setup_state();
+        assert!(state.get_tree(&uri("file:///test.proto")).is_some());
+        assert!(state.get_tree(&uri("file:///nonexistent.proto")).is_none());
+    }
+
+    #[test]
+    fn test_get_trees() {
+        let state = setup_state();
+        let trees = state.get_trees();
+        assert_eq!(trees.len(), 3);
+    }
+
+    #[test]
+    fn test_get_trees_for_package() {
+        let state = setup_state();
+        let test_trees = state.get_trees_for_package("com.test");
+        assert_eq!(test_trees.len(), 2);
+
+        let other_trees = state.get_trees_for_package("com.other");
+        assert_eq!(other_trees.len(), 1);
+
+        let empty_trees = state.get_trees_for_package("com.nonexistent");
+        assert!(empty_trees.is_empty());
+    }
+
+    #[test]
+    fn test_completion_items() {
+        let state = setup_state();
+        let items = state.completion_items("com.test");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"Book"));
+        assert!(labels.contains(&"Color"));
+        assert!(labels.contains(&"Author"));
+        assert!(!labels.contains(&"Foo"));
+
+        let other_items = state.completion_items("com.other");
+        let other_labels: Vec<&str> = other_items.iter().map(|i| i.label.as_str()).collect();
+        assert!(other_labels.contains(&"Foo"));
+        assert!(!other_labels.contains(&"Book"));
+    }
+
+    #[test]
+    fn test_completion_items_empty_package() {
+        let state = setup_state();
+        let items = state.completion_items("com.nonexistent");
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_find_workspace_symbols_empty_query() {
+        let state = setup_state();
+        let symbols = state.find_workspace_symbols("");
+        let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"Book"));
+        assert!(names.contains(&"Author"));
+        assert!(names.contains(&"Color"));
+        assert!(names.contains(&"Foo"));
+    }
+
+    #[test]
+    fn test_find_workspace_symbols_partial_query() {
+        let state = setup_state();
+        let symbols = state.find_workspace_symbols("oo");
+        let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"Book"));
+        assert!(names.contains(&"Foo"));
+        assert!(!names.contains(&"Author"));
+    }
+
+    #[test]
+    fn test_find_workspace_symbols_case_insensitive() {
+        let state = setup_state();
+        let symbols = state.find_workspace_symbols("book");
+        let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"Book"));
+    }
+
+    #[test]
+    fn test_find_workspace_symbols_no_match() {
+        let state = setup_state();
+        let symbols = state.find_workspace_symbols("zzzzz");
+        assert!(symbols.is_empty());
+    }
+
+    #[test]
+    fn test_delete_file() {
+        let mut state = setup_state();
+        let test_uri = uri("file:///test.proto");
+        assert!(state.get_tree(&test_uri).is_some());
+        state.delete_file(&test_uri);
+        assert!(state.get_tree(&test_uri).is_none());
+        assert_eq!(state.get_content(&test_uri), "");
+    }
+
+    #[test]
+    fn test_rename_file() {
+        let mut state = setup_state();
+        let old_uri = uri("file:///test.proto");
+        let new_uri = uri("file:///renamed.proto");
+
+        assert!(state.get_tree(&old_uri).is_some());
+        assert!(state.get_tree(&new_uri).is_none());
+
+        state.rename_file(&new_uri, &old_uri);
+
+        assert!(state.get_tree(&old_uri).is_none());
+        assert!(state.get_tree(&new_uri).is_some());
+        assert_eq!(
+            state.get_content(&new_uri),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { string title = 1; }\nenum Color { RED = 0; }\n"
+        );
+    }
+
+    #[test]
+    fn test_upsert_content_tracks_unresolved_imports() {
+        let mut state = ProtoLanguageState::new();
+        let ipath: &[PathBuf] = &[];
+        let unresolved = state.upsert_content(
+            &uri("file:///importing.proto"),
+            "syntax = \"proto3\";\nimport \"nonexistent.proto\";\npackage com.test;\n".into(),
+            ipath,
+            1,
+        );
+        assert_eq!(unresolved, vec!["nonexistent.proto"]);
+    }
+
+    #[test]
+    fn test_upsert_content_resolved_imports() {
+        let mut state = ProtoLanguageState::new();
+        let dir = tempfile::tempdir().unwrap();
+        let dep_path = dir.path().join("dep.proto");
+        std::fs::write(&dep_path, "syntax = \"proto3\";\npackage com.dep;\n").unwrap();
+        let ipath = vec![dir.path().to_path_buf()];
+
+        let unresolved = state.upsert_content(
+            &uri("file:///main.proto"),
+            "syntax = \"proto3\";\nimport \"dep.proto\";\npackage com.main;\n".into(),
+            &ipath,
+            1,
+        );
+        assert!(unresolved.is_empty());
+        assert!(state.get_tree(&uri("file:///main.proto")).is_some());
+    }
+
+    #[test]
+    fn test_upsert_content_depth_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let a_path = dir.path().join("a.proto");
+        let b_path = dir.path().join("b.proto");
+        std::fs::write(
+            &a_path,
+            "syntax = \"proto3\";\nimport \"b.proto\";\npackage com.a;\n",
+        )
+        .unwrap();
+        std::fs::write(
+            &b_path,
+            "syntax = \"proto3\";\nimport \"a.proto\";\npackage com.b;\n",
+        )
+        .unwrap();
+        let ipath = vec![dir.path().to_path_buf()];
+
+        // depth=0 should not parse anything
+        let mut state0 = ProtoLanguageState::new();
+        state0.upsert_content(
+            &uri("file:///a.proto"),
+            std::fs::read_to_string(&a_path).unwrap(),
+            &ipath,
+            0,
+        );
+        assert!(state0.get_tree(&uri("file:///a.proto")).is_none());
+
+        // depth=1 should parse a.proto but not follow imports
+        let mut state1 = ProtoLanguageState::new();
+        state1.upsert_content(
+            &uri("file:///a.proto"),
+            std::fs::read_to_string(&a_path).unwrap(),
+            &ipath,
+            1,
+        );
+        assert!(state1.get_tree(&uri("file:///a.proto")).is_some());
+        assert!(state1.get_tree(&uri("file:///b.proto")).is_none());
+    }
+
+    #[test]
+    fn test_parse_all_from_workspace() {
+        let mut state = ProtoLanguageState::new();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("a.proto"),
+            "syntax = \"proto3\";\npackage com.a;\nmessage A {}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("b.proto"),
+            "syntax = \"proto3\";\npackage com.b;\nmessage B {}\n",
+        )
+        .unwrap();
+        // Non-proto file should be ignored
+        std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
+
+        state.parse_all_from_workspace(dir.path().to_path_buf(), None);
+        assert_eq!(state.get_trees().len(), 2);
+
+        // Second call should be idempotent
+        state.parse_all_from_workspace(dir.path().to_path_buf(), None);
+        assert_eq!(state.get_trees().len(), 2);
+    }
+
+    #[test]
+    fn test_upsert_file_returns_diagnostics() {
+        let mut state = ProtoLanguageState::new();
+        let ipath: &[PathBuf] = &[];
+        let result = state.upsert_file(
+            &uri("file:///test.proto"),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book {}\n".into(),
+            ipath,
+            1,
+            &Config::default(),
+            false,
+        );
+        assert!(result.is_some());
+        let params = result.unwrap();
+        assert_eq!(params.uri.as_str(), "file:///test.proto");
+        // Should have no diagnostics for valid proto
+        assert!(params.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_upsert_file_returns_parse_diagnostics() {
+        let mut state = ProtoLanguageState::new();
+        let ipath: &[PathBuf] = &[];
+        let result = state.upsert_file(
+            &uri("file:///bad.proto"),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { invalid syntax here }\n"
+                .into(),
+            ipath,
+            1,
+            &Config::default(),
+            false,
+        );
+        assert!(result.is_some());
+        let params = result.unwrap();
+        assert!(
+            !params.diagnostics.is_empty(),
+            "expected parse diagnostics for invalid proto"
+        );
     }
 }
