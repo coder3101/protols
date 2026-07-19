@@ -1,117 +1,130 @@
-use std::path::{Path, PathBuf};
+use async_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Position, Url};
 
-use async_lsp::lsp_types::{MarkupContent, MarkupKind};
-
-use crate::{
-    context::hoverable::Hoverables, docs, state::ProtoLanguageState,
-    utils::split_identifier_package,
-};
-
-fn format_import_path_hover_text(path: &str, p: &Path) -> String {
-    format!(
-        r#"Import: `{path}` protobuf file,
----
-Included from {}"#,
-        p.to_string_lossy()
-    )
-}
-
-fn format_identifier_hover_text(identifier: &str, package: &str, result: &str) -> String {
-    format!(
-        r#"`{identifier}` message or enum type, package: `{package}`
----
-{result}"#
-    )
-}
+use crate::model::{ElementKind, ModelElement, SpatialEntry};
+use crate::parser::ParsedTree;
+use crate::state::ProtoLanguageState;
+use crate::utils::{is_position_inside_range, split_identifier_package};
 
 impl ProtoLanguageState {
-    pub fn hover(
-        &self,
-        ipath: &[PathBuf],
-        curr_package: &str,
-        hv: Hoverables,
-    ) -> Option<MarkupContent> {
-        let v = match hv {
-            Hoverables::FieldType(field) => docs::BUITIN
-                .get(field.as_str())
-                .map(ToString::to_string)
-                .unwrap_or_default(),
+    /// Dispatches a hover query, returning a formatted markdown tooltip and the
+    /// highlighted text range.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(Hover)` containing the unified markdown payload, or `None`
+    /// if the token carries no hoverable metadata.
+    pub fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
+        let current_tree = self.get_tree(uri)?;
 
-            Hoverables::ImportPath(path) => ipath
-                .iter()
-                .map(|p| p.join(&path))
-                .find(|p| p.exists())
-                .map(|p| format_import_path_hover_text(&path, &p))
-                .unwrap_or_default(),
+        let SpatialEntry { element_id, range } =
+            current_tree.find_entry_at_position(position).copied()?;
+        let element = current_tree.elements.get(element_id)?;
 
-            Hoverables::Identifier(identifier) => {
-                let (mut package, identifier) = split_identifier_package(identifier.as_str());
-                if package.is_empty() {
-                    package = curr_package;
-                }
+        let value = element.to_hover_markdown(position).or_else(|| {
+            element
+                .inspect_nested_type_reference(position)
+                .and_then(|type_name| self.resolve_package_bound_type(&current_tree, type_name))
+        })?;
 
-                // Identifier is user defined type or well known type
-
-                // If well known types, check in wellknown docs,
-                // otherwise check in trees
-                match docs::WELLKNOWN
-                    .get(format!("{package}.{identifier}").as_str())
-                    .map(|&s| s.to_string())
-                {
-                    Some(res) => res,
-                    None => {
-                        let mut trees = vec![];
-
-                        // If package != curr_package, either identifier is from a completely new package
-                        // or relative package from within. As per name resolution first resolve relative
-                        // packages, add all relative trees in search list
-                        if curr_package != package {
-                            let fullpackage = format!("{curr_package}.{package}");
-                            trees.append(&mut self.get_trees_for_package(&fullpackage));
-                        }
-
-                        // Add all direct package trees
-                        trees.append(&mut self.get_trees_for_package(package));
-
-                        // Find the first field hovered in the trees
-                        let res = trees.iter().find_map(|tree| {
-                            let content = self.get_content(&tree.uri);
-                            let res = tree.hover(identifier, content);
-                            if res.is_empty() {
-                                None
-                            } else {
-                                Some(res[0].clone())
-                            }
-                        });
-
-                        // Format the hover text and return
-                        // TODO: package here is literally what was hovered, incase of
-                        // relative it is only the relative part, should be full path, should
-                        // probably figure out the package from the tree which provides hover and
-                        // pass here.
-                        res.map(|r| format_identifier_hover_text(identifier, package, &r))
-                            .unwrap_or_default()
-                    }
-                }
-            }
-        };
-
-        match v {
-            v if v.is_empty() => None,
-            v => Some(MarkupContent {
+        Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: v,
+                value,
             }),
+            range: Some(range),
+        })
+    }
+
+    /// Semi-dynamic, package-bound fallback mechanism designed to resolve type signatures
+    /// within adjacent schemas matching the target namespace bounds.
+    ///
+    /// # Note
+    ///
+    /// <https://github.com/coder3101/protols/issues/130>
+    ///
+    /// This implementation relies on suffix-based matching and loose scope stitching
+    /// as an interim Phase 1 strategy. It is scheduled to be completely replaced by a strict,
+    /// index-backed Cross-File Name Resolution engine during Phase 3 of development.
+    fn resolve_package_bound_type(
+        &self,
+        current_tree: &ParsedTree,
+        type_name: &str,
+    ) -> Option<String> {
+        let (mut package, id_name) = split_identifier_package(type_name);
+        let curr_package = &current_tree.package;
+
+        if package.is_empty() {
+            package = curr_package.as_str();
+        }
+
+        let mut candidate_trees = vec![];
+
+        // Evaluate and resolve relative namespace cascading rules
+        if curr_package != package {
+            let root_segment = curr_package.split('.').next().unwrap_or_default();
+
+            // Avoid generating redundant combinations if the signature is already fully-qualified
+            if root_segment.is_empty() || !package.starts_with(root_segment) {
+                let full_package = format!("{curr_package}.{package}");
+                candidate_trees.append(&mut self.get_trees_for_package(&full_package));
+            }
+        }
+
+        // Collect direct package trees mapped to the target namespace
+        candidate_trees.append(&mut self.get_trees_for_package(package));
+
+        // Evaluate FQN trailing intersections across compiled tree scopes
+        candidate_trees
+            .iter()
+            .flat_map(|t| &t.elements)
+            .find(|e| e.kind.fqn().is_some_and(|fqn| fqn.ends_with(id_name)))
+            .and_then(|target| target.to_hover_markdown(target.meta.selection_range.start))
+    }
+}
+
+impl ModelElement {
+    /// Evaluates if the cursor is positioned strictly over an embedded type
+    /// name token, returning its clean un-prefixed string identifier.
+    ///
+    /// This method maps geometric bounds of `TypeReference` entities (like
+    /// field types, map keys, or RPC signatures), ensuring that cardinality
+    /// tokens or stream modifiers do not affect type-level lookups.
+    pub fn inspect_nested_type_reference(&self, position: Position) -> Option<&str> {
+        match &self.kind {
+            ElementKind::Field { type_ref, .. } | ElementKind::OneofField { type_ref, .. } => {
+                is_position_inside_range(position, type_ref.range).then_some(type_ref.name.as_str())
+            }
+            ElementKind::MapField {
+                key_type_ref,
+                value_type_ref,
+                ..
+            } => is_position_inside_range(position, key_type_ref.range)
+                .then_some(key_type_ref.name.as_str())
+                .or_else(|| {
+                    is_position_inside_range(position, value_type_ref.range)
+                        .then_some(value_type_ref.name.as_str())
+                }),
+            ElementKind::Rpc {
+                request_type_ref,
+                response_type_ref,
+                ..
+            } => is_position_inside_range(position, request_type_ref.range)
+                .then_some(request_type_ref.name.as_str())
+                .or_else(|| {
+                    is_position_inside_range(position, response_type_ref.range)
+                        .then_some(response_type_ref.name.as_str())
+                }),
+            _ => None,
         }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use async_lsp::lsp_types::Position;
     use insta::assert_yaml_snapshot;
 
     use crate::config::Config;
-    use crate::context::hoverable::Hoverables;
     use crate::state::ProtoLanguageState;
     #[test]
     fn workspace_test_hover() {
@@ -119,61 +132,82 @@ mod test {
         let a_uri = "file://input/a.proto".parse().unwrap();
         let b_uri = "file://input/b.proto".parse().unwrap();
         let c_uri = "file://input/c.proto".parse().unwrap();
+        let x_uri = "file://input/inner/x.proto".parse().unwrap();
 
         let a = include_str!("input/a.proto");
         let b = include_str!("input/b.proto");
         let c = include_str!("input/c.proto");
+        let x = include_str!("input/inner/x.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
         state.upsert_file(&a_uri, a.to_owned(), &ipath, 3, &Config::default(), false);
         state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default(), false);
         state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default(), false);
+        state.upsert_file(&x_uri, x.to_owned(), &ipath, 2, &Config::default(), false);
 
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::Identifier("google.protobuf.Any".to_string())
+            &a_uri,
+            Position {
+                line: 15,
+                character: 10
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::Identifier("Author".to_string())
+            &a_uri,
+            Position {
+                line: 11,
+                character: 6
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::FieldType("int64".to_string())
+            &b_uri,
+            Position {
+                line: 10,
+                character: 7
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::Identifier("Author.Address".to_string())
+            &a_uri,
+            Position {
+                line: 12,
+                character: 14
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::Identifier("com.utility.Foobar.Baz".to_string())
+            &a_uri,
+            Position {
+                line: 13,
+                character: 16
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.utility",
-            Hoverables::Identifier("Baz".to_string())
+            &c_uri,
+            Position {
+                line: 12,
+                character: 5
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.workspace",
-            Hoverables::Identifier("com.inner.Why".to_string())
+            &a_uri,
+            Position {
+                line: 14,
+                character: 10
+            }
         ));
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.inner",
-            Hoverables::Identifier(".com.inner.secret.SomeSecret".to_string())
+            &x_uri,
+            Position {
+                line: 9,
+                character: 18
+            }
         ));
         // relative path hover
         assert_yaml_snapshot!(state.hover(
-            &ipath,
-            "com.inner",
-            Hoverables::Identifier("secret.SomeSecret".to_string())
-        ))
+            &x_uri,
+            Position {
+                line: 10,
+                character: 4
+            }
+        ));
     }
 }

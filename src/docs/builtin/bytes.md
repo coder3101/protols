@@ -1,5 +1,16 @@
-*bytes* builtin type, A blob of arbitrary bytes.
+`bytes`
 
 ---
-Stores at most 4GB of binary data. Encoded as base64 in JSON.
 
+**Built-in Type**
+
+A blob of arbitrary bytes.
+
+**Details:**
+
+- **Wire format**: Length-delimited.
+- **Capacity**: Stores at most 4 GiB of binary data.
+- **JSON format**: Encoded as a base64 string.
+- **Go type**: `[]byte`
+- **C++ type**: `std::string`
+- **Rust type**: `::std::vec::Vec<u8>`

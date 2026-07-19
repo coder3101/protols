@@ -1,0 +1,124 @@
+---
+source: src/parser/hover.rs
+expression: results
+---
+- target: "NextGenBook [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.future.NextGenBook\nmessage NextGenBook\n```\n\n---\nFuture-proof message using Protobuf Editions syntax"
+    range:
+      start:
+        line: 5
+        character: 8
+      end:
+        line: 5
+        character: 19
+- target: "global_id [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.global_id\nstring global_id = 1;\n```\n\n---\nIn editions, fields are \"implicit\" by default, no labels needed"
+    range:
+      start:
+        line: 7
+        character: 9
+      end:
+        line: 7
+        character: 18
+- target: "global_id [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 7
+        character: 2
+      end:
+        line: 7
+        character: 8
+- target: "co_author [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.co_author\nstring co_author = 2;\n```\n\n---\nFeatures configure field behavior instead of proto2/proto3 syntax rules"
+    range:
+      start:
+        line: 10
+        character: 9
+      end:
+        line: 10
+        character: 18
+- target: "co_author [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 10
+        character: 2
+      end:
+        line: 10
+        character: 8
+- target: "LegacyStatus [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.LegacyStatus\nenum LegacyStatus\n```\n\n---\nTesting modern closed enum behavior in Editions (features.enum_type =\nCLOSED)"
+    range:
+      start:
+        line: 15
+        character: 7
+      end:
+        line: 15
+        character: 19
+- target: "UNKNOWN [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.LegacyStatus.UNKNOWN\nUNKNOWN = 0;\n```"
+    range:
+      start:
+        line: 17
+        character: 4
+      end:
+        line: 17
+        character: 11
+- target: "ACTIVE [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.LegacyStatus.ACTIVE\nACTIVE = 1;\n```"
+    range:
+      start:
+        line: 18
+        character: 4
+      end:
+        line: 18
+        character: 10
+- target: "tag_list [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.future.NextGenBook.tag_list\nrepeated string tag_list = 3;\n```\n\n---\nRepeated field matching editions specification"
+    range:
+      start:
+        line: 22
+        character: 18
+      end:
+        line: 22
+        character: 26
+- target: "tag_list [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 22
+        character: 11
+      end:
+        line: 22
+        character: 17

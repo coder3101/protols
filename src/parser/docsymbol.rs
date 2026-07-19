@@ -1,121 +1,266 @@
-use async_lsp::lsp_types::{DocumentSymbol, Range};
-use tree_sitter::TreeCursor;
+//! Document Symbol hierarchy compilation layer for protobuf abstract syntax
+//! trees.
+//!
+//! This module translates a flat, vector-backed metamodel registry into a fully
+//! nested, tree-structured representation matching the LSP [`DocumentSymbol`]
+//! specification.
 
-use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
+use async_lsp::lsp_types::{DocumentSymbol, Range, SymbolKind, SymbolTag};
+
+use crate::model::{ElementKind, ElementMeta, ModelElement};
 
 use super::ParsedTree;
 
-#[derive(Default)]
-pub(super) struct DocumentSymbolTreeBuilder {
-    // The stack are things we're still in the process of building/parsing.
-    stack: Vec<(usize, DocumentSymbol)>,
-    // The found are things we've finished processing/parsing, at the top level of the stack.
-    found: Vec<DocumentSymbol>,
-}
-
-impl DocumentSymbolTreeBuilder {
-    pub(super) fn push(&mut self, node: usize, symbol: DocumentSymbol) {
-        self.stack.push((node, symbol));
-    }
-
-    pub(super) fn maybe_pop(&mut self, node: usize) {
-        let should_pop = self.stack.last().is_some_and(|(n, _)| *n == node);
-        if should_pop {
-            let (_, explored) = self.stack.pop().unwrap();
-            if let Some((_, parent)) = self.stack.last_mut() {
-                parent.children.as_mut().unwrap().push(explored);
-            } else {
-                self.found.push(explored);
-            }
+impl From<&ElementKind> for SymbolKind {
+    /// Maps an internal [`ElementKind`] variant directly to its closest
+    /// semantic LSP [`SymbolKind`].
+    fn from(kind: &ElementKind) -> Self {
+        match kind {
+            ElementKind::Import { .. } => Self::MODULE,
+            ElementKind::Message { .. } => Self::STRUCT,
+            ElementKind::Oneof { .. } => Self::OBJECT,
+            ElementKind::Field { .. }
+            | ElementKind::MapField { .. }
+            | ElementKind::OneofField { .. } => Self::FIELD,
+            ElementKind::Enum { .. } => Self::ENUM,
+            ElementKind::EnumValue { .. } => Self::ENUM_MEMBER,
+            ElementKind::Service { .. } => Self::INTERFACE,
+            ElementKind::Rpc { .. } => Self::METHOD,
         }
-    }
-
-    pub(super) fn build(self) -> Vec<DocumentSymbol> {
-        self.found
     }
 }
 
 impl ParsedTree {
-    pub fn find_document_locations(&self, content: impl AsRef<[u8]>) -> Vec<DocumentSymbol> {
-        let mut builder = DocumentSymbolTreeBuilder::default();
-        let content = content.as_ref();
+    /// Compiles a fully resolved hierarchical tree of document symbols from the
+    /// internal flat elements registry.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec<DocumentSymbol>`] sorted in the original top-down text order,
+    /// ready for LSP serialization.
+    pub fn document_symbols(&self) -> Vec<DocumentSymbol> {
+        let mut symbols: Vec<Option<DocumentSymbol>> =
+            self.elements.iter().map(create_document_symbol).collect();
 
-        let mut cursor = self.tree.root_node().walk();
-        self.find_document_locations_inner(&mut builder, &mut cursor, content);
+        let mut root_symbols = Vec::new();
 
-        builder.build()
-    }
+        for (index, element) in self.elements.iter().enumerate().rev() {
+            let Some(mut symbol) = symbols.get_mut(index).and_then(Option::take) else {
+                continue;
+            };
 
-    fn find_document_locations_inner(
-        &self,
-        builder: &mut DocumentSymbolTreeBuilder,
-        cursor: &'_ mut TreeCursor,
-        content: &[u8],
-    ) {
-        loop {
-            let node = cursor.node();
-
-            if NodeKind::is_userdefined(&node) {
-                let name = node.utf8_text(content).unwrap();
-                let kind = NodeKind::to_symbolkind(&node);
-                let detail = self.find_preceding_comments(node.id(), content);
-
-                // Safety: Userdefined nodes usually have a parent as
-                // the document itself.
-                let message = node.parent().unwrap();
-
-                // https://github.com/rust-lang/rust/issues/102777
-                #[allow(deprecated)]
-                let new_symbol = DocumentSymbol {
-                    name: name.to_string(),
-                    detail,
-                    kind,
-                    tags: None,
-                    deprecated: None,
-                    range: Range {
-                        start: ts_to_lsp_position(&message.start_position()),
-                        end: ts_to_lsp_position(&message.end_position()),
-                    },
-                    selection_range: Range {
-                        start: ts_to_lsp_position(&node.start_position()),
-                        end: ts_to_lsp_position(&node.end_position()),
-                    },
-                    children: Some(vec![]),
-                };
-
-                builder.push(message.id(), new_symbol);
+            if let Some(children) = symbol.children.as_mut() {
+                children.reverse();
             }
 
-            if cursor.goto_first_child() {
-                self.find_document_locations_inner(builder, cursor, content);
-                builder.maybe_pop(node.id());
-                cursor.goto_parent();
-            }
+            let Some(parent_id) = element.parent_id else {
+                root_symbols.push(symbol);
+                continue;
+            };
 
-            if !cursor.goto_next_sibling() {
-                break;
+            let Some(parent_symbol) = symbols.get_mut(parent_id).and_then(Option::as_mut) else {
+                root_symbols.push(symbol);
+                continue;
+            };
+
+            if let Some(children) = &mut parent_symbol.children {
+                children.push(symbol);
             }
         }
+
+        root_symbols.into_iter().rev().collect()
     }
+}
+
+/// Factory function to assemble an un-linked [`DocumentSymbol`] instance from a
+/// [`ModelElement`].
+///
+/// This constructor formats the `detail` string field with type references,
+/// unique tags, and streaming prefixes (`→`) to match the display conventions
+/// of modern language servers.
+///
+/// # Folding Range Optimization
+///
+/// If an element is prefixed with adjacent leading docstrings, this method
+/// expands the physical `range` upwards to encompass the start line of the
+/// first comment block. This guarantees that editor code-folding boundaries
+/// cleanly wrap the documentation together with the block body.
+fn create_document_symbol(element: &ModelElement) -> Option<DocumentSymbol> {
+    if matches!(element.kind, ElementKind::Import { .. }) {
+        return None;
+    }
+
+    let detail = match &element.kind {
+        ElementKind::Field {
+            type_ref,
+            cardinality,
+            tag,
+            ..
+        } => {
+            let prefix = cardinality
+                .as_ref()
+                .map(|c| format!("{} ", c.kind))
+                .unwrap_or_default();
+
+            Some(format!("{prefix}{} (tag: {tag})", type_ref.name))
+        }
+        ElementKind::OneofField { type_ref, tag, .. } => {
+            Some(format!("{} (tag: {tag})", type_ref.name))
+        }
+        ElementKind::MapField {
+            key_type_ref,
+            value_type_ref,
+            tag,
+            ..
+        } => Some(format!(
+            "map<{}, {}> (tag: {tag})",
+            key_type_ref.name, value_type_ref.name
+        )),
+        ElementKind::Rpc {
+            request_type_ref,
+            request_stream,
+            response_type_ref,
+            response_stream,
+            ..
+        } => {
+            let request_prefix = request_stream
+                .as_ref()
+                .map(|_| "stream ")
+                .unwrap_or_default();
+            let response_prefix = response_stream
+                .as_ref()
+                .map(|_| "stream ")
+                .unwrap_or_default();
+
+            Some(format!(
+                "{request_prefix}{} → {response_prefix}{}",
+                request_type_ref.name, response_type_ref.name
+            ))
+        }
+        ElementKind::EnumValue { number, .. } => Some(format!("value: {number}")),
+        _ => None,
+    };
+
+    let kind = SymbolKind::from(&element.kind);
+
+    let tags = element
+        .kind
+        .is_deprecated()
+        .then(|| vec![SymbolTag::DEPRECATED]);
+
+    let range = element
+        .meta
+        .documentation
+        .first()
+        .map_or(element.meta.range, |c| Range {
+            start: c.range.start,
+            end: element.meta.range.end,
+        });
+    let ElementMeta {
+        name,
+        selection_range,
+        ..
+    } = &element.meta;
+
+    #[allow(deprecated)]
+    Some(DocumentSymbol {
+        name: name.clone(),
+        detail,
+        kind,
+        tags,
+        range,
+        selection_range: *selection_range,
+        children: Some(Vec::new()),
+        deprecated: None,
+    })
 }
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::Url;
+    use async_lsp::lsp_types::{DocumentSymbol, Url};
     use insta::assert_yaml_snapshot;
 
-    use crate::parser::ProtoParser;
+    use crate::config::Config;
+    use crate::state::ProtoLanguageState;
+
+    fn run_symbols_test(contents: &str, file_name: &str) -> Vec<DocumentSymbol> {
+        let uri = Url::parse(&format!("file:///virtual/{file_name}")).unwrap();
+        let ipath = vec![];
+
+        let mut state = ProtoLanguageState::new();
+        state.upsert_file(
+            &uri,
+            contents.to_string(),
+            &ipath,
+            3,
+            &Config::default(),
+            false,
+        );
+
+        state
+            .get_tree(&uri)
+            .map(|tree| tree.document_symbols())
+            .unwrap_or_default()
+    }
 
     #[test]
-    #[allow(deprecated)]
-    fn test_document_symbols() {
-        let uri: Url = "file://foo/bar/pro.proto".parse().unwrap();
-        let contents = include_str!("input/test_document_symbols.proto");
+    fn test_proto2_document_symbols() {
+        let contents = include_str!("input/syntax_variants/test_proto2.proto");
+        let symbols = run_symbols_test(contents, "test_proto2.proto");
+        assert_yaml_snapshot!("test_proto2_document_symbols", symbols);
+    }
 
-        let parsed = ProtoParser::new().parse(uri.clone(), contents);
-        assert!(parsed.is_some());
+    #[test]
+    fn test_proto3_document_symbols() {
+        let contents = include_str!("input/syntax_variants/test_proto3.proto");
+        let symbols = run_symbols_test(contents, "test_proto3.proto");
+        assert_yaml_snapshot!("test_proto3_document_symbols", symbols);
+    }
 
-        let tree = parsed.unwrap();
-        assert_yaml_snapshot!(tree.find_document_locations(contents));
+    #[test]
+    fn test_editions_document_symbols() {
+        let contents = include_str!("input/syntax_variants/test_editions.proto");
+        let symbols = run_symbols_test(contents, "test_editions.proto");
+        assert_yaml_snapshot!("test_editions_document_symbols", symbols);
+    }
+
+    #[test]
+    fn test_package_duplicate_document_symbols() {
+        let contents = include_str!("input/syntax_variants/test_package_duplicate.proto");
+        let symbols = run_symbols_test(contents, "test_package_duplicate.proto");
+        assert_yaml_snapshot!("test_package_duplicate_document_symbols", symbols);
+    }
+
+    #[test]
+    fn test_document_symbols_on_empty_and_minimal_file_safety() {
+        let uri = Url::parse("file:///virtual/empty_test.proto").unwrap();
+        let ipath = vec![];
+
+        let mut state = ProtoLanguageState::new();
+        state.upsert_file(&uri, String::new(), &ipath, 3, &Config::default(), false);
+
+        let symbols = state
+            .get_tree(&uri)
+            .map(|tree| tree.document_symbols())
+            .unwrap_or_default();
+
+        assert!(symbols.is_empty());
+
+        let mut state_minimal = ProtoLanguageState::new();
+        state_minimal.upsert_file(
+            &uri,
+            "syntax = \"proto3\";\npackage com.test;".to_string(),
+            &ipath,
+            3,
+            &Config::default(),
+            false,
+        );
+
+        let symbols_minimal = state_minimal
+            .get_tree(&uri)
+            .map(|tree| tree.document_symbols())
+            .unwrap_or_default();
+
+        assert!(symbols_minimal.is_empty());
     }
 }

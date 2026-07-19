@@ -1,9 +1,19 @@
-*google.protobuf.Int32Value* well known type, Wrapper message for `int32`
+`google.protobuf.Int32Value`
+
 ---
+
+**Well-Known Type**
+
+Wrapper message for `int32`.
+
 The JSON representation for `Int32Value` is JSON number.
----
-```proto
+
+**Fields:**
+
+- `value`: The int32 value.
+
+```protobuf
 message Int32Value {
-    int32 value = 1;
+  int32 value = 1;
 }
 ```

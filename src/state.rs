@@ -1,26 +1,24 @@
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, mpsc::Sender},
 };
 use tracing::info;
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, Location, OneOf, PublishDiagnosticsParams, Url,
-    WorkspaceSymbol,
+    CompletionItem, CompletionItemKind, DocumentSymbol, Location, OneOf, ProgressParamsValue,
+    PublishDiagnosticsParams, Url, WorkspaceSymbol,
 };
-use async_lsp::lsp_types::{DocumentSymbol, ProgressParamsValue};
-use std::sync::mpsc::Sender;
-use tree_sitter::Node;
+use tree_sitter::{Node, Query, QueryError};
 use walkdir::WalkDir;
 
 use crate::{
     config::Config,
+    model::generate_metamodel_query,
     nodekind::NodeKind,
     parser::{ParsedTree, ProtoParser},
+    protoc::ProtocDiagnostics,
 };
-
-use crate::protoc::ProtocDiagnostics;
 
 pub struct ProtoLanguageState {
     documents: Arc<RwLock<HashMap<Url, String>>>,
@@ -28,16 +26,33 @@ pub struct ProtoLanguageState {
     parser: Arc<Mutex<ProtoParser>>,
     parsed_workspaces: Arc<RwLock<HashSet<String>>>,
     protoc_diagnostics: Arc<Mutex<ProtocDiagnostics>>,
+    metamodel_query: Query,
 }
 
 impl ProtoLanguageState {
     pub fn new() -> Self {
-        ProtoLanguageState {
-            documents: Default::default(),
-            trees: Default::default(),
+        let language: tree_sitter::Language = tree_sitter_proto::LANGUAGE.into();
+        let trace_error = |e: &QueryError| {
+            tracing::error!(
+                "Critical SCM error: Failed to compile embedded Tree-sitter query for metadata extraction. Details: {:?}",
+                e
+            );
+        };
+
+        let Ok(metamodel_query) =
+            Query::new(&language, &generate_metamodel_query()).inspect_err(trace_error)
+        else {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            std::process::exit(1);
+        };
+
+        Self {
+            documents: Arc::default(),
+            trees: Arc::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             parsed_workspaces: Arc::new(RwLock::new(HashSet::new())),
             protoc_diagnostics: Arc::new(Mutex::new(ProtocDiagnostics::new())),
+            metamodel_query,
         }
     }
 
@@ -46,7 +61,7 @@ impl ProtoLanguageState {
             .read()
             .expect("poison")
             .get(uri)
-            .map(|s| s.to_string())
+            .cloned()
             .unwrap_or_default()
     }
 
@@ -68,10 +83,7 @@ impl ProtoLanguageState {
             .read()
             .expect("poison")
             .values()
-            .filter(|tree| {
-                let content = self.get_content(&tree.uri);
-                tree.get_package_name(content.as_bytes()).unwrap_or(".") == package
-            })
+            .filter(|tree| tree.package == package)
             .map(ToOwned::to_owned)
             .collect()
     }
@@ -80,8 +92,7 @@ impl ProtoLanguageState {
         let mut symbols = Vec::new();
 
         for tree in self.get_trees() {
-            let content = self.get_content(&tree.uri);
-            let doc_symbols = tree.find_document_locations(content.as_bytes());
+            let doc_symbols = tree.document_symbols();
 
             for doc_symbol in doc_symbols {
                 Self::find_workspace_symbols_impl(
@@ -166,12 +177,11 @@ impl ProtoLanguageState {
             return;
         }
 
-        let Some(parsed) = self
-            .parser
-            .lock()
-            .expect("poison")
-            .parse(uri.clone(), content.as_bytes())
-        else {
+        let Some(parsed) = self.parser.lock().expect("poison").parse(
+            uri.clone(),
+            content.as_bytes(),
+            &self.metamodel_query,
+        ) else {
             return;
         };
 

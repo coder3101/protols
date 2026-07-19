@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package com.syntax.modern;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+/*
+Основной сервис для управления инвентарём и жизненным циклом.
+Тестируем многобайтовые UTF-8 символы (кириллица, 文/書 CJK 3-byte, 📚/🚀 emoji
+4-byte), стриминг и Well-Known типы.
+
+## Важные особенности:
+- **Стриминг**: поддерживает входящие и исходящие потоки данных.
+- **Well-Known типы**: интеграция с `google.protobuf.Any`.*/
+service InventoryService {
+
+  // Серверный стриминг (Server Streaming RPC layout validation)
+  rpc WatchItems(WatchRequest) returns (stream ItemEvent);
+
+  // Клиентский стриминг (Client Streaming) с использованием WKT Any
+  rpc BulkUpload
+  (stream google.protobuf.Any
+  ) returns (UploadSummary
+);
+  option deprecated = true;
+
+  // Двунаправленный стриминг (Bidirectional Streaming RPC)
+  rpc SyncInventory(stream SyncRequest) returns (stream SyncResponse) {
+    option (rpc_priority) = HIGH;
+    option
+    deprecated=true;
+  }
+}
+
+// Separate service container without docstrings to test multiple registry
+// entities
+service MetricsService {
+  rpc GetSystemUptime(google.protobuf.Duration)
+      returns (google.protobuf.Timestamp);
+}
+
+message BookItem {
+  // Implicit presence field - standard default behavior in proto3 syntax
+  string id = 1;  // Комментарий 📚
+  // Title.
+  string title = 2;
+
+  // Повторяющееся поле авторов (Repeated cardinality strategy layout)
+  repeated string authors = 3;
+
+  // Explicit presence field using proto3 explicit optional syntax
+  optional string internal_note = 4;
+
+  // Associative map field with dual scalar type references
+  map
+  <string, // Комментарий 📚
+  int64
+  > attributes = 5;
+
+  // Устаревший код (Deprecated field with trailing inline option formatting)
+  int32 legacy_code = 6 [custom_validator = "numeric", deprecated = true];
+
+  // Core algebraic data structure testing standard oneof boundaries
+  oneof delivery_method {
+    string download_url = 7;
+    int64 shipping_id = 8;
+  }
+
+  // Nested message definition to validate multi-tier FQN assembly via
+  // context_stack
+  message EmbeddedMeta {
+    google.protobuf.Timestamp extracted_at = 1;
+    bool is_valid = 2;
+  }
+
+  // Nested discrete enum definition located within an outer message scope
+  enum ContentType {
+    UNKNOWN = 0;
+    FICTION = 1;
+    TECHNICAL = 2;
+  }
+
+  EmbeddedMeta metadata = 9;
+  ContentType type = 10;
+}
+
+message WatchRequest {
+  string filter_query = 1;
+}
+
+message ItemEvent {
+  string event_id = 1;
+  BookItem item_data = 2;
+}
+
+message UploadSummary {
+  uint32 total_processed = 1;
+  google.protobuf.Duration processing_time = 2;
+}
+
+message SyncRequest {
+  int64 sync_id = 1;
+  google.protobuf.Any payload = 2;
+}
+// Comment
+message SyncResponse {bool /*comment*/ success = 1;}

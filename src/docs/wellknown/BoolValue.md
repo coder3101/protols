@@ -1,9 +1,19 @@
-*google.protobuf.BoolValue* well known type, Wrapper message for bool
+`google.protobuf.BoolValue`
+
 ---
-The JSON representation for `BoolValue` is JSON `true` and `false`
----
-```proto
+
+**Well-Known Type**
+
+Wrapper message for `bool`.
+
+The JSON representation for `BoolValue` is JSON `true` and `false`.
+
+**Fields:**
+
+- `value`: The bool value.
+
+```protobuf
 message BoolValue {
-    bool value = 1;
+  bool value = 1;
 }
 ```

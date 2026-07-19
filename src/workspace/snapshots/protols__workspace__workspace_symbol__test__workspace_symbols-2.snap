@@ -8,8 +8,20 @@ expression: author_symbols
     uri: "file://<redacted>/src/workspace/input/b.proto"
     range:
       start:
-        line: 5
+        line: 4
         character: 0
       end:
         line: 14
         character: 1
+- name: author
+  kind: 8
+  containerName: Book
+  location:
+    uri: "file://<redacted>/src/workspace/input/a.proto"
+    range:
+      start:
+        line: 11
+        character: 3
+      end:
+        line: 11
+        character: 21

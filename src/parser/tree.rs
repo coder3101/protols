@@ -2,9 +2,9 @@ use async_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Node, TreeCursor};
 
 use crate::{
-    context::{hoverable::Hoverables, jumpable::Jumpable},
+    context::jumpable::Jumpable,
     nodekind::NodeKind,
-    utils::{lsp_to_ts_point, ts_to_lsp_position},
+    utils::{to_lsp_range, to_ts_point},
 };
 
 use super::ParsedTree;
@@ -40,34 +40,16 @@ impl ParsedTree {
         v
     }
 
-    pub(super) fn advance_cursor_to(cursor: &mut TreeCursor<'_>, nid: usize) -> bool {
-        loop {
-            let node = cursor.node();
-            if node.id() == nid {
-                return true;
-            }
-            if cursor.goto_first_child() {
-                if Self::advance_cursor_to(cursor, nid) {
-                    return true;
-                }
-                cursor.goto_parent();
-            }
-            if !cursor.goto_next_sibling() {
-                return false;
-            }
-        }
-    }
-
     pub fn get_user_defined_text<'a>(
         &'a self,
-        pos: &Position,
+        pos: Position,
         content: &'a [u8],
     ) -> Option<&'a str> {
         self.get_user_defined_node(pos)
             .map(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error"))
     }
 
-    pub fn get_jumpable_at_position(&self, pos: &Position, content: &[u8]) -> Option<Jumpable> {
+    pub fn get_jumpable_at_position(&self, pos: Position, content: &[u8]) -> Option<Jumpable> {
         let n = self.get_node_at_position(pos)?;
 
         // If node is import path. return the whole path, removing the quotes
@@ -88,33 +70,7 @@ impl ParsedTree {
         None
     }
 
-    pub fn get_hoverable_at_position<'a>(
-        &'a self,
-        pos: &Position,
-        content: &'a [u8],
-    ) -> Option<Hoverables> {
-        let n = self.get_node_at_position(pos)?;
-
-        // If node is import path. return the whole path, removing the quotes
-        if n.parent().filter(NodeKind::is_import_path).is_some() {
-            return Some(Hoverables::ImportPath(
-                n.utf8_text(content)
-                    .expect("utf-8 parse error")
-                    .trim_matches('"')
-                    .to_string(),
-            ));
-        }
-
-        // If node is user defined enum/message
-        if let Some(identifier) = self.get_user_defined_text(pos, content) {
-            return Some(Hoverables::Identifier(identifier.to_string()));
-        }
-
-        // Lastly; fallback to either wellknown or builtin types
-        Some(Hoverables::FieldType(n.kind().to_string()))
-    }
-
-    pub fn get_ancestor_nodes_at_position<'a>(&'a self, pos: &Position) -> Vec<Node<'a>> {
+    pub fn get_ancestor_nodes_at_position(&self, pos: Position) -> Vec<Node<'_>> {
         let Some(mut n) = self.get_user_defined_node(pos) else {
             return vec![];
         };
@@ -134,7 +90,7 @@ impl ParsedTree {
         nodes
     }
 
-    pub fn get_user_defined_node<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
+    pub fn get_user_defined_node(&self, pos: Position) -> Option<Node<'_>> {
         self.get_node_at_position(pos)
             .and_then(|n| {
                 if NodeKind::is_actionable(&n) {
@@ -146,8 +102,8 @@ impl ParsedTree {
             .filter(NodeKind::is_actionable)
     }
 
-    pub fn get_node_at_position<'a>(&'a self, pos: &Position) -> Option<Node<'a>> {
-        let pos = lsp_to_ts_point(pos);
+    pub fn get_node_at_position(&self, pos: Position) -> Option<Node<'_>> {
+        let pos = to_ts_point(pos);
         self.tree.root_node().descendant_for_point_range(pos, pos)
     }
 
@@ -203,10 +159,7 @@ impl ParsedTree {
                     .trim_matches('"');
                 import.iter().any(|i| i == t)
             })
-            .map(|n| Range {
-                start: ts_to_lsp_position(&n.start_position()),
-                end: ts_to_lsp_position(&n.end_position()),
-            })
+            .map(to_lsp_range)
             .collect()
     }
 }
@@ -216,13 +169,13 @@ mod test {
     use async_lsp::lsp_types::Url;
     use insta::assert_yaml_snapshot;
 
-    use crate::{nodekind::NodeKind, parser::ProtoParser};
+    use crate::{nodekind::NodeKind, parser::ProtoParser, utils::compile_test_query};
 
     #[test]
     fn test_filter() {
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = include_str!("input/test_filter.proto");
-        let parsed = ProtoParser::new().parse(uri, contents);
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
 
         assert!(parsed.is_some());
         let tree = parsed.unwrap();

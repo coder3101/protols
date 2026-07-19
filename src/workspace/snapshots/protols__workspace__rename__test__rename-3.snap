@@ -5,9 +5,9 @@ expression: "state.rename_fields(\"com.utility\", \"Foobar.Baz\", \"Foobar.Baaz\
 "file://input/a.proto":
   - range:
       start:
-        line: 12
+        line: 13
         character: 3
       end:
-        line: 12
+        line: 13
         character: 25
     newText: com.utility.Foobar.Baaz
