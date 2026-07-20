@@ -5,8 +5,8 @@
       "icon": {
         "id": "package"
       },
-      "type": "cargo",
-      "command": "build",
+      "type": "shell",
+      "command": "cargo build",
       "problemMatcher": [
         "$rustc"
       ],
@@ -28,8 +28,8 @@
       "icon": {
         "id": "check-all"
       },
-      "type": "cargo",
-      "command": "clippy",
+      "type": "shell",
+      "command": "cargo clippy --all-targets",
       "problemMatcher": [
         "$rustc"
       ],
@@ -48,8 +48,8 @@
       "icon": {
         "id": "beaker"
       },
-      "type": "cargo",
-      "command": "test",
+      "type": "shell",
+      "command": "cargo test",
       "problemMatcher": [
         "$rustc"
       ],

@@ -12,6 +12,9 @@
       "components": " " // Disable default components so that the ones from rust-toolchain.toml are respected
     }
   },
+  "containerEnv": {
+    "RUSTUP_PERMIT_COPY_RENAME": "true"
+  },
   "mounts": [
     {
       "source": "devcontainer-cargo-cache-${devcontainerId}",
