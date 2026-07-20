@@ -5,8 +5,8 @@ expression: "state.reference_fields(\"com.workspace\", \"Author.Address\",\nPath
 - uri: "file://input/a.proto"
   range:
     start:
-      line: 11
+      line: 12
       character: 3
     end:
-      line: 11
+      line: 12
       character: 17

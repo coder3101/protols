@@ -1,9 +1,19 @@
-*google.protobuf.UInt64Value* well known type, Wrapper message for `uint64`
+`google.protobuf.UInt64Value`
+
 ---
-The JSON representation for `UInt64Value` is JSON string
----
-```proto
+
+**Well-Known Type**
+
+Wrapper message for `uint64`.
+
+The JSON representation for `UInt64Value` is JSON string.
+
+**Fields:**
+
+- `value`: The uint64 value.
+
+```protobuf
 message UInt64Value {
-    uint64 value = 1;
+  uint64 value = 1;
 }
 ```

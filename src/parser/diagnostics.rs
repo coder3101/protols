@@ -1,6 +1,6 @@
-use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 
-use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
+use crate::{nodekind::NodeKind, utils::to_lsp_range};
 
 use super::ParsedTree;
 
@@ -9,10 +9,7 @@ impl ParsedTree {
         self.find_all_nodes(NodeKind::is_error)
             .into_iter()
             .map(|n| Diagnostic {
-                range: Range {
-                    start: ts_to_lsp_position(&n.start_position()),
-                    end: ts_to_lsp_position(&n.end_position()),
-                },
+                range: to_lsp_range(n),
                 severity: Some(DiagnosticSeverity::ERROR),
                 source: Some("protols".to_string()),
                 message: "Syntax error".to_string(),
@@ -45,19 +42,21 @@ mod test {
     use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
+    use crate::utils::compile_test_query;
 
     #[test]
     fn test_collect_parse_error() {
         let url: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_collect_parse_error1.proto");
+        let query = &compile_test_query();
 
-        let parsed = ProtoParser::new().parse(url.clone(), contents);
+        let parsed = ProtoParser::new().parse(url.clone(), contents, query);
         assert!(parsed.is_some());
         assert_yaml_snapshot!(parsed.unwrap().collect_parse_diagnostics());
 
         let contents = include_str!("input/test_collect_parse_error2.proto");
 
-        let parsed = ProtoParser::new().parse(url.clone(), contents);
+        let parsed = ProtoParser::new().parse(url, contents, query);
         assert!(parsed.is_some());
         assert_yaml_snapshot!(parsed.unwrap().collect_parse_diagnostics());
     }

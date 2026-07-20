@@ -1,0 +1,129 @@
+syntax = "proto2";
+
+package com.syntax.legacy;
+
+import "google/api/annotations.proto";
+
+// Legacy message definition to test proto2 features
+message LegacyBook {
+  // Required string field - must be parsed as a full type signature
+  required string isbn = 1;
+  option foo = "bar";
+  option deprecated = true;
+  // This should not be associated with a field documentation.
+
+  // Optional field with an explicit default value
+  optional
+  string // inline
+  title
+  =
+  2
+  [default =
+  "Unknown"];
+
+  // Deprecated proto2 field with option formatting
+  optional int32 edition_year = 3 [foo = "bar", deprecated = true];
+
+  // Proto2 extensions block declaration
+  extensions 100 to 199;
+
+  // Groups are an obsolete proto2 feature that combines a message definition
+  // and a field. The extractor must treat this as a nested container element.
+  optional group OldStyleGroup = 4 {
+    optional string legacy_metadata = 5;  // inline comment
+    optional bool active = 6;
+  }
+}
+
+/* Multi-line comment for an enum.
+
+This tests advanced docstring extraction layers.*/
+enum
+BookStatus {
+  option foo = "bar";
+  option deprecated = true;
+
+  // Active and available for rent
+  AVAILABLE = 0;
+  // Temporarily checked out
+  BORROWED = 1;  // inline comment
+  // Lost or destroyed status
+  ARCHIVED = 2 [custom_badge = "lost", deprecated = true];
+}
+
+// Service definition wrapped in a strict proto2 context
+service LegacyCatalog {
+  option (service_execution) = CRITICAL;
+
+  /** Fully documented RPC method */
+  rpc
+  GetBookByIsbn
+  (IsbnQuery)
+  returns
+  (LegacyBook)
+  {
+    option (google.api.http) = {
+      post: "/v1/{parent=publishers/*}/books"
+      body: "book"
+    };
+    option deprecated = true;
+  }
+  option deprecated = true;
+
+  // Underdocumented RPC with multiple options inside the block
+  rpc UpdateInventory(InventoryAction) returns (stream InventoryStatus) {
+    option (security_level) = HIGH;
+    option deprecated = false;
+  }
+}
+message IsbnQuery {
+  // Singular scalar field without any comments
+  required sint32 query_id = 1;
+  required string raw_isbn = 2;
+
+  // Reserved fields to ensure they don't corrupt token coordinates
+  reserved 10 to 15, 20;
+  reserved "old_field_one", "old_field_two";
+}
+
+message InventoryAction {
+  required fixed64 action_id = 1;
+  // Map fields inside proto2 schemas
+  map
+  <string,
+  sfixed32>
+  modification_payload = 2;
+  ExternalType type = 3;
+}
+
+message InventoryStatus {
+  required bool success = 1;
+  // Optional enum field testing nested references
+  optional BookStatus current_status = 2 [default = AVAILABLE];
+}  // inline comment.
+// APIs for user reactions.
+service LikesService {
+  // # Quota Management Configuration
+  // Controls request limitations across distinct API client tiers.
+  // Changes are reloaded dynamically without service interruption.
+  //
+  // ## Available Strategies:
+  // - **Global (Default)**: applies automatically to unauthenticated users.
+  // - **Tier-based (Subscribed)**:
+  //     - `Tier 1 (Free)`:
+  //         - Rate limit: `100` rps.
+  //         - Premium API endpoints: **disabled**.
+  //     - `Tier 2 (Premium)`:
+  //         - Rate limit: `5000` rps.
+  //         - Premium API endpoints: **enabled**.
+  // - **Custom**: dedicated hardware bypass matching specific API keys.
+  //
+  // ```json
+  // {
+  //   "foo": {
+  //     "bar": "baz"
+  //   }
+  // }
+  // ```
+  rpc LikeBooks(stream LegacyBook) returns (google.protobuf.Empty);
+}

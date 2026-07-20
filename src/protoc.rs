@@ -1,7 +1,9 @@
-use crate::utils::ts_to_lsp_position;
-use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 use std::process::Command;
+
+use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 use tree_sitter::Point;
+
+use crate::utils::to_lsp_position;
 
 pub struct ProtocDiagnostics {}
 
@@ -64,8 +66,8 @@ impl ProtocDiagnostics {
                     };
                     let diagnostic = Diagnostic {
                         range: Range {
-                            start: ts_to_lsp_position(&point),
-                            end: ts_to_lsp_position(&Point {
+                            start: to_lsp_position(point),
+                            end: to_lsp_position(Point {
                                 row: point.row,
                                 column: point.column + 1,
                             }),

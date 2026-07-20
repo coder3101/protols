@@ -1,9 +1,19 @@
-*google.protobuf.Int64Value* well known type, Wrapper message for `int64`
+`google.protobuf.Int64Value`
+
 ---
-The JSON representation for `Int64Value` is JSON string
----
-```proto
+
+**Well-Known Type**
+
+Wrapper message for `int64`.
+
+The JSON representation for `Int64Value` is JSON string.
+
+**Fields:**
+
+- `value`: The int64 value.
+
+```protobuf
 message Int64Value {
-    int64 value = 1;
+  int64 value = 1;
 }
 ```

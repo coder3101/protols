@@ -5,9 +5,9 @@ expression: "state.rename_fields(\"com.workspace\", \"Author.Address\", \"Author
 "file://input/a.proto":
   - range:
       start:
-        line: 11
+        line: 12
         character: 3
       end:
-        line: 11
+        line: 12
         character: 17
     newText: Author.Location

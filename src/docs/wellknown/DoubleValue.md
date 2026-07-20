@@ -1,9 +1,19 @@
-*google.protobuf.DoubleValue* well known type, Wrapper message for `double`
+`google.protobuf.DoubleValue`
+
 ---
-The JSON representation for `DoubleValue` is JSON number.
----
-```proto
+
+**Well-Known Type**
+
+Wrapper message for `double`.
+
+The JSON representation for `DoubleValue` is a JSON number.
+
+**Fields:**
+
+- `value`: The double value.
+
+```protobuf
 message DoubleValue {
-    double value = 1;
+  double value = 1;
 }
 ```

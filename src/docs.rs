@@ -15,7 +15,7 @@ macro_rules! docmap_wellknown {
     };
 }
 
-pub static BUITIN: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+pub static BUILTIN: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
         docmap_builtin!("int32"),
         docmap_builtin!("int64"),

@@ -9,7 +9,7 @@ expression: address_symbols
     uri: "file://<redacted>/src/workspace/input/b.proto"
     range:
       start:
-        line: 9
+        line: 8
         character: 3
       end:
         line: 11

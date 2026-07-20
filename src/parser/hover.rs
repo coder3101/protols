@@ -1,125 +1,185 @@
-use tree_sitter::Node;
+//! Spatial coordinate resolution and hover query layer for protobuf parsed
+//! trees.
+//!
+//! This module implements high-performance geometric intersection algorithms
+//! that map a precise cursor point (line and character) to memory-cached
+//! metadata entities.
 
-use crate::nodekind::NodeKind;
+use async_lsp::lsp_types::Position;
+
+use crate::model::SpatialEntry;
 
 use super::ParsedTree;
 
 impl ParsedTree {
-    pub(super) fn find_preceding_comments(
-        &self,
-        nid: usize,
-        content: impl AsRef<[u8]>,
-    ) -> Option<String> {
-        let root = self.tree.root_node();
-        let mut cursor = root.walk();
-
-        Self::advance_cursor_to(&mut cursor, nid);
-        if !cursor.goto_parent() {
+    /// Performs a search to locate the innermost spatial index block
+    /// intersecting with the specified LSP [`Position`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(&SpatialEntry)` enclosing the intersected element
+    /// identifier, or `None` if the cursor is hovering over empty whitespace or
+    /// non-semantic tokens.
+    pub fn find_entry_at_position(&self, position: Position) -> Option<&SpatialEntry> {
+        if self.spatial_index.is_empty() {
             return None;
         }
 
-        if !cursor.goto_previous_sibling() {
-            return None;
-        }
+        let max_idx = self
+            .spatial_index
+            .binary_search_by(|entry| entry.range.start.cmp(&position))
+            .unwrap_or_else(|insert_idx| insert_idx.saturating_sub(1));
 
-        let mut comments = vec![];
-        while cursor.node().kind() == "comment" {
-            let node = cursor.node();
-            let text = node
-                .utf8_text(content.as_ref())
-                .expect("utf-8 parser error")
-                .trim()
-                .trim_start_matches("//")
-                .trim();
-
-            comments.push(text);
-
-            if !cursor.goto_previous_sibling() {
-                break;
-            }
-        }
-        if !comments.is_empty() {
-            comments.reverse();
-            Some(comments.join("\n"))
-        } else {
-            None
-        }
-    }
-
-    pub fn hover(&self, identifier: &str, content: impl AsRef<[u8]>) -> Vec<String> {
-        let mut results = vec![];
-        self.hover_impl(identifier, self.tree.root_node(), &mut results, content);
-        results
-    }
-
-    fn hover_impl(
-        &self,
-        identifier: &str,
-        n: Node,
-        v: &mut Vec<String>,
-        content: impl AsRef<[u8]>,
-    ) {
-        if identifier.is_empty() {
-            return;
-        }
-
-        match identifier.split_once('.') {
-            Some((parent, child)) => {
-                let child_node = self
-                    .find_all_nodes_from(n, NodeKind::is_userdefined)
-                    .into_iter()
-                    .find(|n| n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent)
-                    .and_then(|n| n.parent());
-
-                if let Some(inner) = child_node {
-                    self.hover_impl(child, inner, v, content);
-                }
-            }
-            None => {
-                let comments: Vec<String> = self
-                    .find_all_nodes_from(n, NodeKind::is_userdefined)
-                    .into_iter()
-                    .filter(|n| {
-                        n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier
-                    })
-                    .filter_map(|n| self.find_preceding_comments(n.id(), content.as_ref()))
-                    .collect();
-
-                v.extend(comments);
-            }
-        }
+        self.spatial_index[..=max_idx]
+            .iter()
+            .rev()
+            .find(|entry| entry.contains_position(position))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use async_lsp::lsp_types::Url;
+    use async_lsp::lsp_types::{Hover, Position, Url};
     use insta::assert_yaml_snapshot;
+    use serde::Serialize;
 
-    use crate::parser::ProtoParser;
+    use crate::config::Config;
+    use crate::model::ElementKind;
+    use crate::state::ProtoLanguageState;
+
+    #[derive(Serialize, Debug)]
+    struct HoverSnapshotEntry {
+        target: String,
+        hover: Hover,
+    }
+
+    fn run_hover_test(contents: &str, file_name: &str) -> Vec<HoverSnapshotEntry> {
+        let uri = Url::parse(&format!("file:///virtual/{file_name}")).unwrap();
+        let ipath = vec![];
+
+        let mut state = ProtoLanguageState::new();
+        state.upsert_file(
+            &uri,
+            contents.to_string(),
+            &ipath,
+            3,
+            &Config::default(),
+            false,
+        );
+
+        let mut hover_results = Vec::new();
+
+        if let Some(parsed_tree) = state.get_tree(&uri) {
+            let mut tested_positions = std::collections::HashSet::new();
+
+            for element in &parsed_tree.elements {
+                let mut targets = vec![(element.meta.selection_range.start, "definition")];
+
+                match &element.kind {
+                    ElementKind::Field { type_ref, .. }
+                    | ElementKind::OneofField { type_ref, .. } => {
+                        targets.push((type_ref.range.start, "type_use"));
+                    }
+                    ElementKind::MapField {
+                        key_type_ref,
+                        value_type_ref,
+                        ..
+                    } => {
+                        targets.push((key_type_ref.range.start, "map_key_use"));
+                        targets.push((value_type_ref.range.start, "map_value_use"));
+                    }
+                    ElementKind::Rpc {
+                        request_type_ref,
+                        response_type_ref,
+                        ..
+                    } => {
+                        targets.push((request_type_ref.range.start, "rpc_req_use"));
+                        targets.push((response_type_ref.range.start, "rpc_res_use"));
+                    }
+                    _ => {}
+                }
+
+                for (pos, context) in targets {
+                    if !tested_positions.insert((pos.line, pos.character)) {
+                        continue;
+                    }
+
+                    if let Some(hover_result) = state.hover(&uri, pos) {
+                        let display_name = Some(element.meta.name.as_str())
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(match &element.kind {
+                                ElementKind::Import { path } => path.as_str(),
+                                _ => "unknown_element",
+                            });
+
+                        hover_results.push(HoverSnapshotEntry {
+                            target: format!("{display_name} [{context}]"),
+                            hover: hover_result,
+                        });
+                    }
+                }
+            }
+        }
+
+        hover_results
+    }
 
     #[test]
-    fn test_hover() {
-        let uri: Url = "file://foo.bar/p.proto".parse().unwrap();
-        let contents = include_str!("input/test_hover.proto");
-        let parsed = ProtoParser::new().parse(uri.clone(), contents);
+    fn test_proto2_hover() {
+        let contents = include_str!("input/syntax_variants/test_proto2.proto");
+        let results = run_hover_test(contents, "test_proto2.proto");
+        assert_yaml_snapshot!("test_proto2_hover", results);
+    }
 
-        assert!(parsed.is_some());
-        let tree = parsed.unwrap();
+    #[test]
+    fn test_proto3_hover() {
+        let contents = include_str!("input/syntax_variants/test_proto3.proto");
+        let results = run_hover_test(contents, "test_proto3.proto");
+        assert_yaml_snapshot!("test_proto3_hover", results);
+    }
 
-        let res = tree.hover("Book", contents);
-        assert_yaml_snapshot!(res);
+    #[test]
+    fn test_editions_hover() {
+        let contents = include_str!("input/syntax_variants/test_editions.proto");
+        let results = run_hover_test(contents, "test_editions.proto");
+        assert_yaml_snapshot!("test_editions_hover", results);
+    }
 
-        let res = tree.hover("", contents);
-        assert_yaml_snapshot!(res);
+    #[test]
+    fn test_package_duplicate_hover() {
+        let contents = include_str!("input/syntax_variants/test_package_duplicate.proto");
+        let results = run_hover_test(contents, "test_package_duplicate.proto");
+        assert_yaml_snapshot!("test_package_duplicate_hover", results);
+    }
 
-        let res = tree.hover("Book.Author", contents);
-        assert_yaml_snapshot!(res);
+    #[test]
+    fn test_hover_on_empty_and_minimal_file_safety() {
+        let uri = Url::parse("file:///virtual/empty_test.proto").unwrap();
+        let ipath = vec![];
 
-        let res = tree.hover("Comic.Author", contents);
-        assert_yaml_snapshot!(res);
+        let mut state = ProtoLanguageState::new();
+        state.upsert_file(&uri, String::new(), &ipath, 3, &Config::default(), false);
 
-        let res = tree.hover("Author", contents);
-        assert_yaml_snapshot!(res);
+        let pos = Position {
+            line: 0,
+            character: 0,
+        };
+        assert!(state.hover(&uri, pos).is_none());
+
+        let mut state_minimal = ProtoLanguageState::new();
+        state_minimal.upsert_file(
+            &uri,
+            "syntax = \"proto3\";\npackage com.test;".to_string(),
+            &ipath,
+            3,
+            &Config::default(),
+            false,
+        );
+
+        let pos_mid = Position {
+            line: 1,
+            character: 5,
+        };
+        assert!(state_minimal.hover(&uri, pos_mid).is_none());
     }
 }

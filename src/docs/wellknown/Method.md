@@ -1,15 +1,29 @@
-*google.protobuf.Method* well known type
+`google.protobuf.Method`
+
 ---
-Method represents a method of an API interface.
----
-```proto
+
+**Well-Known Type**
+
+`Method` represents a method of an API interface.
+
+**Fields:**
+
+- `name`: The simple name of this method.
+- `request_type_url`: A URL of the input message type.
+- `request_streaming`: If `true`, the request is streamed.
+- `response_type_url`: The URL of the output message type.
+- `response_streaming`: If `true`, the response is streamed.
+- `options`: Any metadata attached to the method.
+- `syntax`: The source syntax of this method.
+
+```protobuf
 message Method {
-    string name = 1; // The simple name of this method.
-    string request_type_url = 2; // A URL of the input message type.
-    bool request_streaming = 3; // If true, the request is streamed.
-    string response_type_url = 4; // The URL of the output message type.
-    bool response_streaming = 5; // If true, the response is streamed.
-    repeated Option options = 6; // Any metadata attached to the method.
-    Syntax syntax = 7; // The source syntax of this method.
+  string name = 1;
+  string request_type_url = 2;
+  bool request_streaming = 3;
+  string response_type_url = 4;
+  bool response_streaming = 5;
+  repeated Option options = 6;
+  Syntax syntax = 7;
 }
 ```

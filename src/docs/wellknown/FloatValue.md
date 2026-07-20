@@ -1,9 +1,19 @@
-*google.protobuf.FloatValue* well known type, Wrapper message for `float`
+`google.protobuf.FloatValue`
+
 ---
+
+**Well-Known Type**
+
+Wrapper message for `float`.
+
 The JSON representation for `FloatValue` is JSON number.
----
-```proto
+
+**Fields:**
+
+- `value`: The float value.
+
+```protobuf
 message FloatValue {
-    float value = 1;
+  float value = 1;
 }
 ```

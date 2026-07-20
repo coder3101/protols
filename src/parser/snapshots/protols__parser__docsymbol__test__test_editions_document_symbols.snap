@@ -1,0 +1,130 @@
+---
+source: src/parser/docsymbol.rs
+expression: symbols
+---
+- name: NextGenBook
+  kind: 23
+  tags:
+    - 1
+  range:
+    start:
+      line: 4
+      character: 0
+    end:
+      line: 23
+      character: 1
+  selectionRange:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 19
+  children:
+    - name: global_id
+      detail: "string (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 6
+          character: 2
+        end:
+          line: 7
+          character: 23
+      selectionRange:
+        start:
+          line: 7
+          character: 9
+        end:
+          line: 7
+          character: 18
+      children: []
+    - name: co_author
+      detail: "string (tag: 2)"
+      kind: 8
+      range:
+        start:
+          line: 9
+          character: 2
+        end:
+          line: 10
+          character: 60
+      selectionRange:
+        start:
+          line: 10
+          character: 9
+        end:
+          line: 10
+          character: 18
+      children: []
+    - name: LegacyStatus
+      kind: 10
+      range:
+        start:
+          line: 13
+          character: 2
+        end:
+          line: 19
+          character: 3
+      selectionRange:
+        start:
+          line: 15
+          character: 7
+        end:
+          line: 15
+          character: 19
+      children:
+        - name: UNKNOWN
+          detail: "value: 0"
+          kind: 22
+          range:
+            start:
+              line: 17
+              character: 4
+            end:
+              line: 17
+              character: 16
+          selectionRange:
+            start:
+              line: 17
+              character: 4
+            end:
+              line: 17
+              character: 11
+          children: []
+        - name: ACTIVE
+          detail: "value: 1"
+          kind: 22
+          range:
+            start:
+              line: 18
+              character: 4
+            end:
+              line: 18
+              character: 15
+          selectionRange:
+            start:
+              line: 18
+              character: 4
+            end:
+              line: 18
+              character: 10
+          children: []
+    - name: tag_list
+      detail: "repeated string (tag: 3)"
+      kind: 8
+      range:
+        start:
+          line: 21
+          character: 2
+        end:
+          line: 22
+          character: 31
+      selectionRange:
+        start:
+          line: 22
+          character: 18
+        end:
+          line: 22
+          character: 26
+      children: []

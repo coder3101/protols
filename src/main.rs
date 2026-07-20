@@ -20,6 +20,7 @@ mod docs;
 mod formatter;
 mod log;
 mod lsp;
+mod model;
 mod nodekind;
 mod parser;
 mod protoc;

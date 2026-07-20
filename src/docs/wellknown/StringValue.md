@@ -1,9 +1,19 @@
-*google.protobuf.StringValue* well known type, Wrapper message for `string`
+`google.protobuf.StringValue`
+
 ---
-The JSON representation for `StringValue` is JSON string
----
-```proto
+
+**Well-Known Type**
+
+Wrapper message for `string`.
+
+The JSON representation for `StringValue` is JSON string.
+
+**Fields:**
+
+- `value`: The string value.
+
+```protobuf
 message StringValue {
-    string value = 1;
+  string value = 1;
 }
 ```

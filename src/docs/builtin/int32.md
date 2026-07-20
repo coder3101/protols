@@ -1,5 +1,16 @@
-*int32* builtin type, A 32-bit integer (varint encoding)
+`int32`
 
 ---
-Values of this type range between `-2147483648` and `2147483647`.
-Beware that negative values are encoded as five bytes on the wire!
+
+**Built-in Type**
+
+A signed 32-bit integer using variable-length encoding.
+
+**Details:**
+
+- **Wire format**: Variable-length value (`varint`).
+- **Range**: `-2,147,483,648` to `2,147,483,647` inclusive.
+- **Efficiency**: Inefficient for negative numbers. Negative values are sign-extended and take a full `10 bytes` on the wire. Use `sint32` instead if your field frequently contains negative numbers.
+- **Go type**: `int32`
+- **C++ type**: `int32_t`
+- **Rust type**: `i32`

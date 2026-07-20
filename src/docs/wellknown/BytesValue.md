@@ -1,9 +1,19 @@
-*google.protobuf.BytesValue* well known type, Wrapper message for bytes
+`google.protobuf.BytesValue`
+
 ---
+
+**Well-Known Type**
+
+Wrapper message for `bytes`.
+
 The JSON representation for `BytesValue` is JSON string.
----
-```proto
+
+**Fields:**
+
+- `value`: The bytes value.
+
+```protobuf
 message BytesValue {
-    bytes value = 1;
+  bytes value = 1;
 }
 ```

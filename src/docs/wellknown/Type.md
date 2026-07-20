@@ -1,15 +1,29 @@
-*google.protobuf.Type* well known type
+`google.protobuf.Type`
+
 ---
+
+**Well-Known Type**
+
 A protocol buffer message type.
----
-```proto
+
+**Fields:**
+
+- `name`: The fully qualified message name.
+- `fields`: The list of fields.
+- `oneofs`: The list of types appearing in `oneof` definitions in this type.
+- `options`: The protocol buffer options.
+- `source_context`: The source context.
+- `syntax`: The source syntax.
+- `edition`: The source syntax.
+
+```protobuf
 message Type {
-    string name = 1; // The fully qualified message name
-    repeated Field fields = 2; // The list of fields
-    repeated string oneofs = 3; // The list of types appearing in `oneof` definitions in this type
-    repeated Option options = 4; // The protocol buffer options
-    SourceContext source_context = 5; // The source context
-    Syntax syntax = 6; // The source syntax
-    string edition = 7; // The source edition string, only valid when syntax is SYNTAX_EDITIONS
+  string name = 1;
+  repeated Field fields = 2;
+  repeated string oneofs = 3;
+  repeated Option options = 4;
+  SourceContext source_context = 5;
+  Syntax syntax = 6;
+  string edition = 7;
 }
 ```

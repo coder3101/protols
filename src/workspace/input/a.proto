@@ -5,6 +5,7 @@ package com.workspace;
 import "c.proto";
 import "b.proto";
 import "inner/x.proto";
+import "google/protobuf/any.proto";
 
 // A Book is a book
 message Book {
@@ -12,5 +13,6 @@ message Book {
    Author.Address foo = 2;
    com.utility.Foobar.Baz z = 3;
    com.inner.Why reason = 4;
+   google.protobuf.Any ctx = 5;
 }
 

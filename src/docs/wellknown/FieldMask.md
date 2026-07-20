@@ -1,9 +1,17 @@
-*google.protobuf.FieldMask* well known type
+`google.protobuf.FieldMask`
+
 ---
-`FieldMask` represents a set of symbolic field paths
----
-```proto
+
+**Well-Known Type**
+
+`FieldMask` represents a set of symbolic field paths.
+
+**Fields:**
+
+- `paths`: The set of field mask paths.
+
+```protobuf
 message FieldMask {
-  repeated string paths = 1; // The set of field mask paths.
+  repeated string paths = 1;
 }
 ```

@@ -1,22 +1,19 @@
 use async_lsp::lsp_types::{Location, Position, Range, TextEdit};
 use tree_sitter::Node;
 
-use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
+use crate::{nodekind::NodeKind, utils::to_lsp_range};
 
 use super::ParsedTree;
 
 impl ParsedTree {
-    pub fn can_rename(&self, pos: &Position) -> Option<Range> {
+    pub fn can_rename(&self, pos: Position) -> Option<Range> {
         self.get_node_at_position(pos)
             .filter(NodeKind::is_identifier)
             .and_then(|n| {
                 if let Some(parent) = n.parent()
                     && NodeKind::is_renameable(&parent)
                 {
-                    Some(Range {
-                        start: ts_to_lsp_position(&n.start_position()),
-                        end: ts_to_lsp_position(&n.end_position()),
-                    })
+                    Some(to_lsp_range(n))
                 } else {
                     None
                 }
@@ -43,7 +40,7 @@ impl ParsedTree {
     /// `"BookAuthor"`.
     pub fn rename_pivot_identifier(
         &self,
-        pos: &Position,
+        pos: Position,
         content: impl AsRef<[u8]>,
     ) -> Option<String> {
         let n = self.get_node_at_position(pos)?;
@@ -74,7 +71,7 @@ impl ParsedTree {
     /// Used to drive the rpc/request/response chained rename.
     pub fn rpc_at_position(
         &self,
-        pos: &Position,
+        pos: Position,
         content: impl AsRef<[u8]>,
     ) -> Option<(String, String, String)> {
         let n = self.get_node_at_position(pos)?;
@@ -100,7 +97,7 @@ impl ParsedTree {
     /// If the given position is on a message name, returns that name.
     pub fn message_name_at_position(
         &self,
-        pos: &Position,
+        pos: Position,
         content: impl AsRef<[u8]>,
     ) -> Option<String> {
         let n = self.get_node_at_position(pos)?;
@@ -152,7 +149,7 @@ impl ParsedTree {
 
     pub fn reference_tree(
         &self,
-        pos: &Position,
+        pos: Position,
         content: impl AsRef<[u8]>,
     ) -> Option<(Vec<Location>, String)> {
         let rename_range = self.can_rename(pos)?;
@@ -170,10 +167,7 @@ impl ParsedTree {
             if let Some(inodes) = self.nodes_within(nodes[i], &otext, content.as_ref()) {
                 res.extend(inodes.into_iter().map(|n| Location {
                     uri: self.uri.clone(),
-                    range: Range {
-                        start: ts_to_lsp_position(&n.start_position()),
-                        end: ts_to_lsp_position(&n.end_position()),
-                    },
+                    range: to_lsp_range(n),
                 }))
             }
             otext = format!("{id}.{otext}");
@@ -184,7 +178,7 @@ impl ParsedTree {
 
     pub fn rename_tree(
         &self,
-        pos: &Position,
+        pos: Position,
         new_name: &str,
         content: impl AsRef<[u8]>,
     ) -> Option<(Vec<TextEdit>, String, String)> {
@@ -226,10 +220,7 @@ impl ParsedTree {
 
             if let Some(inodes) = self.nodes_within(nodes[i], &otext, content.as_ref()) {
                 v.extend(inodes.into_iter().map(|n| TextEdit {
-                    range: Range {
-                        start: ts_to_lsp_position(&n.start_position()),
-                        end: ts_to_lsp_position(&n.end_position()),
-                    },
+                    range: to_lsp_range(n),
                     new_text: ntext.to_owned(),
                 }));
             }
@@ -260,10 +251,7 @@ impl ParsedTree {
                 let text = n.utf8_text(content.as_ref()).expect("utf-8 parse error");
                 TextEdit {
                     new_text: text.replace(old_identifier, new_identifier),
-                    range: Range {
-                        start: ts_to_lsp_position(&n.start_position()),
-                        end: ts_to_lsp_position(&n.end_position()),
-                    },
+                    range: to_lsp_range(n),
                 }
             })
             .collect()
@@ -275,10 +263,7 @@ impl ParsedTree {
             .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == id)
             .map(|n| Location {
                 uri: self.uri.clone(),
-                range: Range {
-                    start: ts_to_lsp_position(&n.start_position()),
-                    end: ts_to_lsp_position(&n.end_position()),
-                },
+                range: to_lsp_range(n),
             })
             .collect()
     }
@@ -290,6 +275,7 @@ mod test {
     use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
+    use crate::utils::compile_test_query;
 
     #[test]
     fn test_rename() {
@@ -308,11 +294,11 @@ mod test {
         };
         let contents = include_str!("input/test_rename.proto");
 
-        let parsed = ProtoParser::new().parse(uri.clone(), contents);
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+        let rename_fn = |nt: &str, pos: Position| match tree.rename_tree(pos, nt, contents) {
             Some(k) => {
                 let mut v = tree.rename_field(&k.1, &k.2, contents);
                 v.extend(k.0);
@@ -323,9 +309,9 @@ mod test {
             }
         };
 
-        assert_yaml_snapshot!(rename_fn("Kitab", &pos_book));
-        assert_yaml_snapshot!(rename_fn("Writer", &pos_author));
-        assert_yaml_snapshot!(rename_fn("xyx", &pos_non_rename));
+        assert_yaml_snapshot!(rename_fn("Kitab", pos_book));
+        assert_yaml_snapshot!(rename_fn("Writer", pos_author));
+        assert_yaml_snapshot!(rename_fn("xyx", pos_non_rename));
     }
 
     #[test]
@@ -345,11 +331,11 @@ mod test {
         };
         let contents = include_str!("input/test_reference.proto");
 
-        let parsed = ProtoParser::new().parse(uri.clone(), contents);
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
-        let reference_fn = |pos: &Position| match tree.reference_tree(pos, contents) {
+        let reference_fn = |pos: Position| match tree.reference_tree(pos, contents) {
             Some(k) => {
                 let mut v = tree.reference_field(&k.1, contents);
                 v.extend(k.0);
@@ -360,9 +346,9 @@ mod test {
             }
         };
 
-        assert_yaml_snapshot!(reference_fn(&pos_book));
-        assert_yaml_snapshot!(reference_fn(&pos_author));
-        assert_yaml_snapshot!(reference_fn(&pos_non_ref));
+        assert_yaml_snapshot!(reference_fn(pos_book));
+        assert_yaml_snapshot!(reference_fn(pos_author));
+        assert_yaml_snapshot!(reference_fn(pos_non_ref));
     }
 
     #[test]
@@ -386,21 +372,22 @@ mod test {
         };
 
         let contents = include_str!("input/test_can_rename.proto");
-        let parsed = ProtoParser::new().parse(uri.clone(), contents);
+
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
         assert!(parsed.is_some());
 
         let tree = parsed.unwrap();
-        assert_yaml_snapshot!(tree.can_rename(&pos_rename));
-        assert_yaml_snapshot!(tree.can_rename(&pos_non_rename));
-        assert_yaml_snapshot!(tree.can_rename(&pos_inner_type));
-        assert_yaml_snapshot!(tree.can_rename(&pos_outer_type));
+        assert_yaml_snapshot!(tree.can_rename(pos_rename));
+        assert_yaml_snapshot!(tree.can_rename(pos_non_rename));
+        assert_yaml_snapshot!(tree.can_rename(pos_inner_type));
+        assert_yaml_snapshot!(tree.can_rename(pos_outer_type));
     }
 
     #[test]
     fn test_can_rename_service_and_rpc() {
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_service.proto");
-        let parsed = ProtoParser::new().parse(uri, contents);
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
@@ -417,18 +404,18 @@ mod test {
             character: 17,
         };
 
-        assert_yaml_snapshot!(tree.can_rename(&pos_service));
-        assert_yaml_snapshot!(tree.can_rename(&pos_rpc));
+        assert_yaml_snapshot!(tree.can_rename(pos_service));
+        assert_yaml_snapshot!(tree.can_rename(pos_rpc));
         // Type references inside an RPC declaration are renameable from the
         // reference site; the LSP layer pivots to the declaration.
-        assert_yaml_snapshot!(tree.can_rename(&pos_rpc_request_type));
+        assert_yaml_snapshot!(tree.can_rename(pos_rpc_request_type));
     }
 
     #[test]
     fn test_rename_service_and_rpc() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_service.proto");
-        let parsed = ProtoParser::new().parse(uri, contents);
+        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
         assert!(parsed.is_some());
         let tree = parsed.unwrap();
 
@@ -441,7 +428,7 @@ mod test {
             character: 9,
         };
 
-        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+        let rename_fn = |nt: &str, pos: Position| match tree.rename_tree(pos, nt, contents) {
             Some(k) => {
                 let mut v = tree.rename_field(&k.1, &k.2, contents);
                 v.extend(k.0);
@@ -450,15 +437,17 @@ mod test {
             _ => vec![],
         };
 
-        assert_yaml_snapshot!(rename_fn("Catalog", &pos_service));
-        assert_yaml_snapshot!(rename_fn("FetchBook", &pos_rpc));
+        assert_yaml_snapshot!(rename_fn("Catalog", pos_service));
+        assert_yaml_snapshot!(rename_fn("FetchBook", pos_rpc));
     }
 
     #[test]
     fn test_rename_pivot_identifier() {
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_service.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
 
         // `Empty` reference at line 11 (the rpc Get(Empty) ...): char 16 = 'E'
         let pos_unqualified_ref = Position {
@@ -477,21 +466,23 @@ mod test {
         };
 
         assert_eq!(
-            parsed.rename_pivot_identifier(&pos_unqualified_ref, contents),
+            parsed.rename_pivot_identifier(pos_unqualified_ref, contents),
             Some("Empty".to_owned())
         );
         assert_eq!(
-            parsed.rename_pivot_identifier(&pos_other_ref, contents),
+            parsed.rename_pivot_identifier(pos_other_ref, contents),
             Some("Book".to_owned())
         );
-        assert_eq!(parsed.rename_pivot_identifier(&pos_decl, contents), None);
+        assert_eq!(parsed.rename_pivot_identifier(pos_decl, contents), None);
     }
 
     #[test]
     fn test_rpc_at_position_and_signatures() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_service.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
 
         // `GetBook` rpc at line 11 chars 8..15
         let pos_rpc = Position {
@@ -499,7 +490,7 @@ mod test {
             character: 10,
         };
         assert_eq!(
-            parsed.rpc_at_position(&pos_rpc, contents),
+            parsed.rpc_at_position(pos_rpc, contents),
             Some(("GetBook".to_owned(), "Empty".to_owned(), "Book".to_owned(),)),
         );
 
@@ -508,7 +499,7 @@ mod test {
             line: 10,
             character: 10,
         };
-        assert_eq!(parsed.rpc_at_position(&pos_service, contents), None);
+        assert_eq!(parsed.rpc_at_position(pos_service, contents), None);
 
         // all_rpc_signatures should pick up both rpcs in the file.
         let sigs = parsed.all_rpc_signatures(contents);
@@ -525,7 +516,9 @@ mod test {
     fn test_message_name_at_position() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_service.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
 
         // `Book` declaration at line 6 chars 8..12
         let pos = Position {
@@ -533,7 +526,7 @@ mod test {
             character: 9,
         };
         assert_eq!(
-            parsed.message_name_at_position(&pos, contents),
+            parsed.message_name_at_position(pos, contents),
             Some("Book".to_owned())
         );
 
@@ -542,17 +535,19 @@ mod test {
             line: 11,
             character: 10,
         };
-        assert_eq!(parsed.message_name_at_position(&pos_rpc, contents), None);
+        assert_eq!(parsed.message_name_at_position(pos_rpc, contents), None);
     }
 
     #[test]
     fn test_rename_field_and_enum_value() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_field.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
         let tree = parsed;
 
-        let rename_fn = |nt: &str, pos: &Position| match tree.rename_tree(pos, nt, contents) {
+        let rename_fn = |nt: &str, pos: Position| match tree.rename_tree(pos, nt, contents) {
             Some(k) => {
                 let mut v = tree.rename_field(&k.1, &k.2, contents);
                 v.extend(k.0);
@@ -592,19 +587,21 @@ mod test {
             character: 16,
         };
 
-        assert_yaml_snapshot!(rename_fn("CRIMSON", &pos_enum_value));
-        assert_yaml_snapshot!(rename_fn("name", &pos_plain_field));
-        assert_yaml_snapshot!(rename_fn("writer", &pos_user_type_field));
-        assert_yaml_snapshot!(rename_fn("tallies", &pos_map_field));
-        assert_yaml_snapshot!(rename_fn("content", &pos_oneof_name));
-        assert_yaml_snapshot!(rename_fn("words", &pos_oneof_field));
+        assert_yaml_snapshot!(rename_fn("CRIMSON", pos_enum_value));
+        assert_yaml_snapshot!(rename_fn("name", pos_plain_field));
+        assert_yaml_snapshot!(rename_fn("writer", pos_user_type_field));
+        assert_yaml_snapshot!(rename_fn("tallies", pos_map_field));
+        assert_yaml_snapshot!(rename_fn("content", pos_oneof_name));
+        assert_yaml_snapshot!(rename_fn("words", pos_oneof_field));
     }
 
     #[test]
     fn test_can_rename_field_and_enum_value() {
         let uri: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_rename_field.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
 
         // Cursor on a type identifier inside a field (`Author` at line 15
         // chars 4..10) is a reference site — already supported.
@@ -623,9 +620,9 @@ mod test {
             character: 19,
         };
 
-        assert_yaml_snapshot!(parsed.can_rename(&pos_type_ref));
-        assert_yaml_snapshot!(parsed.can_rename(&pos_plain_field));
-        assert_yaml_snapshot!(parsed.can_rename(&pos_field_number));
+        assert_yaml_snapshot!(parsed.can_rename(pos_type_ref));
+        assert_yaml_snapshot!(parsed.can_rename(pos_plain_field));
+        assert_yaml_snapshot!(parsed.can_rename(pos_field_number));
     }
 
     #[test]
@@ -633,7 +630,9 @@ mod test {
         // `Book.Author a = 1;` at line 19 of test_can_rename.proto
         let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
         let contents = include_str!("input/test_can_rename.proto");
-        let parsed = ProtoParser::new().parse(uri, contents).unwrap();
+        let parsed = ProtoParser::new()
+            .parse(uri, contents, &compile_test_query())
+            .unwrap();
 
         // Cursor on `Book` (the outer segment): chars 4..8
         let pos_outer = Position {
@@ -647,11 +646,11 @@ mod test {
         };
 
         assert_eq!(
-            parsed.rename_pivot_identifier(&pos_outer, contents),
+            parsed.rename_pivot_identifier(pos_outer, contents),
             Some("Book".to_owned())
         );
         assert_eq!(
-            parsed.rename_pivot_identifier(&pos_inner, contents),
+            parsed.rename_pivot_identifier(pos_inner, contents),
             Some("Book.Author".to_owned())
         );
     }

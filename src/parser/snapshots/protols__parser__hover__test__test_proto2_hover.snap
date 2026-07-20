@@ -1,0 +1,532 @@
+---
+source: src/parser/hover.rs
+expression: results
+---
+- target: "google/api/annotations.proto [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "Import: `google/api/annotations.proto` protobuf file"
+    range:
+      start:
+        line: 4
+        character: 0
+      end:
+        line: 4
+        character: 38
+- target: "LegacyBook [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyBook\nmessage LegacyBook\n```\n\n---\nLegacy message definition to test proto2 features"
+    range:
+      start:
+        line: 7
+        character: 8
+      end:
+        line: 7
+        character: 18
+- target: "isbn [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LegacyBook.isbn\nrequired string isbn = 1;\n```\n\n---\nRequired string field - must be parsed as a full type signature"
+    range:
+      start:
+        line: 9
+        character: 18
+      end:
+        line: 9
+        character: 22
+- target: "isbn [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 9
+        character: 11
+      end:
+        line: 9
+        character: 17
+- target: "title [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LegacyBook.title\noptional string title = 2;\n```\n\n---\nOptional field with an explicit default value"
+    range:
+      start:
+        line: 17
+        character: 2
+      end:
+        line: 17
+        character: 7
+- target: "title [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 16
+        character: 2
+      end:
+        line: 16
+        character: 8
+- target: "edition_year [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyBook.edition_year\noptional int32 edition_year = 3;\n```\n\n---\nDeprecated proto2 field with option formatting"
+    range:
+      start:
+        line: 24
+        character: 17
+      end:
+        line: 24
+        character: 29
+- target: "edition_year [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`int32`\n\n---\n\n**Built-in Type**\n\nA signed 32-bit integer using variable-length encoding.\n\n**Details:**\n\n- **Wire format**: Variable-length value (`varint`).\n- **Range**: `-2,147,483,648` to `2,147,483,647` inclusive.\n- **Efficiency**: Inefficient for negative numbers. Negative values are sign-extended and take a full `10 bytes` on the wire. Use `sint32` instead if your field frequently contains negative numbers.\n- **Go type**: `int32`\n- **C++ type**: `int32_t`\n- **Rust type**: `i32`\n"
+    range:
+      start:
+        line: 24
+        character: 11
+      end:
+        line: 24
+        character: 16
+- target: "legacy_metadata [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LegacyBook.legacy_metadata\noptional string legacy_metadata = 5;\n```"
+    range:
+      start:
+        line: 32
+        character: 20
+      end:
+        line: 32
+        character: 35
+- target: "legacy_metadata [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 32
+        character: 13
+      end:
+        line: 32
+        character: 19
+- target: "active [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LegacyBook.active\noptional bool active = 6;\n```"
+    range:
+      start:
+        line: 33
+        character: 18
+      end:
+        line: 33
+        character: 24
+- target: "active [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`bool`\n\n---\n\n**Built-in Type**\n\nA boolean value which can be either `true` or `false`.\n\n**Details:**\n\n- **Wire format**: Encoded as a `varint`.\n- **Value mapping**: `0` decodes to `false`, and `1` decodes to `true` (any non-zero varint value decodes to `true`).\n- **Go type**: `bool`\n- **C++ type**: `bool`\n- **Rust type**: `bool`\n"
+    range:
+      start:
+        line: 33
+        character: 13
+      end:
+        line: 33
+        character: 17
+- target: "BookStatus [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.BookStatus\nenum BookStatus\n```\n\n---\n Multi-line comment for an enum.\n\nThis tests advanced docstring extraction layers."
+    range:
+      start:
+        line: 41
+        character: 0
+      end:
+        line: 41
+        character: 10
+- target: "AVAILABLE [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.BookStatus.AVAILABLE\nAVAILABLE = 0;\n```\n\n---\nActive and available for rent"
+    range:
+      start:
+        line: 46
+        character: 2
+      end:
+        line: 46
+        character: 11
+- target: "BORROWED [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.BookStatus.BORROWED\nBORROWED = 1;\n```\n\n---\nTemporarily checked out"
+    range:
+      start:
+        line: 48
+        character: 2
+      end:
+        line: 48
+        character: 10
+- target: "ARCHIVED [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.BookStatus.ARCHIVED\nARCHIVED = 2;\n```\n\n---\nLost or destroyed status"
+    range:
+      start:
+        line: 50
+        character: 2
+      end:
+        line: 50
+        character: 10
+- target: "LegacyCatalog [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyCatalog\nservice LegacyCatalog\n```\n\n---\nService definition wrapped in a strict proto2 context"
+    range:
+      start:
+        line: 54
+        character: 8
+      end:
+        line: 54
+        character: 21
+- target: "GetBookByIsbn [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyCatalog.GetBookByIsbn\nrpc GetBookByIsbn(IsbnQuery) returns (LegacyBook);\n```\n\n---\n* Fully documented RPC method "
+    range:
+      start:
+        line: 59
+        character: 2
+      end:
+        line: 59
+        character: 15
+- target: "GetBookByIsbn [rpc_req_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.IsbnQuery\nmessage IsbnQuery\n```"
+    range:
+      start:
+        line: 60
+        character: 3
+      end:
+        line: 60
+        character: 12
+- target: "GetBookByIsbn [rpc_res_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyBook\nmessage LegacyBook\n```\n\n---\nLegacy message definition to test proto2 features"
+    range:
+      start:
+        line: 62
+        character: 3
+      end:
+        line: 62
+        character: 13
+- target: "UpdateInventory [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LegacyCatalog.UpdateInventory\nrpc UpdateInventory(InventoryAction) returns (stream InventoryStatus);\n```\n\n---\nUnderdocumented RPC with multiple options inside the block"
+    range:
+      start:
+        line: 73
+        character: 6
+      end:
+        line: 73
+        character: 21
+- target: "UpdateInventory [rpc_req_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryAction\nmessage InventoryAction\n```"
+    range:
+      start:
+        line: 73
+        character: 22
+      end:
+        line: 73
+        character: 37
+- target: "UpdateInventory [rpc_res_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryStatus\nmessage InventoryStatus\n```"
+    range:
+      start:
+        line: 73
+        character: 55
+      end:
+        line: 73
+        character: 70
+- target: "IsbnQuery [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.IsbnQuery\nmessage IsbnQuery\n```"
+    range:
+      start:
+        line: 78
+        character: 8
+      end:
+        line: 78
+        character: 17
+- target: "query_id [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.IsbnQuery.query_id\nrequired sint32 query_id = 1;\n```\n\n---\nSingular scalar field without any comments"
+    range:
+      start:
+        line: 80
+        character: 18
+      end:
+        line: 80
+        character: 26
+- target: "query_id [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`sint32`\n\n---\n\n**Built-in Type**\n\nA signed 32-bit integer using variable-length ZigZag encoding.\n\n**Details:**\n\n- **Wire format**: Variable-length value (`varint`).\n- **Encoding**: Uses ZigZag encoding to map negative numbers to positive numbers before varint compression.\n- **Range**: `-2,147,483,648` to `2,147,483,647` inclusive.\n- **Efficiency**: Highly efficient for negative numbers with small absolute values. Unlike `int32`, negative values do not take a full `10 bytes` on the wire.\n- **Go type**: `int32`\n- **C++ type**: `int32_t`\n- **Rust type**: `i32`\n"
+    range:
+      start:
+        line: 80
+        character: 11
+      end:
+        line: 80
+        character: 17
+- target: "raw_isbn [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.IsbnQuery.raw_isbn\nrequired string raw_isbn = 2;\n```"
+    range:
+      start:
+        line: 81
+        character: 18
+      end:
+        line: 81
+        character: 26
+- target: "raw_isbn [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 81
+        character: 11
+      end:
+        line: 81
+        character: 17
+- target: "InventoryAction [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryAction\nmessage InventoryAction\n```"
+    range:
+      start:
+        line: 88
+        character: 8
+      end:
+        line: 88
+        character: 23
+- target: "action_id [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryAction.action_id\nrequired fixed64 action_id = 1;\n```"
+    range:
+      start:
+        line: 89
+        character: 19
+      end:
+        line: 89
+        character: 28
+- target: "action_id [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`fixed64`\n\n---\n\n**Built-in Type**\n\nA 64-bit unsigned integer using fixed-width 8-byte encoding.\n\n**Details:**\n\n- **Wire format**: 8-byte fixed-width value (`fixed64`).\n- **Range**: `0` to `18,446,744,073,709,551,615` inclusive.\n- **Efficiency**: More efficient than `uint64` if values are frequently greater than `72,057,594,037,927,936`.\n- **Go type**: `uint64`\n- **C++ type**: `uint64_t`\n- **Rust type**: `u64`\n"
+    range:
+      start:
+        line: 89
+        character: 11
+      end:
+        line: 89
+        character: 18
+- target: "modification_payload [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryAction.modification_payload\nmap<string, sfixed32> modification_payload = 2;\n```\n\n---\nMap fields inside proto2 schemas"
+    range:
+      start:
+        line: 94
+        character: 2
+      end:
+        line: 94
+        character: 22
+- target: "modification_payload [map_key_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+    range:
+      start:
+        line: 92
+        character: 3
+      end:
+        line: 92
+        character: 9
+- target: "modification_payload [map_value_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`sfixed32`\n\n---\n\n**Built-in Type**\n\nA signed 32-bit integer using fixed-width 4-byte encoding.\n\n**Details:**\n\n- **Wire format**: 4-byte fixed-width value (`fixed32`).\n- **Range**: `-2,147,483,648` to `2,147,483,647` inclusive.\n- **Efficiency**: More efficient than `sint32` if values are frequently greater than `268,435,456` in absolute value.\n- **Go type**: `int32`\n- **C++ type**: `int32_t`\n- **Rust type**: `i32`\n"
+    range:
+      start:
+        line: 93
+        character: 2
+      end:
+        line: 93
+        character: 10
+- target: "type [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryAction.type\nExternalType type = 3;\n```"
+    range:
+      start:
+        line: 95
+        character: 15
+      end:
+        line: 95
+        character: 19
+- target: "InventoryStatus [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryStatus\nmessage InventoryStatus\n```"
+    range:
+      start:
+        line: 98
+        character: 8
+      end:
+        line: 98
+        character: 23
+- target: "success [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryStatus.success\nrequired bool success = 1;\n```"
+    range:
+      start:
+        line: 99
+        character: 16
+      end:
+        line: 99
+        character: 23
+- target: "success [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`bool`\n\n---\n\n**Built-in Type**\n\nA boolean value which can be either `true` or `false`.\n\n**Details:**\n\n- **Wire format**: Encoded as a `varint`.\n- **Value mapping**: `0` decodes to `false`, and `1` decodes to `true` (any non-zero varint value decodes to `true`).\n- **Go type**: `bool`\n- **C++ type**: `bool`\n- **Rust type**: `bool`\n"
+    range:
+      start:
+        line: 99
+        character: 11
+      end:
+        line: 99
+        character: 15
+- target: "current_status [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.InventoryStatus.current_status\noptional BookStatus current_status = 2;\n```\n\n---\nOptional enum field testing nested references"
+    range:
+      start:
+        line: 101
+        character: 22
+      end:
+        line: 101
+        character: 36
+- target: "current_status [type_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.BookStatus\nenum BookStatus\n```\n\n---\n Multi-line comment for an enum.\n\nThis tests advanced docstring extraction layers."
+    range:
+      start:
+        line: 101
+        character: 11
+      end:
+        line: 101
+        character: 21
+- target: "LikesService [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LikesService\nservice LikesService\n```\n\n---\nAPIs for user reactions."
+    range:
+      start:
+        line: 104
+        character: 8
+      end:
+        line: 104
+        character: 20
+- target: "LikeBooks [definition]"
+  hover:
+    contents:
+      kind: markdown
+      value: "```protobuf\ncom.syntax.legacy.LikesService.LikeBooks\nrpc LikeBooks(stream LegacyBook) returns (google.protobuf.Empty);\n```\n\n---\n# Quota Management Configuration\nControls request limitations across distinct API client tiers.\nChanges are reloaded dynamically without service interruption.\n\n## Available Strategies:\n- **Global (Default)**: applies automatically to unauthenticated users.\n- **Tier-based (Subscribed)**:\n    - `Tier 1 (Free)`:\n        - Rate limit: `100` rps.\n        - Premium API endpoints: **disabled**.\n    - `Tier 2 (Premium)`:\n        - Rate limit: `5000` rps.\n        - Premium API endpoints: **enabled**.\n- **Custom**: dedicated hardware bypass matching specific API keys.\n\n```json\n{\n  \"foo\": {\n    \"bar\": \"baz\"\n  }\n}\n```"
+    range:
+      start:
+        line: 127
+        character: 6
+      end:
+        line: 127
+        character: 15
+- target: "LikeBooks [rpc_req_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "**`Deprecated`**\n```protobuf\ncom.syntax.legacy.LegacyBook\nmessage LegacyBook\n```\n\n---\nLegacy message definition to test proto2 features"
+    range:
+      start:
+        line: 127
+        character: 23
+      end:
+        line: 127
+        character: 33
+- target: "LikeBooks [rpc_res_use]"
+  hover:
+    contents:
+      kind: markdown
+      value: "`google.protobuf.Empty`\n\n---\n\n**Well-Known Type**\n\nA generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs.\n\nThe JSON representation for `Empty` is an empty JSON object `{}`.\n\n```protobuf\nmessage Empty {}\n```\n"
+    range:
+      start:
+        line: 127
+        character: 44
+      end:
+        line: 127
+        character: 65

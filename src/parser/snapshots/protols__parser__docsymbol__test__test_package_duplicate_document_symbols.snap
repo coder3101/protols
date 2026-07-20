@@ -1,0 +1,39 @@
+---
+source: src/parser/docsymbol.rs
+expression: symbols
+---
+- name: Test
+  kind: 23
+  range:
+    start:
+      line: 5
+      character: 0
+    end:
+      line: 7
+      character: 1
+  selectionRange:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 12
+  children:
+    - name: name
+      detail: "string (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 6
+          character: 2
+        end:
+          line: 6
+          character: 18
+      selectionRange:
+        start:
+          line: 6
+          character: 9
+        end:
+          line: 6
+          character: 13
+      children: []

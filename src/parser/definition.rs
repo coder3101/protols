@@ -1,7 +1,7 @@
-use async_lsp::lsp_types::{Location, Range};
+use async_lsp::lsp_types::Location;
 use tree_sitter::Node;
 
-use crate::{nodekind::NodeKind, utils::ts_to_lsp_position};
+use crate::{nodekind::NodeKind, utils::to_lsp_range};
 
 use super::ParsedTree;
 
@@ -47,10 +47,7 @@ impl ParsedTree {
                     })
                     .map(|n| Location {
                         uri: self.uri.clone(),
-                        range: Range {
-                            start: ts_to_lsp_position(&n.start_position()),
-                            end: ts_to_lsp_position(&n.end_position()),
-                        },
+                        range: to_lsp_range(n),
                     })
                     .collect();
 
@@ -66,12 +63,13 @@ mod test {
     use insta::assert_yaml_snapshot;
 
     use crate::parser::ProtoParser;
+    use crate::utils::compile_test_query;
 
     #[test]
     fn test_goto_definition() {
         let url: Url = "file://foo/bar.proto".parse().unwrap();
         let contents = include_str!("input/test_goto_definition.proto");
-        let parsed = ProtoParser::new().parse(url, contents);
+        let parsed = ProtoParser::new().parse(url, contents, &compile_test_query());
 
         assert!(parsed.is_some());
         let tree = parsed.unwrap();

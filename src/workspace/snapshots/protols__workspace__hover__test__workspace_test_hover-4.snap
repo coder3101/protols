@@ -1,6 +1,14 @@
 ---
 source: src/workspace/hover.rs
-expression: "state.hover(\"com.workspace\", \"Author.Address\")"
+expression: "state.hover(&a_uri, Position { line: 12, character: 14 })"
 ---
-kind: markdown
-value: "`Author.Address` message or enum type, package: `com.workspace`\n---\nAddress is a Address"
+contents:
+  kind: markdown
+  value: "```protobuf\ncom.workspace.Author.Address\nmessage Address\n```\n\n---\nAddress is a Address"
+range:
+  start:
+    line: 12
+    character: 3
+  end:
+    line: 12
+    character: 17

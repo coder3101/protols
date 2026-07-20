@@ -1,0 +1,24 @@
+edition = "2023";
+
+package com.syntax.future;
+
+// Future-proof message using Protobuf Editions syntax
+message NextGenBook {
+  // In editions, fields are "implicit" by default, no labels needed
+  string global_id = 1;
+
+  // Features configure field behavior instead of proto2/proto3 syntax rules
+  string co_author = 2 [features.field_presence = EXPLICIT];
+  option deprecated = true;
+
+  // Testing modern closed enum behavior in Editions (features.enum_type =
+  // CLOSED)
+  enum LegacyStatus {
+    option features.enum_type = CLOSED;
+    UNKNOWN = 0;
+    ACTIVE = 1;
+  }
+
+  // Repeated field matching editions specification
+  repeated string tag_list = 3;
+}

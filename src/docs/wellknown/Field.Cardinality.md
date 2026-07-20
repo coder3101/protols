@@ -1,12 +1,23 @@
-*google.protobuf.Field.Cardinality* well known type
+`google.protobuf.Field.Cardinality`
+
 ---
+
+**Well-Known Type**
+
 Whether a field is optional, required, or repeated.
----
-```proto
+
+**Values:**
+
+- `CARDINALITY_UNKNOWN`: For fields with unknown cardinality.
+- `CARDINALITY_OPTIONAL`: For optional fields.
+- `CARDINALITY_REQUIRED`: For required fields. Valid for `proto2` syntax only.
+- `CARDINALITY_REPEATED`: For repeated fields.
+
+```protobuf
 enum Cardinality {
-    CARDINALITY_UNKNOWN = 0; // For fields with unknown cardinality.
-    CARDINALITY_OPTIONAL = 1; // For optional fields.
-    CARDINALITY_REQUIRED = 2; // For required fields. Proto2 syntax only.
-    CARDINALITY_REPEATED = 3; // For repeated fields.
+  CARDINALITY_UNKNOWN = 0;
+  CARDINALITY_OPTIONAL = 1;
+  CARDINALITY_REQUIRED = 2;
+  CARDINALITY_REPEATED = 3;
 }
 ```

@@ -8,10 +8,10 @@ use async_lsp::lsp_types::{
     DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, Documentation, FileOperationFilter,
     FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, Location, MarkupContent,
-    MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions,
-    RenameParams, ServerCapabilities, ServerInfo, SetTraceParams, TextDocumentPositionParams,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind, OneOf,
+    PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions, RenameParams,
+    ServerCapabilities, ServerInfo, SetTraceParams, TextDocumentPositionParams,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities, WorkspaceSymbolParams, WorkspaceSymbolResponse,
@@ -142,35 +142,15 @@ impl ProtoLanguageServer {
     }
 
     pub(super) fn hover(
-        &mut self,
+        &self,
         param: HoverParams,
     ) -> BoxFuture<'static, Result<Option<Hover>, ResponseError>> {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
-            return Box::pin(async move { Ok(None) });
-        };
+        let hover = self.state.hover(&uri, pos);
 
-        let content = self.state.get_content(&uri);
-        let hv = tree.get_hoverable_at_position(&pos, content.as_bytes());
-        let current_package_name = tree.get_package_name(content.as_bytes()).unwrap_or(".");
-
-        let Some(hv) = hv else {
-            error!(uri=%uri, "failed to get hoverable identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
-        let result = self.state.hover(&ipath, current_package_name.as_ref(), hv);
-
-        Box::pin(async move {
-            Ok(result.map(|r| Hover {
-                range: None,
-                contents: HoverContents::Markup(r),
-            }))
-        })
+        Box::pin(async move { Ok(hover) })
     }
 
     pub(super) fn completion(
@@ -186,7 +166,7 @@ impl ProtoLanguageServer {
         ];
 
         // Build completion item from builtins as fields
-        let mut completions: Vec<CompletionItem> = docs::BUITIN
+        let mut completions: Vec<CompletionItem> = docs::BUILTIN
             .iter()
             .map(|(k, v)| {
                 (
@@ -234,7 +214,7 @@ impl ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let response = tree.can_rename(&pos).map(PrepareRenameResponse::Range);
+        let response = tree.can_rename(pos).map(PrepareRenameResponse::Range);
 
         Box::pin(async move { Ok(response) })
     }
@@ -260,7 +240,7 @@ impl ProtoLanguageServer {
         // node), pivot to the declaration and rename from there. The workspace
         // pass then handles all references — including the one the user is
         // standing on.
-        let (decl_uri, decl_pos) = match tree.rename_pivot_identifier(&pos, content.as_bytes()) {
+        let (decl_uri, decl_pos) = match tree.rename_pivot_identifier(pos, content.as_bytes()) {
             Some(decl_path) => {
                 let locations =
                     self.state
@@ -340,7 +320,7 @@ impl ProtoLanguageServer {
 
         let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
-        let Some((mut refs, otext)) = tree.reference_tree(&pos, content.as_bytes()) else {
+        let Some((mut refs, otext)) = tree.reference_tree(pos, content.as_bytes()) else {
             error!(uri=%uri, "failed to find references in a tree");
             return Box::pin(async move { Ok(None) });
         };
@@ -383,7 +363,7 @@ impl ProtoLanguageServer {
         };
 
         let content = self.state.get_content(&uri);
-        let jump = tree.get_jumpable_at_position(&pos, content.as_bytes());
+        let jump = tree.get_jumpable_at_position(pos, content.as_bytes());
         let current_package_name = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
         let Some(jump) = jump else {
@@ -406,7 +386,7 @@ impl ProtoLanguageServer {
     }
 
     pub(super) fn document_symbol(
-        &mut self,
+        &self,
         params: DocumentSymbolParams,
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, ResponseError>> {
         let uri = params.text_document.uri;
@@ -416,9 +396,8 @@ impl ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let content = self.state.get_content(&uri);
-        let locations = tree.find_document_locations(content.as_bytes());
-        let response = DocumentSymbolResponse::Nested(locations);
+        let symbols = tree.document_symbols();
+        let response = DocumentSymbolResponse::Nested(symbols);
 
         Box::pin(async move { Ok(Some(response)) })
     }

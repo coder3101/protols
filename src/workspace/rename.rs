@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-use async_lsp::lsp_types::{Location, Position, ProgressParamsValue, Range, TextEdit, Url};
+use async_lsp::lsp_types::{Location, Position, ProgressParamsValue, TextEdit, Url};
 
 use crate::context::jumpable::Jumpable;
 use crate::nodekind::NodeKind;
 use crate::state::ProtoLanguageState;
-use crate::utils::{split_identifier_package, trailing_segment, ts_to_lsp_position};
+use crate::utils::{
+    is_position_inside_range, split_identifier_package, to_lsp_range, trailing_segment,
+};
 
 /// A single rename operation to apply against the workspace: rename whatever
 /// symbol is declared at `(uri, pos)` to `new_name`. Multiple ops are merged
@@ -157,10 +159,7 @@ impl ProtoLanguageState {
                 if text == rpc_name {
                     out.push(Location {
                         uri: tree.uri.clone(),
-                        range: Range {
-                            start: ts_to_lsp_position(&node.start_position()),
-                            end: ts_to_lsp_position(&node.end_position()),
-                        },
+                        range: to_lsp_range(node),
                     });
                 }
             }
@@ -255,7 +254,7 @@ impl ProtoLanguageState {
         let content = self.get_content(&op.uri);
         let package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
 
-        let (edit, otext, ntext) = tree.rename_tree(&op.pos, &op.new_name, content.as_bytes())?;
+        let (edit, otext, ntext) = tree.rename_tree(op.pos, &op.new_name, content.as_bytes())?;
 
         let mut h: HashMap<Url, Vec<TextEdit>> = HashMap::new();
         h.extend(self.rename_fields(package, &otext, &ntext, workspace, progress_sender));
@@ -279,10 +278,10 @@ impl ProtoLanguageState {
         let content = self.get_content(decl_uri);
         let bytes = content.as_bytes();
 
-        if tree.rpc_at_position(&decl_pos, bytes).is_some() {
+        if tree.rpc_at_position(decl_pos, bytes).is_some() {
             return self.chain_from_rpc_cursor(decl_uri, decl_pos, new_name, ipath);
         }
-        if tree.message_name_at_position(&decl_pos, bytes).is_some() {
+        if tree.message_name_at_position(decl_pos, bytes).is_some() {
             return self.chain_from_message_cursor(decl_uri, decl_pos, new_name, ipath);
         }
         vec![]
@@ -300,7 +299,7 @@ impl ProtoLanguageState {
         let tree = self.get_tree(decl_uri).expect("checked by caller");
         let content = self.get_content(decl_uri);
         let (old_rpc_name, request_text, response_text) = tree
-            .rpc_at_position(&decl_pos, content.as_bytes())
+            .rpc_at_position(decl_pos, content.as_bytes())
             .expect("checked by caller");
         self.sibling_message_ops(
             decl_uri,
@@ -333,7 +332,7 @@ impl ProtoLanguageState {
         let tree = self.get_tree(decl_uri).expect("checked by caller");
         let content = self.get_content(decl_uri);
         let msg_name = tree
-            .message_name_at_position(&decl_pos, content.as_bytes())
+            .message_name_at_position(decl_pos, content.as_bytes())
             .expect("checked by caller");
 
         let Some((rpc_base, primary_suffix, new_rpc_base)) =
@@ -354,7 +353,7 @@ impl ProtoLanguageState {
             };
             let rpc_content = self.get_content(&rpc_loc.uri);
             let Some((_, rpc_req, rpc_resp)) =
-                rpc_tree.rpc_at_position(&rpc_loc.range.start, rpc_content.as_bytes())
+                rpc_tree.rpc_at_position(rpc_loc.range.start, rpc_content.as_bytes())
             else {
                 continue;
             };
@@ -369,7 +368,7 @@ impl ProtoLanguageState {
             let resolves_to_primary = self
                 .definition(ipath, rpc_pkg, Jumpable::Identifier(slot_text.clone()))
                 .iter()
-                .any(|l| l.uri == *decl_uri && position_in_range(decl_pos, l.range));
+                .any(|l| l.uri == *decl_uri && is_position_inside_range(decl_pos, l.range));
             if resolves_to_primary {
                 matching.push((rpc_loc, rpc_req, rpc_resp));
             }
@@ -451,14 +450,6 @@ impl ProtoLanguageState {
         }
         ops
     }
-}
-
-/// True iff `pos` falls within `range` (inclusive of both endpoints). Used to
-/// match a possibly mid-identifier cursor against a definition's full-span
-/// range when verifying that two locations refer to the same symbol.
-fn position_in_range(pos: Position, range: Range) -> bool {
-    (pos.line, pos.character) >= (range.start.line, range.start.character)
-        && (pos.line, pos.character) <= (range.end.line, range.end.character)
 }
 
 /// If `msg_name` ends with `Request` or `Response` and `new_name` ends with
