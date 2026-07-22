@@ -39,12 +39,9 @@ impl ProtoLanguageState {
             );
         };
 
-        let Ok(metamodel_query) =
-            Query::new(&language, &generate_metamodel_query()).inspect_err(trace_error)
-        else {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            std::process::exit(1);
-        };
+        let metamodel_query = Query::new(&language, &generate_metamodel_query())
+            .inspect_err(trace_error)
+            .expect("Tree-sitter query compilation failed");
 
         Self {
             documents: Arc::default(),
