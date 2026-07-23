@@ -196,8 +196,18 @@ impl ProtoLanguageServer {
         if let Some(tree) = self.state.get_tree(&uri) {
             let content = self.state.get_content(&uri);
             if let Some(package_name) = tree.get_package_name(content.as_bytes()) {
-                completions.extend(self.state.completion_items(package_name));
+                completions.extend(self.state.completion_items_for_package(package_name));
             }
+
+            if let Some(ipath) = self.configs.get_include_paths(&uri) {
+                for import in tree.get_import_paths(content.as_bytes()).iter() {
+                    if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists())
+                        && let Ok(uri) = Url::from_file_path(p.clone())
+                    {
+                        completions.extend(self.state.completion_items_for_tree(&uri));
+                    }
+                }
+            };
         }
         Box::pin(async move { Ok(Some(CompletionResponse::Array(completions))) })
     }

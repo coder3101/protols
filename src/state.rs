@@ -368,7 +368,40 @@ impl ProtoLanguageState {
         }
     }
 
-    pub fn completion_items(&self, package: &str) -> Vec<CompletionItem> {
+    pub fn completion_items_for_tree(&self, url: &Url) -> Vec<CompletionItem> {
+        let collector = |f: fn(&Node) -> bool, k: CompletionItemKind| {
+            self.get_tree(url)
+                .map(|tree| {
+                    let content = self.get_content(&tree.uri);
+
+                    tree.find_all_nodes(f)
+                        .into_iter()
+                        .map(|n| {
+                            let name = n.utf8_text(content.as_bytes()).unwrap().to_string();
+
+                            CompletionItem {
+                                label: format!(".{}.{name}", tree.package),
+                                kind: Some(k),
+                                ..Default::default()
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        };
+
+        let mut result = collector(NodeKind::is_enum_name, CompletionItemKind::ENUM);
+        result.extend(collector(
+            NodeKind::is_message_name,
+            CompletionItemKind::STRUCT,
+        ));
+        // Better ways to dedup, but who cares?...
+        result.sort_by_key(|k| k.label.clone());
+        result.dedup_by_key(|k| k.label.clone());
+        result
+    }
+
+    pub fn completion_items_for_package(&self, package: &str) -> Vec<CompletionItem> {
         let collector = |f: fn(&Node) -> bool, k: CompletionItemKind| {
             self.get_trees_for_package(package)
                 .into_iter()
@@ -471,14 +504,14 @@ mod test {
     #[test]
     fn test_completion_items() {
         let state = setup_state();
-        let items = state.completion_items("com.test");
+        let items = state.completion_items_for_package("com.test");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"Book"));
         assert!(labels.contains(&"Color"));
         assert!(labels.contains(&"Author"));
         assert!(!labels.contains(&"Foo"));
 
-        let other_items = state.completion_items("com.other");
+        let other_items = state.completion_items_for_package("com.other");
         let other_labels: Vec<&str> = other_items.iter().map(|i| i.label.as_str()).collect();
         assert!(other_labels.contains(&"Foo"));
         assert!(!other_labels.contains(&"Book"));
@@ -487,7 +520,7 @@ mod test {
     #[test]
     fn test_completion_items_empty_package() {
         let state = setup_state();
-        let items = state.completion_items("com.nonexistent");
+        let items = state.completion_items_for_package("com.nonexistent");
         assert!(items.is_empty());
     }
 
