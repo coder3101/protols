@@ -502,7 +502,17 @@ mod test {
     }
 
     #[test]
-    fn test_completion_items() {
+    fn test_tree_completion_items() {
+        let state = setup_state();
+        let items = state.completion_items_for_tree(&uri("file:///test.proto"));
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&".com.test.Book"));
+        assert!(labels.contains(&".com.test.Color"));
+        assert!(!labels.contains(&".com.test.Author"));
+    }
+
+    #[test]
+    fn test_package_completion_items() {
         let state = setup_state();
         let items = state.completion_items_for_package("com.test");
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -518,7 +528,7 @@ mod test {
     }
 
     #[test]
-    fn test_completion_items_empty_package() {
+    fn test_package_completion_items_empty_package() {
         let state = setup_state();
         let items = state.completion_items_for_package("com.nonexistent");
         assert!(items.is_empty());
