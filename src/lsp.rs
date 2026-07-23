@@ -54,7 +54,7 @@ impl ProtoLanguageServer {
         let file_operation_filers = vec![FileOperationFilter {
             scheme: Some(String::from("file")),
             pattern: FileOperationPattern {
-                glob: String::from("**/*.{proto}"),
+                glob: String::from("**/*.proto"),
                 matches: Some(FileOperationPatternKind::File),
                 ..Default::default()
             },
