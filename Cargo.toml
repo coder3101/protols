@@ -39,3 +39,6 @@ insta = { version = "1.47", features = ["yaml", "redactions"] }
 strip = "debuginfo" # Removes heavy debug data but keeps function names for panic logs
 lto = true          # Enables Link-Time Optimization for cross-crate improvements
 codegen-units = 1   # Maximizes LLVM optimization passes
+
+[lints.clippy]
+pedantic = "warn"

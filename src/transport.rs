@@ -21,13 +21,13 @@ pub type LspWriter = Pin<Box<dyn AsyncWrite>>;
 ///
 /// # Errors
 ///
-/// Returns a [TransportError] if:
+/// Returns a [`TransportError`] if:
 /// * The specified TCP port or socket address is already in use.
 /// * A Unix socket cannot be created (e.g., due to file permissions or path conflicts).
 /// * Windows Named Pipe creation fails due to access rights or naming violations.
 pub async fn create_transport(cli: &Cli) -> TransportResult<(LspReader, LspWriter)> {
     if let Some(port) = cli.port {
-        let addr = format!("127.0.0.1:{}", port);
+        let addr = format!("127.0.0.1:{port}");
         return create_tcp_transport(&addr).await;
     }
 
@@ -39,23 +39,20 @@ pub async fn create_transport(cli: &Cli) -> TransportResult<(LspReader, LspWrite
         return create_pipe_transport(path).await;
     }
 
-    create_stdio_transport().await
+    create_stdio_transport()
 }
 
 async fn create_tcp_transport(address: &str) -> TransportResult<(LspReader, LspWriter)> {
     let listener = tokio::net::TcpListener::bind(address)
         .await
-        .inspect_err(|e| eprintln!("Error: Could not bind to {}: {}", address, e))?;
+        .inspect_err(|e| eprintln!("Error: Could not bind to {address}: {e}"))?;
 
-    eprintln!(
-        "LSP server listening on TCP: {}. Waiting for client...",
-        address
-    );
+    eprintln!("LSP server listening on TCP: {address}. Waiting for client...");
 
     let (stream, _) = listener
         .accept()
         .await
-        .inspect_err(|e| eprintln!("Error: Failed to accept connection: {}", e))?;
+        .inspect_err(|e| eprintln!("Error: Failed to accept connection: {e}"))?;
 
     eprintln!("Client connected");
     tracing::info!("Using TCP: {}", address);
@@ -73,8 +70,7 @@ async fn create_pipe_transport(path: &str) -> TransportResult<(LspReader, LspWri
         if let Ok(metadata) = std::fs::metadata(path) {
             if !metadata.file_type().is_socket() {
                 return Err(format!(
-                    "Path '{}' exists and is not a socket. Refusing to overwrite.",
-                    path
+                    "Path '{path}' exists and is not a socket. Refusing to overwrite.",
                 )
                 .into());
             }
@@ -85,17 +81,16 @@ async fn create_pipe_transport(path: &str) -> TransportResult<(LspReader, LspWri
         }
 
         let listener = tokio::net::UnixListener::bind(path)
-            .inspect_err(|e| eprintln!("Failed to bind Unix domain socket {}: {}", path, e))?;
+            .inspect_err(|e| eprintln!("Failed to bind Unix domain socket {path}: {e}"))?;
 
         eprintln!(
-            "Listening on Unix domain socket: {}. Waiting for client...",
-            path
+            "Listening on Unix domain socket: {path}. Waiting for client..."
         );
 
         let (stream, _) = listener
             .accept()
             .await
-            .inspect_err(|e| eprintln!("Error: Failed to accept connection: {}", e))?;
+            .inspect_err(|e| eprintln!("Error: Failed to accept connection: {e}"))?;
 
         eprintln!("Client connected");
         tracing::info!("Using Unix domain socket: {}", path);
@@ -173,14 +168,14 @@ fn normalize_windows_pipe(path: &str) -> TransportResult<String> {
     Ok(full_path)
 }
 
-async fn create_stdio_transport() -> TransportResult<(LspReader, LspWriter)> {
+fn create_stdio_transport() -> TransportResult<(LspReader, LspWriter)> {
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
     {
         let stdin = async_lsp::stdio::PipeStdin::lock_tokio()
-            .map_err(|e| format!("Failed to lock stdin: {}", e))?;
+            .map_err(|e| format!("Failed to lock stdin: {e}"))?;
         let stdout = async_lsp::stdio::PipeStdout::lock_tokio()
-            .map_err(|e| format!("Failed to lock stdout: {}", e))?;
+            .map_err(|e| format!("Failed to lock stdout: {e}"))?;
 
         eprintln!("Using Stdio");
         tracing::info!("Using Stdio");

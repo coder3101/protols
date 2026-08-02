@@ -1,23 +1,23 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock, mpsc::Sender},
 };
 use tracing::info;
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentSymbol, Location, OneOf, ProgressParamsValue,
-    PublishDiagnosticsParams, Url, WorkspaceSymbol,
+    CompletionItem, CompletionItemKind, Location, OneOf, ProgressParamsValue,
+    PublishDiagnosticsParams, Range, SymbolKind, SymbolTag, Url, WorkspaceSymbol,
 };
 use tree_sitter::{Node, Query, QueryError};
 use walkdir::WalkDir;
 
 use crate::{
     config::Config,
-    model::generate_metamodel_query,
+    model::{ElementKind, generate_metamodel_query},
     nodekind::NodeKind,
     parser::{ParsedTree, ProtoParser},
-    protoc::ProtocDiagnostics,
+    protoc::collect_diagnostics,
 };
 
 pub struct ProtoLanguageState {
@@ -25,7 +25,6 @@ pub struct ProtoLanguageState {
     trees: Arc<RwLock<HashMap<Url, ParsedTree>>>,
     parser: Arc<Mutex<ProtoParser>>,
     parsed_workspaces: Arc<RwLock<HashSet<String>>>,
-    protoc_diagnostics: Arc<Mutex<ProtocDiagnostics>>,
     metamodel_query: Query,
 }
 
@@ -48,7 +47,6 @@ impl ProtoLanguageState {
             trees: Arc::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             parsed_workspaces: Arc::new(RwLock::new(HashSet::new())),
-            protoc_diagnostics: Arc::new(Mutex::new(ProtocDiagnostics::new())),
             metamodel_query,
         }
     }
@@ -85,20 +83,57 @@ impl ProtoLanguageState {
             .collect()
     }
 
+    /// Runs a fast, pure-Rust substring match over the cached metamodel pool
+    /// populated during startup indexing.
+    ///
+    /// This deliberately avoids re-parsing the workspace or rebuilding the
+    /// hierarchical [`DocumentSymbol`] tree on every request. Instead it scans
+    /// the flat, already-indexed [`ModelElement`] registry and resolves each
+    /// candidate's container name by walking the in-memory parent links.
     pub fn find_workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
+        let query = query.to_lowercase();
         let mut symbols = Vec::new();
 
         for tree in self.get_trees() {
-            let doc_symbols = tree.document_symbols();
+            for element in &tree.elements {
+                if matches!(element.kind, ElementKind::Import { .. }) {
+                    continue;
+                }
 
-            for doc_symbol in doc_symbols {
-                Self::find_workspace_symbols_impl(
-                    &doc_symbol,
-                    &tree.uri,
-                    query,
-                    None,
-                    &mut symbols,
-                );
+                let name_lower = element.meta.name.to_lowercase();
+                if !query.is_empty() && !name_lower.contains(&query) {
+                    continue;
+                }
+
+                let container_name = element
+                    .parent_id
+                    .and_then(|parent_id| tree.elements.get(parent_id))
+                    .map(|parent| parent.meta.name.clone());
+
+                let range =
+                    element
+                        .meta
+                        .documentation
+                        .first()
+                        .map_or(element.meta.range, |comment| Range {
+                            start: comment.range.start,
+                            end: element.meta.range.end,
+                        });
+
+                symbols.push(WorkspaceSymbol {
+                    name: element.meta.name.clone(),
+                    kind: SymbolKind::from(&element.kind),
+                    tags: element
+                        .kind
+                        .is_deprecated()
+                        .then(|| vec![SymbolTag::DEPRECATED]),
+                    container_name,
+                    location: OneOf::Left(Location {
+                        uri: tree.uri.clone(),
+                        range,
+                    }),
+                    data: None,
+                });
             }
         }
 
@@ -120,46 +155,10 @@ impl ProtoLanguageState {
         symbols
     }
 
-    fn find_workspace_symbols_impl(
-        doc_symbol: &DocumentSymbol,
-        uri: &Url,
-        query: &str,
-        container_name: Option<String>,
-        symbols: &mut Vec<WorkspaceSymbol>,
-    ) {
-        let symbol_name_lower = doc_symbol.name.to_lowercase();
-
-        if query.is_empty() || symbol_name_lower.contains(query) {
-            symbols.push(WorkspaceSymbol {
-                name: doc_symbol.name.clone(),
-                kind: doc_symbol.kind,
-                tags: doc_symbol.tags.clone(),
-                container_name: container_name.clone(),
-                location: OneOf::Left(Location {
-                    uri: uri.clone(),
-                    range: doc_symbol.range,
-                }),
-                data: None,
-            });
-        }
-
-        if let Some(children) = &doc_symbol.children {
-            for child in children {
-                Self::find_workspace_symbols_impl(
-                    child,
-                    uri,
-                    query,
-                    Some(doc_symbol.name.clone()),
-                    symbols,
-                );
-            }
-        }
-    }
-
     fn upsert_content_impl(
         &mut self,
         uri: &Url,
-        content: String,
+        content: &str,
         ipath: &[PathBuf],
         depth: usize,
         parse_session: &mut HashSet<Url>,
@@ -190,17 +189,17 @@ impl ProtoLanguageState {
         self.documents
             .write()
             .expect("poison")
-            .insert(uri.clone(), content.clone());
+            .insert(uri.clone(), content.to_string());
 
         parse_session.insert(uri.clone());
-        let imports = self.get_owned_imports(uri, content.as_str());
+        let imports = self.get_owned_imports(uri, content);
 
-        for import in imports.iter() {
+        for import in &imports {
             if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists())
                 && let Ok(uri) = Url::from_file_path(p.clone())
                 && let Ok(content) = std::fs::read_to_string(p)
             {
-                self.upsert_content_impl(&uri, content, ipath, depth - 1, parse_session);
+                self.upsert_content_impl(&uri, &content, ipath, depth - 1, parse_session);
             }
         }
     }
@@ -217,12 +216,12 @@ impl ProtoLanguageState {
     pub fn upsert_content(
         &mut self,
         uri: &Url,
-        content: String,
+        content: &str,
         ipath: &[PathBuf],
         depth: usize,
     ) -> Vec<String> {
         let mut session = HashSet::new();
-        self.upsert_content_impl(uri, content.clone(), ipath, depth, &mut session);
+        self.upsert_content_impl(uri, content, ipath, depth, &mut session);
 
         // After content is upserted, those imports which couldn't be located
         // are flagged as import error
@@ -237,8 +236,8 @@ impl ProtoLanguageState {
 
     pub fn parse_all_from_workspace(
         &mut self,
-        workspace: PathBuf,
-        progress_sender: Option<Sender<ProgressParamsValue>>,
+        workspace: &Path,
+        progress_sender: Option<&Sender<ProgressParamsValue>>,
     ) {
         if self
             .parsed_workspaces
@@ -251,7 +250,7 @@ impl ProtoLanguageState {
 
         let files: Vec<_> = WalkDir::new(workspace.to_str().unwrap_or_default())
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| {
                 if let Some(ext) = e.path().extension() {
                     return ext == "proto";
@@ -272,10 +271,11 @@ impl ProtoLanguageState {
                 if self.documents.read().expect("poison").contains_key(&uri) {
                     continue;
                 }
-                self.upsert_content(&uri, content, &[], 1);
+                self.upsert_content(&uri, &content, &[], 1);
 
                 if let Some(sender) = &progress_sender {
-                    let percentage = ((idx + 1) as f64 / total_files as f64 * 100.0) as u32;
+                    let percentage =
+                        u32::try_from((idx + 1 / total_files) * 100).unwrap_or_default();
                     let _ = sender.send(ProgressParamsValue::WorkDone(
                         async_lsp::lsp_types::WorkDoneProgress::Report(
                             async_lsp::lsp_types::WorkDoneProgressReport {
@@ -302,25 +302,23 @@ impl ProtoLanguageState {
     pub fn upsert_file(
         &mut self,
         uri: &Url,
-        content: String,
+        content: &str,
         ipath: &[PathBuf],
         depth: usize,
         config: &Config,
         protoc_diagnostics: bool,
     ) -> Option<PublishDiagnosticsParams> {
         info!(%uri, %depth, "upserting file");
-        let diag = self.upsert_content(uri, content.clone(), ipath, depth);
+        let diag = self.upsert_content(uri, content, ipath, depth);
+        let diag_slice: Vec<&str> = diag.iter().map(String::as_str).collect();
         self.get_tree(uri).map(|tree| {
             let mut d = vec![];
             d.extend(tree.collect_parse_diagnostics());
-            d.extend(tree.collect_import_diagnostics(content.as_ref(), diag));
+            d.extend(tree.collect_import_diagnostics(content.as_ref(), diag_slice.as_slice()));
 
             // Add protoc diagnostics if enabled
-            if protoc_diagnostics
-                && let Ok(protoc_diagnostics) = self.protoc_diagnostics.lock()
-                && let Ok(file_path) = uri.to_file_path()
-            {
-                let protoc_diags = protoc_diagnostics.collect_diagnostics(
+            if protoc_diagnostics && let Ok(file_path) = uri.to_file_path() {
+                let protoc_diags = collect_diagnostics(
                     &config.path.protoc,
                     file_path.to_str().unwrap_or_default(),
                     &ipath
@@ -651,7 +649,7 @@ mod test {
         let mut state0 = ProtoLanguageState::new();
         state0.upsert_content(
             &uri("file:///a.proto"),
-            std::fs::read_to_string(&a_path).unwrap(),
+            std::fs::read_to_string(&a_path).unwrap().as_str(),
             &ipath,
             0,
         );
@@ -661,7 +659,7 @@ mod test {
         let mut state1 = ProtoLanguageState::new();
         state1.upsert_content(
             &uri("file:///a.proto"),
-            std::fs::read_to_string(&a_path).unwrap(),
+            std::fs::read_to_string(&a_path).unwrap().as_str(),
             &ipath,
             1,
         );
@@ -686,11 +684,11 @@ mod test {
         // Non-proto file should be ignored
         std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
 
-        state.parse_all_from_workspace(dir.path().to_path_buf(), None);
+        state.parse_all_from_workspace(&dir.path().to_path_buf(), None);
         assert_eq!(state.get_trees().len(), 2);
 
         // Second call should be idempotent
-        state.parse_all_from_workspace(dir.path().to_path_buf(), None);
+        state.parse_all_from_workspace(&dir.path().to_path_buf(), None);
         assert_eq!(state.get_trees().len(), 2);
     }
 

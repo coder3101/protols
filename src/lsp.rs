@@ -12,8 +12,8 @@ use async_lsp::lsp_types::{
     InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind, OneOf,
     PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions, RenameParams,
     ServerCapabilities, ServerInfo, SetTraceParams, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkDoneProgressOptions,
+    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
     WorkspaceServerCapabilities, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use async_lsp::{Error, LanguageClient, ResponseError};
@@ -33,8 +33,9 @@ impl ProtoLanguageServer {
         let (cname, version) = params
             .client_info
             .as_ref()
-            .map(|c| (c.name.as_str(), c.version.as_deref()))
-            .unwrap_or(("<unknown>", None));
+            .map_or(("<unknown>", None), |c| {
+                (c.name.as_str(), c.version.as_deref())
+            });
 
         let cversion = version.unwrap_or("<unknown>");
 
@@ -83,10 +84,10 @@ impl ProtoLanguageServer {
                     did_delete: Some(file_registration_option.clone()),
                     ..Default::default()
                 }),
-            })
+            });
         } else {
             tracing::info!("running in no workspace mode");
-            self.configs.no_workspace_mode()
+            self.configs.no_workspace_mode();
         }
 
         let mut rename_provider: OneOf<bool, RenameOptions> = OneOf::Left(true);
@@ -100,8 +101,8 @@ impl ProtoLanguageServer {
         {
             rename_provider = OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
-                work_done_progress_options: Default::default(),
-            })
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            });
         }
 
         let response = InitializeResult {
@@ -128,6 +129,20 @@ impl ProtoLanguageServer {
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
         };
+
+        // Phase 2: Index all configured workspaces once at startup. This
+        // populates the in-memory metamodel pool that `workspace/symbol`
+        // queries against, keeping per-request symbol lookups free of
+        // on-the-fly workspace re-scans and re-parses.
+        let workspace_paths: Vec<PathBuf> = self
+            .configs
+            .get_workspaces()
+            .into_iter()
+            .filter_map(|workspace| workspace.to_file_path().ok())
+            .collect();
+        for workspace_path in workspace_paths {
+            self.state.parse_all_from_workspace(&workspace_path, None);
+        }
 
         Box::pin(async move { Ok(response) })
     }
@@ -200,14 +215,14 @@ impl ProtoLanguageServer {
             }
 
             if let Some(ipath) = self.configs.get_include_paths(&uri) {
-                for import in tree.get_import_paths(content.as_bytes()).iter() {
+                for import in &tree.get_import_paths(content.as_bytes()) {
                     if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists())
                         && let Ok(uri) = Url::from_file_path(p.clone())
                     {
                         completions.extend(self.state.completion_items_for_tree(&uri));
                     }
                 }
-            };
+            }
         }
         Box::pin(async move { Ok(Some(CompletionResponse::Array(completions))) })
     }
@@ -283,8 +298,7 @@ impl ProtoLanguageServer {
         let chain_rpc_request_response = self
             .configs
             .get_config_for_uri(&uri)
-            .map(|c| c.config.rename.chain_rpc_request_response)
-            .unwrap_or_default();
+            .is_some_and(|c| c.config.rename.chain_rpc_request_response);
 
         let ops = self.state.compute_rename_ops(
             &decl_uri,
@@ -295,7 +309,7 @@ impl ProtoLanguageServer {
         );
         let Some(all_edits) = self
             .state
-            .apply_rename_ops(&ops, workspace_path, progress_sender)
+            .apply_rename_ops(&ops, &workspace_path, progress_sender)
         else {
             error!(uri=%decl_uri, "failed to apply primary rename");
             return Box::pin(async move { Ok(None) });
@@ -345,8 +359,8 @@ impl ProtoLanguageServer {
         if let Some(v) = self.state.reference_fields(
             current_package,
             &otext,
-            workspace.to_file_path().unwrap(),
-            progress_sender,
+            &workspace.to_file_path().unwrap(),
+            progress_sender.as_ref(),
         ) {
             refs.extend(v);
         }
@@ -412,24 +426,15 @@ impl ProtoLanguageServer {
         Box::pin(async move { Ok(Some(response)) })
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(super) fn workspace_symbol(
         &mut self,
         params: WorkspaceSymbolParams,
     ) -> BoxFuture<'static, Result<Option<WorkspaceSymbolResponse>, ResponseError>> {
         let query = params.query.to_lowercase();
-        let work_done_token = params.work_done_progress_params.work_done_token;
 
-        // Parse all files from all workspaces
-        let workspaces = self.configs.get_workspaces();
-        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
-
-        for workspace in workspaces {
-            if let Ok(workspace_path) = workspace.to_file_path() {
-                self.state
-                    .parse_all_from_workspace(workspace_path, progress_sender.clone());
-            }
-        }
-
+        // Workspaces are indexed once at startup; symbol lookups are now a
+        // pure in-memory substring scan over the cached metamodel pool.
         let symbols = self.state.find_workspace_symbols(&query);
 
         Box::pin(async move {
@@ -488,10 +493,10 @@ impl ProtoLanguageServer {
 
         if let Some(diagnostics) =
             self.state
-                .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+                .upsert_file(&uri, &content, &ipath, 8, &pconf.config, true)
             && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            error!(error=%e, "failed to publish diagnostics")
+            error!(error=%e, "failed to publish diagnostics");
         }
         ControlFlow::Continue(())
     }
@@ -513,10 +518,10 @@ impl ProtoLanguageServer {
 
         if let Some(diagnostics) =
             self.state
-                .upsert_file(&uri, content, &ipath, 8, &pconf.config, true)
+                .upsert_file(&uri, &content, &ipath, 8, &pconf.config, true)
             && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            error!(error=%e, "failed to publish diagnostics")
+            error!(error=%e, "failed to publish diagnostics");
         }
         ControlFlow::Continue(())
     }
@@ -538,10 +543,10 @@ impl ProtoLanguageServer {
 
         if let Some(diagnostics) =
             self.state
-                .upsert_file(&uri, content, &ipath, 8, &pconf.config, false)
+                .upsert_file(&uri, &content, &ipath, 8, &pconf.config, false)
             && let Err(e) = self.client.publish_diagnostics(diagnostics)
         {
-            error!(error=%e, "failed to publish diagnostics")
+            error!(error=%e, "failed to publish diagnostics");
         }
         ControlFlow::Continue(())
     }
@@ -556,7 +561,7 @@ impl ProtoLanguageServer {
                 let content = read_to_string(uri.to_file_path().unwrap()).unwrap_or_default();
 
                 if let Some(ipath) = self.configs.get_include_paths(&uri) {
-                    self.state.upsert_content(&uri, content, &ipath, 2);
+                    self.state.upsert_content(&uri, &content, &ipath, 2);
                 }
             }
         }
@@ -598,6 +603,7 @@ impl ProtoLanguageServer {
     }
 
     /// Handles the `$/setTrace` notification to dynamically update log verbosity.
+    #[allow(clippy::needless_pass_by_value)]
     pub(super) fn set_trace(&mut self, params: SetTraceParams) -> ControlFlow<Result<(), Error>> {
         log::update_level(&self.log_handle, params.value);
 
@@ -615,7 +621,7 @@ impl ProtoLanguageServer {
     }
 }
 
-/// Parse include_paths from initialization options
+/// Parse `include_paths` from initialization options
 fn parse_init_include_paths(init_options: &Value) -> Option<Vec<PathBuf>> {
     let mut result = vec![];
     let paths = init_options["include_paths"].as_array()?;

@@ -5,7 +5,8 @@ fn main() {
         let path = Path::new(path);
         assert!(
             path.is_absolute(),
-            "Environment variable FALLBACK_INCLUDE_PATH must be absolute: {path:?}"
+            "Environment variable FALLBACK_INCLUDE_PATH must be absolute: {}",
+            path.display()
         );
     }
 }

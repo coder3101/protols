@@ -59,8 +59,8 @@ impl Replacement<'_> {
         let character = text_after_newline.encode_utf16().count();
 
         Some(Position {
-            line: line as u32,
-            character: character as u32,
+            line: u32::try_from(line).ok()?,
+            character: u32::try_from(character).ok()?,
         })
     }
 
@@ -104,7 +104,7 @@ impl ClangFormatter {
         Some(c)
     }
 
-    fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
+    fn output_to_textedit(output: &str, content: &str) -> Option<Vec<TextEdit>> {
         let r = Replacements::from_str(output).ok()?;
         let edits = r
             .replacements
@@ -128,7 +128,7 @@ impl ProtoFormatter for ClangFormatter {
             );
             return None;
         }
-        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 
     fn format_document_range(
@@ -153,7 +153,7 @@ impl ProtoFormatter for ClangFormatter {
             );
             return None;
         }
-        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 }
 

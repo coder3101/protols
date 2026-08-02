@@ -23,36 +23,28 @@ impl ParsedTree {
             return;
         }
 
-        match identifier.split_once('.') {
-            Some((parent_identifier, remaining)) => {
-                let child_node = self
-                    .find_all_nodes_from(n, NodeKind::is_userdefined)
-                    .into_iter()
-                    .find(|n| {
-                        n.utf8_text(content.as_ref()).expect("utf8-parse error")
-                            == parent_identifier
-                    })
-                    .and_then(|n| n.parent());
+        if let Some((parent_identifier, remaining)) = identifier.split_once('.') {
+            let child_node = Self::find_all_nodes_from(n, NodeKind::is_userdefined)
+                .into_iter()
+                .find(|n| {
+                    n.utf8_text(content.as_ref()).expect("utf8-parse error") == parent_identifier
+                })
+                .and_then(|n| n.parent());
 
-                if let Some(inner) = child_node {
-                    self.definition_impl(remaining, inner, v, content);
-                }
+            if let Some(inner) = child_node {
+                self.definition_impl(remaining, inner, v, content);
             }
-            None => {
-                let locations: Vec<Location> = self
-                    .find_all_nodes_from(n, NodeKind::is_userdefined)
-                    .into_iter()
-                    .filter(|n| {
-                        n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier
-                    })
-                    .map(|n| Location {
-                        uri: self.uri.clone(),
-                        range: to_lsp_range(n),
-                    })
-                    .collect();
+        } else {
+            let locations: Vec<Location> = Self::find_all_nodes_from(n, NodeKind::is_userdefined)
+                .into_iter()
+                .filter(|n| n.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
+                .map(|n| Location {
+                    uri: self.uri.clone(),
+                    range: to_lsp_range(n),
+                })
+                .collect();
 
-                v.extend(locations);
-            }
+            v.extend(locations);
         }
     }
 }

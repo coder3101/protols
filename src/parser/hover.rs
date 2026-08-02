@@ -58,14 +58,7 @@ mod test {
         let ipath = vec![];
 
         let mut state = ProtoLanguageState::new();
-        state.upsert_file(
-            &uri,
-            contents.to_string(),
-            &ipath,
-            3,
-            &Config::default(),
-            false,
-        );
+        state.upsert_file(&uri, contents, &ipath, 3, &Config::default(), false);
 
         let mut hover_results = Vec::new();
 
@@ -158,7 +151,7 @@ mod test {
         let ipath = vec![];
 
         let mut state = ProtoLanguageState::new();
-        state.upsert_file(&uri, String::new(), &ipath, 3, &Config::default(), false);
+        state.upsert_file(&uri, "", &ipath, 3, &Config::default(), false);
 
         let pos = Position {
             line: 0,
@@ -169,7 +162,7 @@ mod test {
         let mut state_minimal = ProtoLanguageState::new();
         state_minimal.upsert_file(
             &uri,
-            "syntax = \"proto3\";\npackage com.test;".to_string(),
+            "syntax = \"proto3\";\npackage com.test;",
             &ipath,
             3,
             &Config::default(),

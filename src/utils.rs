@@ -58,17 +58,11 @@ pub fn is_position_inside_range(position: Position, range: Range) -> bool {
 }
 
 fn is_title_case(s: &str) -> bool {
-    s.chars()
-        .next()
-        .map(|x| x.is_uppercase())
-        .unwrap_or_default()
+    s.chars().next().is_some_and(char::is_uppercase)
 }
 
 fn is_first_lower_case(s: &&str) -> bool {
-    s.chars()
-        .next()
-        .map(|x| x.is_lowercase())
-        .unwrap_or_default()
+    s.chars().next().is_some_and(char::is_lowercase)
 }
 
 pub fn is_inner_identifier(s: &str) -> bool {
@@ -85,7 +79,7 @@ pub fn trailing_segment(qualified: &str) -> &str {
 }
 
 pub fn split_identifier_package(s: &str) -> (&str, &str) {
-    let s = s.trim_start_matches(".");
+    let s = s.trim_start_matches('.');
     if is_inner_identifier(s) || !s.contains('.') {
         return ("", s);
     }

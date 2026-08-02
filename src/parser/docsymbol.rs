@@ -11,25 +11,6 @@ use crate::model::{ElementKind, ElementMeta, ModelElement};
 
 use super::ParsedTree;
 
-impl From<&ElementKind> for SymbolKind {
-    /// Maps an internal [`ElementKind`] variant directly to its closest
-    /// semantic LSP [`SymbolKind`].
-    fn from(kind: &ElementKind) -> Self {
-        match kind {
-            ElementKind::Import { .. } => Self::MODULE,
-            ElementKind::Message { .. } => Self::STRUCT,
-            ElementKind::Oneof { .. } => Self::OBJECT,
-            ElementKind::Field { .. }
-            | ElementKind::MapField { .. }
-            | ElementKind::OneofField { .. } => Self::FIELD,
-            ElementKind::Enum { .. } => Self::ENUM,
-            ElementKind::EnumValue { .. } => Self::ENUM_MEMBER,
-            ElementKind::Service { .. } => Self::INTERFACE,
-            ElementKind::Rpc { .. } => Self::METHOD,
-        }
-    }
-}
-
 impl ParsedTree {
     /// Compiles a fully resolved hierarchical tree of document symbols from the
     /// internal flat elements registry.
@@ -188,14 +169,7 @@ mod test {
         let ipath = vec![];
 
         let mut state = ProtoLanguageState::new();
-        state.upsert_file(
-            &uri,
-            contents.to_string(),
-            &ipath,
-            3,
-            &Config::default(),
-            false,
-        );
+        state.upsert_file(&uri, contents, &ipath, 3, &Config::default(), false);
 
         state
             .get_tree(&uri)
@@ -237,7 +211,7 @@ mod test {
         let ipath = vec![];
 
         let mut state = ProtoLanguageState::new();
-        state.upsert_file(&uri, String::new(), &ipath, 3, &Config::default(), false);
+        state.upsert_file(&uri, "", &ipath, 3, &Config::default(), false);
 
         let symbols = state
             .get_tree(&uri)
@@ -249,7 +223,7 @@ mod test {
         let mut state_minimal = ProtoLanguageState::new();
         state_minimal.upsert_file(
             &uri,
-            "syntax = \"proto3\";\npackage com.test;".to_string(),
+            "syntax = \"proto3\";\npackage com.test;",
             &ipath,
             3,
             &Config::default(),
