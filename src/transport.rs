@@ -83,9 +83,7 @@ async fn create_pipe_transport(path: &str) -> TransportResult<(LspReader, LspWri
         let listener = tokio::net::UnixListener::bind(path)
             .inspect_err(|e| eprintln!("Failed to bind Unix domain socket {path}: {e}"))?;
 
-        eprintln!(
-            "Listening on Unix domain socket: {path}. Waiting for client..."
-        );
+        eprintln!("Listening on Unix domain socket: {path}. Waiting for client...");
 
         let (stream, _) = listener
             .accept()
