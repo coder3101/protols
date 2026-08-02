@@ -36,11 +36,11 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_1),
-                "URI {} should contain {}", uri_str, base_uri_1
+                "URI {uri_str} should contain {base_uri_1}"
             );
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
 
         })});
 
@@ -52,11 +52,11 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_2),
-                "URI {} should contain {}", uri_str, base_uri_2
+                "URI {uri_str} should contain {base_uri_2}"
             );
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
         })});
 
         // Test query for "address" - should match Address
@@ -67,12 +67,12 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_3),
-                "URI {} should contain {}", uri_str, base_uri_3
+                "URI {uri_str} should contain {base_uri_3}"
             );
 
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
         })});
 
         // Test query that should not match anything

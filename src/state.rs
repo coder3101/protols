@@ -443,19 +443,19 @@ mod test {
 
         state.upsert_content(
             &uri("file:///test.proto"),
-            "syntax = \"proto3\";\npackage com.test;\nmessage Book { string title = 1; }\nenum Color { RED = 0; }\n".into(),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { string title = 1; }\nenum Color { RED = 0; }\n",
             ipath,
             1,
         );
         state.upsert_content(
             &uri("file:///other.proto"),
-            "syntax = \"proto3\";\npackage com.test;\nmessage Author { string name = 1; }\n".into(),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Author { string name = 1; }\n",
             ipath,
             1,
         );
         state.upsert_content(
             &uri("file:///diff.proto"),
-            "syntax = \"proto3\";\npackage com.other;\nmessage Foo { int32 bar = 1; }\n".into(),
+            "syntax = \"proto3\";\npackage com.other;\nmessage Foo { int32 bar = 1; }\n",
             ipath,
             1,
         );
@@ -603,7 +603,7 @@ mod test {
         let ipath: &[PathBuf] = &[];
         let unresolved = state.upsert_content(
             &uri("file:///importing.proto"),
-            "syntax = \"proto3\";\nimport \"nonexistent.proto\";\npackage com.test;\n".into(),
+            "syntax = \"proto3\";\nimport \"nonexistent.proto\";\npackage com.test;\n",
             ipath,
             1,
         );
@@ -620,7 +620,7 @@ mod test {
 
         let unresolved = state.upsert_content(
             &uri("file:///main.proto"),
-            "syntax = \"proto3\";\nimport \"dep.proto\";\npackage com.main;\n".into(),
+            "syntax = \"proto3\";\nimport \"dep.proto\";\npackage com.main;\n",
             &ipath,
             1,
         );
@@ -684,11 +684,11 @@ mod test {
         // Non-proto file should be ignored
         std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
 
-        state.parse_all_from_workspace(&dir.path().to_path_buf(), None);
+        state.parse_all_from_workspace(dir.path(), None);
         assert_eq!(state.get_trees().len(), 2);
 
         // Second call should be idempotent
-        state.parse_all_from_workspace(&dir.path().to_path_buf(), None);
+        state.parse_all_from_workspace(dir.path(), None);
         assert_eq!(state.get_trees().len(), 2);
     }
 
@@ -698,7 +698,7 @@ mod test {
         let ipath: &[PathBuf] = &[];
         let result = state.upsert_file(
             &uri("file:///test.proto"),
-            "syntax = \"proto3\";\npackage com.test;\nmessage Book {}\n".into(),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book {}\n",
             ipath,
             1,
             &Config::default(),
@@ -717,8 +717,7 @@ mod test {
         let ipath: &[PathBuf] = &[];
         let result = state.upsert_file(
             &uri("file:///bad.proto"),
-            "syntax = \"proto3\";\npackage com.test;\nmessage Book { invalid syntax here }\n"
-                .into(),
+            "syntax = \"proto3\";\npackage com.test;\nmessage Book { invalid syntax here }\n",
             ipath,
             1,
             &Config::default(),

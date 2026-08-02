@@ -185,7 +185,7 @@ mod test {
         for i in pos {
             with_settings!({description => c, info => &i}, {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
-            })
+            });
         }
     }
 
@@ -199,7 +199,7 @@ mod test {
         for i in pos {
             with_settings!({description => c, info => &i}, {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
-            })
+            });
         }
     }
 
@@ -220,12 +220,11 @@ mod test {
             .find(target)
             .expect("Could not find target in content");
         let xml_output = format!(
-            r#"<?xml version='1.0'?>
+            r"<?xml version='1.0'?>
 <replacements xml:space='preserve' incomplete_format='false'>
-<replacement offset='{}' length='1'>
+<replacement offset='{offset}' length='1'>
   // </replacement>
-</replacements>"#,
-            offset
+</replacements>"
         );
 
         let r = Replacements::from_str(&xml_output).unwrap();

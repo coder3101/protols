@@ -188,12 +188,12 @@ mod test {
     #[test]
     fn test_position_large_values() {
         let p = Point {
-            row: 999999,
-            column: 999999,
+            row: 999_999,
+            column: 999_999,
         };
         let pos = to_lsp_position(p);
-        assert_eq!(pos.line, 999999);
-        assert_eq!(pos.character, 999999);
+        assert_eq!(pos.line, 999_999);
+        assert_eq!(pos.character, 999_999);
     }
 
     #[test]

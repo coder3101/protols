@@ -188,10 +188,10 @@ mod tests {
 
         assert!(msg.message.contains(MESSAGE));
 
-        let expected_field = format!("{}={}", field_name, field_value);
+        let expected_field = format!("{field_name}={field_value}");
         assert!(msg.message.contains(&expected_field));
 
-        assert!(msg.message.contains(&format!("[{}]", TARGET)));
+        assert!(msg.message.contains(&format!("[{TARGET}]")));
     }
 
     #[test]

@@ -149,18 +149,17 @@ fn normalize_windows_pipe(path: &str) -> TransportResult<String> {
                 unc.to_string()
             } else {
                 return Err(format!(
-                    "Invalid UNC pipe path: '{}'. Missing or misplaced '\\pipe\\'.",
-                    unc
+                    "Invalid UNC pipe path: '{unc}'. Missing or misplaced '\\pipe\\'."
                 )
                 .into());
             }
         }
 
         file if file.contains(':') => {
-            return Err(format!("Named pipes cannot be files (like '{}').", file).into());
+            return Err(format!("Named pipes cannot be files (like '{file}').").into());
         }
 
-        suffix => format!(r"\\.\pipe\{}", suffix),
+        suffix => format!(r"\\.\pipe\{suffix}"),
     };
 
     Ok(full_path)
