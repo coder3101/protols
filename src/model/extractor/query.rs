@@ -13,7 +13,7 @@ use super::super::captures::{
 /// Generates the master Tree-sitter SCM (Source Code Matcher) query string used
 /// for metadata and layout extraction across all protobuf structural elements.
 ///
-/// This function constructs a unified, high-performance tree query that
+/// This function constructs a unified, high-performance document query that
 /// patterns and captures messages, enums, services, fields, and independent
 /// modifiers (like deprecation markers or docstrings).
 ///

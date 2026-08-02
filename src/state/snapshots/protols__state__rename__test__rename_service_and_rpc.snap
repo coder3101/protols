@@ -1,0 +1,13 @@
+---
+source: src/state/rename.rs
+expression: "state.rename_for_fqn(\"com.workspace.Library\", \"Catalog\")"
+---
+"file://input/service.proto":
+  - range:
+      start:
+        line: 6
+        character: 8
+      end:
+        line: 6
+        character: 15
+    newText: Catalog

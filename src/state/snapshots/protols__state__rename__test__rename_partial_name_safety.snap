@@ -1,0 +1,21 @@
+---
+source: src/state/rename.rs
+expression: edits
+---
+"file://input/partial.proto":
+  - range:
+      start:
+        line: 2
+        character: 8
+      end:
+        line: 2
+        character: 12
+    newText: Novel
+  - range:
+      start:
+        line: 3
+        character: 20
+      end:
+        line: 3
+        character: 24
+    newText: Novel

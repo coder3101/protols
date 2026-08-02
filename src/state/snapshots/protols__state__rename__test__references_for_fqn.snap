@@ -1,0 +1,20 @@
+---
+source: src/state/rename.rs
+expression: "state.references_for_fqn(\"com.workspace.Author\")"
+---
+- uri: "file://input/a.proto"
+  range:
+    start:
+      line: 11
+      character: 3
+    end:
+      line: 11
+      character: 9
+- uri: "file://input/b.proto"
+  range:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14

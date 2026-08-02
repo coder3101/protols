@@ -1,0 +1,13 @@
+---
+source: src/state/rename.rs
+expression: "state.rename_for_fqn(\"com.single.Color.RED\", \"CRIMSON\")"
+---
+"file://input/single.proto":
+  - range:
+      start:
+        line: 2
+        character: 13
+      end:
+        line: 2
+        character: 16
+    newText: CRIMSON

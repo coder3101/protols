@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&ipath, \"com.workspace\",\nJumpable::Identifier(\"Author.Address\".to_owned()))"
+---
+- uri: "file://input/b.proto"
+  range:
+    start:
+      line: 9
+      character: 11
+    end:
+      line: 9
+      character: 18

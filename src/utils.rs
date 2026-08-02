@@ -3,7 +3,7 @@ use tree_sitter::{Node, Point};
 
 /// Converts a Tree-sitter [`Point`] into an LSP [`Position`].
 ///
-/// This helper maps the row and column coordinates from the syntax tree to the
+/// This helper maps the row and column coordinates from the syntax document to the
 /// line-and-character coordinate system expected by LSP clients.
 ///
 /// # Saturation Behavior
@@ -22,7 +22,7 @@ pub fn to_lsp_position(Point { row, column }: Point) -> Position {
 
 /// Converts a Tree-sitter [`Node`] boundary into an LSP [`Range`].
 ///
-/// This helper extracts the line-and-column boundaries from the syntax tree
+/// This helper extracts the line-and-column boundaries from the syntax document
 /// and maps them directly to the coordinate system expected by LSP clients.
 #[inline]
 pub fn to_lsp_range(node: Node) -> Range {
@@ -35,14 +35,6 @@ pub fn to_lsp_range(node: Node) -> Range {
     Range {
         start: to_lsp_position(start_point),
         end: to_lsp_position(end_point),
-    }
-}
-
-#[inline]
-pub const fn to_ts_point(Position { line, character }: Position) -> Point {
-    Point {
-        row: line as usize,
-        column: character as usize,
     }
 }
 
@@ -140,9 +132,8 @@ pub fn compile_test_query() -> tree_sitter::Query {
 mod test {
     use crate::utils::{
         clean_proto_comment, is_inner_identifier, split_identifier_package, to_lsp_position,
-        to_ts_point, trailing_segment,
+        trailing_segment,
     };
-    use async_lsp::lsp_types::Position;
     use tree_sitter::Point;
 
     #[test]
@@ -154,35 +145,11 @@ mod test {
     }
 
     #[test]
-    fn test_to_ts_point() {
-        let pos = Position {
-            line: 3,
-            character: 7,
-        };
-        let p = to_ts_point(pos);
-        assert_eq!(p.row, 3);
-        assert_eq!(p.column, 7);
-    }
-
-    #[test]
-    fn test_position_roundtrip() {
-        let original = Point {
-            row: 42,
-            column: 15,
-        };
-        let pos = to_lsp_position(original);
-        let back = to_ts_point(pos);
-        assert_eq!(original, back);
-    }
-
-    #[test]
     fn test_position_zero() {
         let p = Point { row: 0, column: 0 };
         let pos = to_lsp_position(p);
         assert_eq!(pos.line, 0);
         assert_eq!(pos.character, 0);
-        let back = to_ts_point(pos);
-        assert_eq!(p, back);
     }
 
     #[test]

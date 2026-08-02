@@ -1,7 +1,7 @@
 //! High-performance metadata extractor pipeline for protobuf schemas.
 //!
 //! This module coordinates the execution of compiled Tree-sitter queries
-//! against the source abstract syntax tree (AST). It handles sequential stream
+//! against the source abstract syntax document (AST). It handles sequential stream
 //! matching, manages the container hierarchy stack, accumulates floating
 //! docstrings, and compiles the final elements registry.
 
@@ -17,18 +17,18 @@ use super::types::{CommentBlock, ElementKind, ElementMeta, ModelElement};
 mod handlers;
 mod query;
 
-/// Executes the compiled Tree-sitter query against the syntax tree root to
+/// Executes the compiled Tree-sitter query against the syntax document root to
 /// build the pure-memory metamodel registry.
 ///
 /// This function acts as the orchestrator of the extraction pipeline. It runs a
-/// `QueryCursor` top-down through the syntax tree nodes, captures matched
+/// `QueryCursor` top-down through the syntax document nodes, captures matched
 /// patterns, dispatches them to specialized structural handlers, and
 /// incrementally feeds the results into the chronological context building
 /// loop.
 ///
 /// # Arguments
 ///
-/// * `root_node` - The top-level abstract syntax tree [`Node`] representing the
+/// * `root_node` - The top-level abstract syntax document [`Node`] representing the
 ///   fully parsed document.
 /// * `source` - The raw UTF-8 byte array sequence containing the complete
 ///   original source file content on disk.
@@ -153,7 +153,7 @@ impl ParsedMatch {
     ///
     /// This geometric layout reference isolates the coordinate ranges across
     /// distinct variants, providing a uniform anchor point used primarily to
-    /// sort non-linear tree-sitter streaming buffers back into topological
+    /// sort non-linear document-sitter streaming buffers back into topological
     /// top-down code order.
     ///
     /// # Returns

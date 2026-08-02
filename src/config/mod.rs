@@ -1,14 +1,8 @@
+mod workspace;
+
+pub use workspace::WorkspaceProtoConfigs;
+
 use serde::{Deserialize, Serialize};
-
-pub mod workspace;
-
-fn default_clang_format_path() -> String {
-    "clang-format".to_string()
-}
-
-fn default_protoc_path() -> String {
-    "protoc".to_string()
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
@@ -49,4 +43,12 @@ pub struct RenameConfig {
     /// since not every codebase follows the `<Rpc>Request`/`Response` naming
     /// convention.
     pub chain_rpc_request_response: bool,
+}
+
+fn default_clang_format_path() -> String {
+    "clang-format".to_string()
+}
+
+fn default_protoc_path() -> String {
+    "protoc".to_string()
 }

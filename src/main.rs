@@ -15,20 +15,17 @@ use crate::transport::create_transport;
 
 mod cli;
 mod config;
-mod context;
 mod docs;
+mod document;
 mod formatter;
 mod log;
 mod lsp;
 mod model;
-mod nodekind;
-mod parser;
 mod protoc;
 mod server;
 mod state;
 mod transport;
 mod utils;
-mod workspace;
 
 const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH");
 

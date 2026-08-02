@@ -1,0 +1,14 @@
+---
+source: src/state/hover.rs
+expression: "state.hover(&uri, Position { line: 3, character: 11 })"
+---
+contents:
+  kind: markdown
+  value: "```protobuf\ncom.hover.Book.title\nstring title = 1;\n```"
+range:
+  start:
+    line: 3
+    character: 9
+  end:
+    line: 3
+    character: 14

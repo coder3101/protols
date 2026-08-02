@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&a_uri, Position { line: 11, character: 5 }, &ipath)"
+---
+- uri: "file://input/b.proto"
+  range:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14

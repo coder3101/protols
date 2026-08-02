@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&ipath, \"com.utility\",\nJumpable::Identifier(\"Baz\".to_owned()))"
+---
+- uri: "file://input/c.proto"
+  range:
+    start:
+      line: 8
+      character: 11
+    end:
+      line: 8
+      character: 14

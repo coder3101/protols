@@ -1,5 +1,0 @@
----
-source: src/parser/rename.rs
-expression: "rename_fn(\"xyx\", &pos_non_rename)"
----
-[]

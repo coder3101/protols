@@ -1,0 +1,10 @@
+---
+source: src/document/rename.rs
+expression: tree.can_rename(pos_rpc_request_type)
+---
+start:
+  line: 11
+  character: 16
+end:
+  line: 11
+  character: 21

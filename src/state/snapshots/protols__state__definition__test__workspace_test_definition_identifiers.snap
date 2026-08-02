@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.resolve_identifier_locations(\"com.workspace\", \"Author\")"
+---
+- uri: "file://input/b.proto"
+  range:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14

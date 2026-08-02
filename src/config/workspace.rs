@@ -7,9 +7,9 @@ use std::{
 use async_lsp::lsp_types::{Url, WorkspaceFolder};
 use pkg_config::Config;
 
-use crate::formatter::clang::ClangFormatter;
+use crate::formatter::ClangFormatter;
 
-use super::ProtolsConfig;
+use crate::config::ProtolsConfig;
 
 const CONFIG_FILE_NAMES: [&str; 2] = [".protols.toml", "protols.toml"];
 

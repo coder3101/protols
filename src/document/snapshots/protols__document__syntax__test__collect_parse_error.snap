@@ -1,0 +1,5 @@
+---
+source: src/document/diagnostics.rs
+expression: parsed.unwrap().collect_parse_diagnostics()
+---
+[]

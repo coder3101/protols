@@ -1,0 +1,14 @@
+---
+source: src/state/hover.rs
+expression: "state.hover(&a_uri, Position { line: 13, character: 16 })"
+---
+contents:
+  kind: markdown
+  value: "```protobuf\ncom.utility.Foobar.Baz\nmessage Baz\n```\n\n---\nWhat is baz?"
+range:
+  start:
+    line: 13
+    character: 3
+  end:
+    line: 13
+    character: 25

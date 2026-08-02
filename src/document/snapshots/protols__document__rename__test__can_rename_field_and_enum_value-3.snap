@@ -1,0 +1,5 @@
+---
+source: src/document/rename.rs
+expression: parsed.can_rename(pos_field_number)
+---
+~

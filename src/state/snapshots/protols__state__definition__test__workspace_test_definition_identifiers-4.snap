@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.resolve_identifier_locations(\"com.utility\", \"Baz\")"
+---
+- uri: "file://input/c.proto"
+  range:
+    start:
+      line: 8
+      character: 11
+    end:
+      line: 8
+      character: 14

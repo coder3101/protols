@@ -1,0 +1,46 @@
+---
+source: src/state/rename.rs
+expression: normalized
+---
+"file://input/messages.proto":
+  - range:
+      start:
+        line: 4
+        character: 8
+      end:
+        line: 4
+        character: 22
+    newText: FetchBookRequest
+  - range:
+      start:
+        line: 5
+        character: 8
+      end:
+        line: 5
+        character: 23
+    newText: FetchBookResponse
+"file://input/service.proto":
+  - range:
+      start:
+        line: 7
+        character: 8
+      end:
+        line: 7
+        character: 15
+    newText: FetchBook
+  - range:
+      start:
+        line: 7
+        character: 16
+      end:
+        line: 7
+        character: 30
+    newText: FetchBookRequest
+  - range:
+      start:
+        line: 7
+        character: 41
+      end:
+        line: 7
+        character: 56
+    newText: FetchBookResponse

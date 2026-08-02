@@ -20,7 +20,6 @@ use async_lsp::{Error, LanguageClient, ResponseError};
 use futures::future::BoxFuture;
 use serde_json::Value;
 
-use crate::context::jumpable::Jumpable;
 use crate::formatter::ProtoFormatter;
 use crate::server::ProtoLanguageServer;
 use crate::{docs, log};
@@ -130,10 +129,10 @@ impl ProtoLanguageServer {
             }),
         };
 
-        // Phase 2: Index all configured workspaces once at startup. This
-        // populates the in-memory metamodel pool that `workspace/symbol`
-        // queries against, keeping per-request symbol lookups free of
-        // on-the-fly workspace re-scans and re-parses.
+        // Index all configured workspaces once at startup. This populates the
+        // in-memory metamodel pool that `workspace/symbol` queries against,
+        // keeping per-request symbol lookups free of on-the-fly workspace
+        // re-scans and re-parses.
         let workspace_paths: Vec<PathBuf> = self
             .configs
             .get_workspaces()
@@ -207,19 +206,19 @@ impl ProtoLanguageServer {
             ..CompletionItem::default()
         }));
 
-        // Build completion item from the current tree
-        if let Some(tree) = self.state.get_tree(&uri) {
-            let content = self.state.get_content(&uri);
-            if let Some(package_name) = tree.get_package_name(content.as_bytes()) {
+        // Build completion item from the current document
+        if let Some(document) = self.state.get_document(&uri) {
+            let package_name = document.package_name();
+            if package_name != "." {
                 completions.extend(self.state.completion_items_for_package(package_name));
             }
 
             if let Some(ipath) = self.configs.get_include_paths(&uri) {
-                for import in &tree.get_import_paths(content.as_bytes()) {
-                    if let Some(p) = ipath.iter().map(|p| p.join(import)).find(|p| p.exists())
+                for import in document.import_paths() {
+                    if let Some(p) = ipath.iter().map(|p| p.join(&import)).find(|p| p.exists())
                         && let Ok(uri) = Url::from_file_path(p.clone())
                     {
-                        completions.extend(self.state.completion_items_for_tree(&uri));
+                        completions.extend(self.state.completion_items_for_document(&uri));
                     }
                 }
             }
@@ -234,12 +233,12 @@ impl ProtoLanguageServer {
         let uri = params.text_document.uri;
         let pos = params.position;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
+        let Some(document) = self.state.get_document(&uri) else {
+            error!(uri=%uri, "failed to get document");
             return Box::pin(async move { Ok(None) });
         };
 
-        let response = tree.can_rename(pos).map(PrepareRenameResponse::Range);
+        let response = document.can_rename(pos).map(PrepareRenameResponse::Range);
 
         Box::pin(async move { Ok(response) })
     }
@@ -252,46 +251,20 @@ impl ProtoLanguageServer {
         let pos = params.text_document_position.position;
         let new_name = params.new_name;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let content = self.state.get_content(&uri);
-        let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
         let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
 
-        // If the cursor is on a type reference (inside a message_or_enum_type
-        // node), pivot to the declaration and rename from there. The workspace
-        // pass then handles all references — including the one the user is
-        // standing on.
-        let (decl_uri, decl_pos) = match tree.rename_pivot_identifier(pos, content.as_bytes()) {
-            Some(decl_path) => {
-                let locations =
-                    self.state
-                        .definition(&ipath, current_package, Jumpable::Identifier(decl_path));
-                let Some(decl) = locations.into_iter().next() else {
-                    error!(uri=%uri, "failed to resolve declaration for reference-site rename");
-                    return Box::pin(async move { Ok(None) });
-                };
-                (decl.uri, decl.range.start)
-            }
-            None => (uri.clone(), pos),
-        };
-
-        let Some(workspace) = self.configs.get_workspace_for_uri(&decl_uri) else {
-            error!(uri=%decl_uri, "failed to get workspace");
+        // Resolve the symbol under the cursor directly from the metamodel,
+        // using its position (like hover / go-to-definition). This handles both
+        // declaration sites and reference sites (pivoting to the referenced
+        // declaration) without any string-based identifier reconstruction.
+        let Some(target_fqn) = self.state.resolve_target_fqn(&uri, pos) else {
+            error!(uri=%uri, "failed to resolve target fqn for rename");
             return Box::pin(async move { Ok(None) });
         };
-        let Ok(workspace_path) = workspace.to_file_path() else {
-            error!(uri=%workspace, "workspace url is not a file path");
+        let Some((decl_uri, decl_pos)) = self.state.declaration_for_fqn(&target_fqn) else {
+            error!(fqn=%target_fqn, "failed to locate declaration for rename");
             return Box::pin(async move { Ok(None) });
         };
-
-        let progress_sender = params
-            .work_done_progress_params
-            .work_done_token
-            .map(|token| self.with_report_progress(token));
 
         // The rpc/request/response chain rename is opt-in via the workspace's
         // `[config.rename]` settings; without a config it stays off.
@@ -307,10 +280,7 @@ impl ProtoLanguageServer {
             &ipath,
             chain_rpc_request_response,
         );
-        let Some(all_edits) = self
-            .state
-            .apply_rename_ops(&ops, &workspace_path, progress_sender)
-        else {
+        let Some(all_edits) = self.state.apply_rename_ops(&ops) else {
             error!(uri=%decl_uri, "failed to apply primary rename");
             return Box::pin(async move { Ok(None) });
         };
@@ -333,37 +303,16 @@ impl ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<Vec<Location>>, ResponseError>> {
         let uri = param.text_document_position.text_document.uri;
         let pos = param.text_document_position.position;
-        let work_done_token = param.work_done_progress_params.work_done_token;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
+        // The workspace is already fully indexed once at startup (see the
+        // `initialize` handler), so cross-file reference resolution operates on
+        // the cached metamodel pool without any per-request re-scan.
+        let Some(target_fqn) = self.state.resolve_target_fqn(&uri, pos) else {
+            error!(uri=%uri, "failed to resolve target fqn");
             return Box::pin(async move { Ok(None) });
         };
 
-        let content = self.state.get_content(&uri);
-
-        let current_package = tree.get_package_name(content.as_bytes()).unwrap_or(".");
-
-        let Some((mut refs, otext)) = tree.reference_tree(pos, content.as_bytes()) else {
-            error!(uri=%uri, "failed to find references in a tree");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let Some(workspace) = self.configs.get_workspace_for_uri(&uri) else {
-            error!(uri=%uri, "failed to get workspace");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let progress_sender = work_done_token.map(|token| self.with_report_progress(token));
-
-        if let Some(v) = self.state.reference_fields(
-            current_package,
-            &otext,
-            &workspace.to_file_path().unwrap(),
-            progress_sender.as_ref(),
-        ) {
-            refs.extend(v);
-        }
+        let refs = self.state.references_for_fqn(&target_fqn);
 
         Box::pin(async move {
             if refs.is_empty() {
@@ -381,24 +330,8 @@ impl ProtoLanguageServer {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let content = self.state.get_content(&uri);
-        let jump = tree.get_jumpable_at_position(pos, content.as_bytes());
-        let current_package_name = tree.get_package_name(content.as_bytes()).unwrap_or(".");
-
-        let Some(jump) = jump else {
-            error!(uri=%uri, "failed to get jump identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
         let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
-        let locations = self
-            .state
-            .definition(&ipath, current_package_name.as_ref(), jump);
+        let locations = self.state.definition(&uri, pos, &ipath);
 
         let response = match locations.len() {
             0 => None,
@@ -415,12 +348,12 @@ impl ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, ResponseError>> {
         let uri = params.text_document.uri;
 
-        let Some(tree) = self.state.get_tree(&uri) else {
-            error!(uri=%uri, "failed to get tree");
+        let Some(document) = self.state.get_document(&uri) else {
+            error!(uri=%uri, "failed to get document");
             return Box::pin(async move { Ok(None) });
         };
 
-        let symbols = tree.document_symbols();
+        let symbols = document.document_symbols();
         let response = DocumentSymbolResponse::Nested(symbols);
 
         Box::pin(async move { Ok(Some(response)) })

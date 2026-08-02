@@ -1,0 +1,21 @@
+---
+source: src/state/rename.rs
+expression: edits
+---
+"file://input/foo.proto":
+  - range:
+      start:
+        line: 4
+        character: 8
+      end:
+        line: 4
+        character: 22
+    newText: FetchRequest
+  - range:
+      start:
+        line: 8
+        character: 16
+      end:
+        line: 8
+        character: 30
+    newText: FetchRequest

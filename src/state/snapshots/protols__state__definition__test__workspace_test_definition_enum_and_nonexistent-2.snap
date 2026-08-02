@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&ipath, \"com.enums\",\nJumpable::Identifier(\"Color.RED\".to_owned()))"
+---
+- uri: "file://input/enums.proto"
+  range:
+    start:
+      line: 2
+      character: 13
+    end:
+      line: 2
+      character: 16

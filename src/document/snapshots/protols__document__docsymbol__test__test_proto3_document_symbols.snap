@@ -1,0 +1,683 @@
+---
+source: src/document/docsymbol.rs
+expression: symbols
+---
+- name: InventoryService
+  kind: 11
+  tags:
+    - 1
+  range:
+    start:
+      line: 8
+      character: 0
+    end:
+      line: 34
+      character: 1
+  selectionRange:
+    start:
+      line: 16
+      character: 8
+    end:
+      line: 16
+      character: 24
+  children:
+    - name: WatchItems
+      detail: WatchRequest → stream ItemEvent
+      kind: 6
+      range:
+        start:
+          line: 18
+          character: 2
+        end:
+          line: 19
+          character: 58
+      selectionRange:
+        start:
+          line: 19
+          character: 6
+        end:
+          line: 19
+          character: 16
+      children: []
+    - name: BulkUpload
+      detail: stream google.protobuf.Any → UploadSummary
+      kind: 6
+      range:
+        start:
+          line: 21
+          character: 2
+        end:
+          line: 25
+          character: 2
+      selectionRange:
+        start:
+          line: 22
+          character: 6
+        end:
+          line: 22
+          character: 16
+      children: []
+    - name: SyncInventory
+      detail: stream SyncRequest → stream SyncResponse
+      kind: 6
+      tags:
+        - 1
+      range:
+        start:
+          line: 28
+          character: 2
+        end:
+          line: 33
+          character: 3
+      selectionRange:
+        start:
+          line: 29
+          character: 6
+        end:
+          line: 29
+          character: 19
+      children: []
+- name: MetricsService
+  kind: 11
+  range:
+    start:
+      line: 36
+      character: 0
+    end:
+      line: 41
+      character: 1
+  selectionRange:
+    start:
+      line: 38
+      character: 8
+    end:
+      line: 38
+      character: 22
+  children:
+    - name: GetSystemUptime
+      detail: google.protobuf.Duration → google.protobuf.Timestamp
+      kind: 6
+      range:
+        start:
+          line: 39
+          character: 2
+        end:
+          line: 40
+          character: 42
+      selectionRange:
+        start:
+          line: 39
+          character: 6
+        end:
+          line: 39
+          character: 21
+      children: []
+- name: BookItem
+  kind: 23
+  range:
+    start:
+      line: 43
+      character: 0
+    end:
+      line: 86
+      character: 1
+  selectionRange:
+    start:
+      line: 43
+      character: 8
+    end:
+      line: 43
+      character: 16
+  children:
+    - name: id
+      detail: "string (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 44
+          character: 2
+        end:
+          line: 45
+          character: 16
+      selectionRange:
+        start:
+          line: 45
+          character: 9
+        end:
+          line: 45
+          character: 11
+      children: []
+    - name: title
+      detail: "string (tag: 2)"
+      kind: 8
+      range:
+        start:
+          line: 46
+          character: 2
+        end:
+          line: 47
+          character: 19
+      selectionRange:
+        start:
+          line: 47
+          character: 9
+        end:
+          line: 47
+          character: 14
+      children: []
+    - name: authors
+      detail: "repeated string (tag: 3)"
+      kind: 8
+      range:
+        start:
+          line: 49
+          character: 2
+        end:
+          line: 50
+          character: 30
+      selectionRange:
+        start:
+          line: 50
+          character: 18
+        end:
+          line: 50
+          character: 25
+      children: []
+    - name: internal_note
+      detail: "optional string (tag: 4)"
+      kind: 8
+      range:
+        start:
+          line: 52
+          character: 2
+        end:
+          line: 53
+          character: 36
+      selectionRange:
+        start:
+          line: 53
+          character: 18
+        end:
+          line: 53
+          character: 31
+      children: []
+    - name: attributes
+      detail: "map<string, int64> (tag: 5)"
+      kind: 8
+      range:
+        start:
+          line: 55
+          character: 2
+        end:
+          line: 59
+          character: 19
+      selectionRange:
+        start:
+          line: 59
+          character: 4
+        end:
+          line: 59
+          character: 14
+      children: []
+    - name: legacy_code
+      detail: "int32 (tag: 6)"
+      kind: 8
+      tags:
+        - 1
+      range:
+        start:
+          line: 61
+          character: 2
+        end:
+          line: 62
+          character: 74
+      selectionRange:
+        start:
+          line: 62
+          character: 8
+        end:
+          line: 62
+          character: 19
+      children: []
+    - name: delivery_method
+      kind: 19
+      range:
+        start:
+          line: 64
+          character: 2
+        end:
+          line: 68
+          character: 3
+      selectionRange:
+        start:
+          line: 65
+          character: 8
+        end:
+          line: 65
+          character: 23
+      children:
+        - name: download_url
+          detail: "string (tag: 7)"
+          kind: 8
+          range:
+            start:
+              line: 66
+              character: 4
+            end:
+              line: 66
+              character: 27
+          selectionRange:
+            start:
+              line: 66
+              character: 11
+            end:
+              line: 66
+              character: 23
+          children: []
+        - name: shipping_id
+          detail: "int64 (tag: 8)"
+          kind: 8
+          range:
+            start:
+              line: 67
+              character: 4
+            end:
+              line: 67
+              character: 25
+          selectionRange:
+            start:
+              line: 67
+              character: 10
+            end:
+              line: 67
+              character: 21
+          children: []
+    - name: EmbeddedMeta
+      kind: 23
+      range:
+        start:
+          line: 70
+          character: 2
+        end:
+          line: 75
+          character: 3
+      selectionRange:
+        start:
+          line: 72
+          character: 10
+        end:
+          line: 72
+          character: 22
+      children:
+        - name: extracted_at
+          detail: "google.protobuf.Timestamp (tag: 1)"
+          kind: 8
+          range:
+            start:
+              line: 73
+              character: 4
+            end:
+              line: 73
+              character: 47
+          selectionRange:
+            start:
+              line: 73
+              character: 30
+            end:
+              line: 73
+              character: 42
+          children: []
+        - name: is_valid
+          detail: "bool (tag: 2)"
+          kind: 8
+          range:
+            start:
+              line: 74
+              character: 4
+            end:
+              line: 74
+              character: 22
+          selectionRange:
+            start:
+              line: 74
+              character: 9
+            end:
+              line: 74
+              character: 17
+          children: []
+    - name: ContentType
+      kind: 10
+      range:
+        start:
+          line: 77
+          character: 2
+        end:
+          line: 82
+          character: 3
+      selectionRange:
+        start:
+          line: 78
+          character: 7
+        end:
+          line: 78
+          character: 18
+      children:
+        - name: UNKNOWN
+          detail: "value: 0"
+          kind: 22
+          range:
+            start:
+              line: 79
+              character: 4
+            end:
+              line: 79
+              character: 16
+          selectionRange:
+            start:
+              line: 79
+              character: 4
+            end:
+              line: 79
+              character: 11
+          children: []
+        - name: FICTION
+          detail: "value: 1"
+          kind: 22
+          range:
+            start:
+              line: 80
+              character: 4
+            end:
+              line: 80
+              character: 16
+          selectionRange:
+            start:
+              line: 80
+              character: 4
+            end:
+              line: 80
+              character: 11
+          children: []
+        - name: TECHNICAL
+          detail: "value: 2"
+          kind: 22
+          range:
+            start:
+              line: 81
+              character: 4
+            end:
+              line: 81
+              character: 18
+          selectionRange:
+            start:
+              line: 81
+              character: 4
+            end:
+              line: 81
+              character: 13
+          children: []
+    - name: metadata
+      detail: "EmbeddedMeta (tag: 9)"
+      kind: 8
+      range:
+        start:
+          line: 84
+          character: 2
+        end:
+          line: 84
+          character: 28
+      selectionRange:
+        start:
+          line: 84
+          character: 15
+        end:
+          line: 84
+          character: 23
+      children: []
+    - name: type
+      detail: "ContentType (tag: 10)"
+      kind: 8
+      range:
+        start:
+          line: 85
+          character: 2
+        end:
+          line: 85
+          character: 24
+      selectionRange:
+        start:
+          line: 85
+          character: 14
+        end:
+          line: 85
+          character: 18
+      children: []
+- name: WatchRequest
+  kind: 23
+  range:
+    start:
+      line: 88
+      character: 0
+    end:
+      line: 90
+      character: 1
+  selectionRange:
+    start:
+      line: 88
+      character: 8
+    end:
+      line: 88
+      character: 20
+  children:
+    - name: filter_query
+      detail: "string (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 89
+          character: 2
+        end:
+          line: 89
+          character: 26
+      selectionRange:
+        start:
+          line: 89
+          character: 9
+        end:
+          line: 89
+          character: 21
+      children: []
+- name: ItemEvent
+  kind: 23
+  range:
+    start:
+      line: 92
+      character: 0
+    end:
+      line: 95
+      character: 1
+  selectionRange:
+    start:
+      line: 92
+      character: 8
+    end:
+      line: 92
+      character: 17
+  children:
+    - name: event_id
+      detail: "string (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 93
+          character: 2
+        end:
+          line: 93
+          character: 22
+      selectionRange:
+        start:
+          line: 93
+          character: 9
+        end:
+          line: 93
+          character: 17
+      children: []
+    - name: item_data
+      detail: "BookItem (tag: 2)"
+      kind: 8
+      range:
+        start:
+          line: 94
+          character: 2
+        end:
+          line: 94
+          character: 25
+      selectionRange:
+        start:
+          line: 94
+          character: 11
+        end:
+          line: 94
+          character: 20
+      children: []
+- name: UploadSummary
+  kind: 23
+  range:
+    start:
+      line: 97
+      character: 0
+    end:
+      line: 100
+      character: 1
+  selectionRange:
+    start:
+      line: 97
+      character: 8
+    end:
+      line: 97
+      character: 21
+  children:
+    - name: total_processed
+      detail: "uint32 (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 98
+          character: 2
+        end:
+          line: 98
+          character: 29
+      selectionRange:
+        start:
+          line: 98
+          character: 9
+        end:
+          line: 98
+          character: 24
+      children: []
+    - name: processing_time
+      detail: "google.protobuf.Duration (tag: 2)"
+      kind: 8
+      range:
+        start:
+          line: 99
+          character: 2
+        end:
+          line: 99
+          character: 47
+      selectionRange:
+        start:
+          line: 99
+          character: 27
+        end:
+          line: 99
+          character: 42
+      children: []
+- name: SyncRequest
+  kind: 23
+  range:
+    start:
+      line: 102
+      character: 0
+    end:
+      line: 105
+      character: 1
+  selectionRange:
+    start:
+      line: 102
+      character: 8
+    end:
+      line: 102
+      character: 19
+  children:
+    - name: sync_id
+      detail: "int64 (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 103
+          character: 2
+        end:
+          line: 103
+          character: 20
+      selectionRange:
+        start:
+          line: 103
+          character: 8
+        end:
+          line: 103
+          character: 15
+      children: []
+    - name: payload
+      detail: "google.protobuf.Any (tag: 2)"
+      kind: 8
+      range:
+        start:
+          line: 104
+          character: 2
+        end:
+          line: 104
+          character: 34
+      selectionRange:
+        start:
+          line: 104
+          character: 22
+        end:
+          line: 104
+          character: 29
+      children: []
+- name: SyncResponse
+  kind: 23
+  range:
+    start:
+      line: 106
+      character: 0
+    end:
+      line: 107
+      character: 52
+  selectionRange:
+    start:
+      line: 107
+      character: 8
+    end:
+      line: 107
+      character: 20
+  children:
+    - name: success
+      detail: "bool (tag: 1)"
+      kind: 8
+      range:
+        start:
+          line: 107
+          character: 22
+        end:
+          line: 107
+          character: 51
+      selectionRange:
+        start:
+          line: 107
+          character: 39
+        end:
+          line: 107
+          character: 46
+      children: []
