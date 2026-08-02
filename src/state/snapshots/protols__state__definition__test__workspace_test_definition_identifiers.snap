@@ -1,6 +1,6 @@
 ---
 source: src/state/definition.rs
-expression: "state.definition(&ipath, \"com.workspace\",\nJumpable::Identifier(\"Author\".to_owned()))"
+expression: "state.resolve_identifier_locations(\"com.workspace\", \"Author\")"
 ---
 - uri: "file://input/b.proto"
   range:

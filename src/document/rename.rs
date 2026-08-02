@@ -86,7 +86,6 @@ impl ProtoDocument {
             })
             .collect()
     }
-
 }
 
 /// Determines which dot-separated segment of a type reference the cursor rests

@@ -13,10 +13,7 @@ use async_lsp::{
     },
     router::Router,
 };
-use std::{
-    ops::ControlFlow,
-    path::PathBuf,
-};
+use std::{ops::ControlFlow, path::PathBuf};
 
 use crate::{config::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
 

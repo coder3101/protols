@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use async_lsp::lsp_types::{Location, Position, TextEdit, Url};
 
-use crate::context::Jumpable;
 use crate::model::ElementKind;
 use crate::state::ProtoLanguageState;
 use crate::utils::{is_position_inside_range, trailing_segment};
@@ -29,7 +28,8 @@ impl ProtoLanguageState {
         let mut out = vec![];
         for document in self.get_documents() {
             for element in &document.elements {
-                if matches!(element.kind, ElementKind::Rpc { .. }) && element.meta.name == rpc_name {
+                if matches!(element.kind, ElementKind::Rpc { .. }) && element.meta.name == rpc_name
+                {
                     out.push(Location {
                         uri: document.uri.clone(),
                         range: element.meta.selection_range,
@@ -218,7 +218,7 @@ impl ProtoLanguageState {
             };
             let rpc_pkg = rpc_document.package_name();
             let resolves_to_primary = self
-                .definition(ipath, rpc_pkg, Jumpable::Identifier(slot_text.clone()))
+                .resolve_identifier_locations(rpc_pkg, slot_text)
                 .iter()
                 .any(|l| l.uri == *decl_uri && is_position_inside_range(decl_pos, l.range));
             if resolves_to_primary {
@@ -265,7 +265,7 @@ impl ProtoLanguageState {
         anchor_uri: &Url,
         old_rpc_name: &str,
         new_rpc_name: &str,
-        ipath: &[PathBuf],
+        _ipath: &[PathBuf],
         slots: &[(&str, &str)],
     ) -> Vec<RenameOp> {
         let Some(anchor_document) = self.get_document(anchor_uri) else {
@@ -282,11 +282,7 @@ impl ProtoLanguageState {
             if self.count_rpc_uses_of_type(&expected_name) != 1 {
                 continue;
             }
-            let locations = self.definition(
-                ipath,
-                &anchor_package,
-                Jumpable::Identifier((*type_text).to_owned()),
-            );
+            let locations = self.resolve_identifier_locations(&anchor_package, type_text);
             let Some(decl) = locations.into_iter().next() else {
                 continue;
             };
@@ -361,10 +357,7 @@ mod test {
         // nested-qualified usages like `Author.Address`) are updated.
         assert_yaml_snapshot!(state.rename_for_fqn("com.workspace.Author", "Writer"));
         // Rename a nested message referenced via qualified paths.
-        assert_yaml_snapshot!(state.rename_for_fqn(
-            "com.workspace.Author.Address",
-            "Location"
-        ));
+        assert_yaml_snapshot!(state.rename_for_fqn("com.workspace.Author.Address", "Location"));
         // Rename a message referenced from another package (fully qualified).
         assert_yaml_snapshot!(state.rename_for_fqn("com.utility.Foobar.Baz", "Baaz"));
     }
@@ -384,7 +377,11 @@ mod test {
         assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author"));
         assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author.Address"));
         assert_yaml_snapshot!(state.references_for_fqn("com.utility.Foobar.Baz"));
-        assert!(state.references_for_fqn("com.nonexistent.Missing").is_empty());
+        assert!(
+            state
+                .references_for_fqn("com.nonexistent.Missing")
+                .is_empty()
+        );
     }
 
     #[test]
@@ -402,17 +399,35 @@ mod test {
 
         // Cursor on the `Author` message declaration name in b.proto.
         assert_eq!(
-            state.resolve_target_fqn(&b_uri, Position { line: 5, character: 10 }),
+            state.resolve_target_fqn(
+                &b_uri,
+                Position {
+                    line: 5,
+                    character: 10
+                }
+            ),
             Some("com.workspace.Author".to_owned())
         );
         // Cursor on the `Author` type reference inside a field in a.proto.
         assert_eq!(
-            state.resolve_target_fqn(&a_uri, Position { line: 11, character: 5 }),
+            state.resolve_target_fqn(
+                &a_uri,
+                Position {
+                    line: 11,
+                    character: 5
+                }
+            ),
             Some("com.workspace.Author".to_owned())
         );
         // Cursor on whitespace -> None.
         assert_eq!(
-            state.resolve_target_fqn(&a_uri, Position { line: 0, character: 0 }),
+            state.resolve_target_fqn(
+                &a_uri,
+                Position {
+                    line: 0,
+                    character: 0
+                }
+            ),
             None
         );
     }
@@ -771,8 +786,14 @@ mod test {
         let ipath = vec![PathBuf::from("src/state/input")];
         let state = make_state(
             &[
-                ("file://input/service.proto", include_str!("input/service.proto")),
-                ("file://input/messages.proto", include_str!("input/messages.proto")),
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
             ],
             &ipath,
         );
@@ -788,16 +809,21 @@ mod test {
         let ipath = vec![PathBuf::from("src/state/input")];
         let state = make_state(
             &[
-                ("file://input/service.proto", include_str!("input/service.proto")),
-                ("file://input/messages.proto", include_str!("input/messages.proto")),
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
             ],
             &ipath,
         );
 
-        assert_yaml_snapshot!(state.rename_for_fqn(
-            "com.workspace.GetBookRequest",
-            "FetchBookRequest"
-        ));
+        assert_yaml_snapshot!(
+            state.rename_for_fqn("com.workspace.GetBookRequest", "FetchBookRequest")
+        );
     }
 
     #[test]
@@ -858,8 +884,14 @@ mod test {
         let ipath = vec![PathBuf::from("src/state/input")];
         let state = make_state(
             &[
-                ("file://input/foo.proto", include_str!("input/collision_foo.proto")),
-                ("file://input/bar.proto", include_str!("input/collision_bar.proto")),
+                (
+                    "file://input/foo.proto",
+                    include_str!("input/collision_foo.proto"),
+                ),
+                (
+                    "file://input/bar.proto",
+                    include_str!("input/collision_bar.proto"),
+                ),
             ],
             &ipath,
         );
@@ -869,7 +901,10 @@ mod test {
 
         let bar_uri: Url = "file://input/bar.proto".parse().unwrap();
         let bar_touched = edits.contains_key(&bar_uri);
-        assert!(!bar_touched, "com.bar must not be touched by a com.foo rename");
+        assert!(
+            !bar_touched,
+            "com.bar must not be touched by a com.foo rename"
+        );
     }
 
     #[test]
@@ -881,8 +916,14 @@ mod test {
         let svc_uri = "file://input/service.proto".parse().unwrap();
         let mut state = make_state(
             &[
-                ("file://input/service.proto", include_str!("input/service.proto")),
-                ("file://input/messages.proto", include_str!("input/messages.proto")),
+                (
+                    "file://input/service.proto",
+                    include_str!("input/service.proto"),
+                ),
+                (
+                    "file://input/messages.proto",
+                    include_str!("input/messages.proto"),
+                ),
             ],
             &ipath,
         );
@@ -895,17 +936,20 @@ mod test {
         };
         let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBookRequest", &ipath, false);
         let edits = state.apply_rename_ops(&ops).expect("rename should succeed");
-        assert_yaml_snapshot!(edits);
+        let mut normalized: std::collections::BTreeMap<String, Vec<_>> =
+            std::collections::BTreeMap::new();
+        for (url, mut v) in edits {
+            v.sort_by_key(|e| (e.range.start.line, e.range.start.character));
+            normalized.insert(url.to_string(), v);
+        }
+        assert_yaml_snapshot!(normalized);
     }
 
     #[test]
     fn test_rename_unknown_symbol_is_noop() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let state = make_state(
-            &[(
-                "file://input/a.proto",
-                include_str!("input/a.proto"),
-            )],
+            &[("file://input/a.proto", include_str!("input/a.proto"))],
             &ipath,
         );
         let edits = state.rename_for_fqn("com.workspace.DoesNotExist", "X");

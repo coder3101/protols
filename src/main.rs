@@ -15,14 +15,12 @@ use crate::transport::create_transport;
 
 mod cli;
 mod config;
-mod context;
 mod docs;
+mod document;
 mod formatter;
 mod log;
 mod lsp;
 mod model;
-mod nodekind;
-mod document;
 mod protoc;
 mod server;
 mod state;

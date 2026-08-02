@@ -8,7 +8,7 @@
 use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
 use tree_sitter::Node;
 
-use crate::{nodekind::NodeKind, utils::to_lsp_range};
+use crate::utils::to_lsp_range;
 
 use super::parser::ProtoDocument;
 
@@ -33,7 +33,9 @@ impl ProtoDocument {
 }
 
 fn collect_error_nodes<'a>(n: Node<'a>, out: &mut Vec<Node<'a>>) {
-    if NodeKind::is_error(&n) {
+    // Tree-sitter marks malformed regions with an `ERROR` node; these are the
+    // only raw-tree nodes we still inspect (they are absent from the metamodel).
+    if n.kind() == "ERROR" {
         out.push(n);
     }
     let mut cursor = n.walk();

@@ -371,7 +371,8 @@ impl ProtoLanguageState {
         let collector = |f: fn(&ElementKind) -> bool, k: CompletionItemKind| {
             self.get_document(url)
                 .map(|document| {
-                    document.elements
+                    document
+                        .elements
                         .iter()
                         .filter(|e| f(&e.kind))
                         .map(|e| CompletionItem {
@@ -385,10 +386,7 @@ impl ProtoLanguageState {
         };
 
         let mut result = collector(is_enum_kind, CompletionItemKind::ENUM);
-        result.extend(collector(
-            is_message_kind,
-            CompletionItemKind::STRUCT,
-        ));
+        result.extend(collector(is_message_kind, CompletionItemKind::STRUCT));
         // Better ways to dedup, but who cares?...
         result.sort_by_key(|k| k.label.clone());
         result.dedup_by_key(|k| k.label.clone());
@@ -396,29 +394,26 @@ impl ProtoLanguageState {
     }
 
     pub fn completion_items_for_package(&self, package: &str) -> Vec<CompletionItem> {
-        let collector = |f: fn(&ElementKind) -> bool, k: CompletionItemKind| {
-            self.get_documents_for_package(package)
-                .into_iter()
-                .fold(vec![], |mut v, document| {
-                    let t = document
-                        .elements
-                        .iter()
-                        .filter(|e| f(&e.kind))
-                        .map(|e| CompletionItem {
-                            label: e.meta.name.clone(),
-                            kind: Some(k),
-                            ..Default::default()
+        let collector =
+            |f: fn(&ElementKind) -> bool, k: CompletionItemKind| {
+                self.get_documents_for_package(package).into_iter().fold(
+                    vec![],
+                    |mut v, document| {
+                        let t = document.elements.iter().filter(|e| f(&e.kind)).map(|e| {
+                            CompletionItem {
+                                label: e.meta.name.clone(),
+                                kind: Some(k),
+                                ..Default::default()
+                            }
                         });
-                    v.extend(t);
-                    v
-                })
-        };
+                        v.extend(t);
+                        v
+                    },
+                )
+            };
 
         let mut result = collector(is_enum_kind, CompletionItemKind::ENUM);
-        result.extend(collector(
-            is_message_kind,
-            CompletionItemKind::STRUCT,
-        ));
+        result.extend(collector(is_message_kind, CompletionItemKind::STRUCT));
         // Better ways to dedup, but who cares?...
         result.sort_by_key(|k| k.label.clone());
         result.dedup_by_key(|k| k.label.clone());
@@ -483,7 +478,11 @@ mod test {
     fn test_get_document() {
         let state = setup_state();
         assert!(state.get_document(&uri("file:///test.proto")).is_some());
-        assert!(state.get_document(&uri("file:///nonexistent.proto")).is_none());
+        assert!(
+            state
+                .get_document(&uri("file:///nonexistent.proto"))
+                .is_none()
+        );
     }
 
     #[test]
@@ -531,9 +530,11 @@ mod test {
     #[test]
     fn test_document_completion_empty_for_missing_document() {
         let state = setup_state();
-        assert!(state
-            .completion_items_for_document(&uri("file:///missing.proto"))
-            .is_empty());
+        assert!(
+            state
+                .completion_items_for_document(&uri("file:///missing.proto"))
+                .is_empty()
+        );
     }
 
     #[test]

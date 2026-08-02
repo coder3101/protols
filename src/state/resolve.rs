@@ -11,7 +11,7 @@ use async_lsp::lsp_types::{Location, Position, TextEdit, Url};
 
 use crate::model::{ModelElement, SpatialEntry, TypeReference};
 use crate::state::ProtoLanguageState;
-use crate::utils::{is_position_inside_range, trailing_segment};
+use crate::utils::{is_position_inside_range, split_identifier_package, trailing_segment};
 
 /// A resolved definition target located anywhere in the workspace.
 #[derive(Debug, Clone)]
@@ -124,6 +124,41 @@ impl ProtoLanguageState {
         None
     }
 
+    /// Returns the declaration location(s) of every element matching
+    /// `target_fqn` in the indexed workspace.
+    pub fn declarations_for_fqn(&self, target_fqn: &str) -> Vec<Location> {
+        let mut out = Vec::new();
+        for document in self.get_documents() {
+            for element in &document.elements {
+                if element.kind.fqn() == Some(target_fqn) {
+                    out.push(Location {
+                        uri: document.uri.clone(),
+                        range: element.meta.selection_range,
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    /// Resolves an identifier (possibly package-qualified) against `scope` and
+    /// returns the declaration locations of its target.
+    pub fn resolve_identifier_locations(&self, scope: &str, identifier: &str) -> Vec<Location> {
+        let (package_part, id_name) = split_identifier_package(identifier);
+        let scope = if package_part.is_empty() {
+            scope
+        } else {
+            package_part
+        };
+        self.resolve_reference(scope, id_name)
+            .into_iter()
+            .map(|target| Location {
+                uri: target.uri,
+                range: target.element.meta.selection_range,
+            })
+            .collect()
+    }
+
     /// Collects every reference site for a symbol identified by its FQN across
     /// the indexed workspace: all matching declarations plus every type
     /// reference that resolves back to the same FQN.
@@ -190,9 +225,9 @@ impl ProtoLanguageState {
                 let scope = element.kind.fqn().unwrap_or(&document.package);
                 for type_ref in element.kind.type_references() {
                     let resolves = self.resolve_reference(scope, &type_ref.name);
-                    let is_target = resolves.iter().any(|r| {
-                        r.element.kind.fqn() == Some(target_fqn)
-                    });
+                    let is_target = resolves
+                        .iter()
+                        .any(|r| r.element.kind.fqn() == Some(target_fqn));
                     let is_nested = resolves.iter().any(|r| {
                         r.element
                             .kind
@@ -200,14 +235,17 @@ impl ProtoLanguageState {
                             .is_some_and(|fqn| fqn.starts_with(&nested_prefix))
                     });
                     if is_target || is_nested {
-                        edits.entry(document.uri.clone()).or_default().push(TextEdit {
-                            range: type_ref.range,
-                            new_text: rename_reference_text(
-                                &type_ref.name,
-                                old_simple,
-                                new_name,
-                            ),
-                        });
+                        edits
+                            .entry(document.uri.clone())
+                            .or_default()
+                            .push(TextEdit {
+                                range: type_ref.range,
+                                new_text: rename_reference_text(
+                                    &type_ref.name,
+                                    old_simple,
+                                    new_name,
+                                ),
+                            });
                     }
                 }
             }
@@ -297,9 +335,30 @@ mod test {
         let c_uri: Url = "file://input/c.proto".parse().unwrap();
 
         let mut state = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, include_str!("input/a.proto"), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&b_uri, include_str!("input/b.proto"), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&c_uri, include_str!("input/c.proto"), &ipath, 2, &Config::default(), false);
+        state.upsert_file(
+            &a_uri,
+            include_str!("input/a.proto"),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+        state.upsert_file(
+            &b_uri,
+            include_str!("input/b.proto"),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+        state.upsert_file(
+            &c_uri,
+            include_str!("input/c.proto"),
+            &ipath,
+            2,
+            &Config::default(),
+            false,
+        );
         state
     }
 
@@ -366,7 +425,10 @@ mod test {
             super::scope_prefixes("com.example.Book"),
             vec!["com.example.Book", "com.example", "com"]
         );
-        assert_eq!(super::scope_prefixes("com.workspace"), vec!["com.workspace", "com"]);
+        assert_eq!(
+            super::scope_prefixes("com.workspace"),
+            vec!["com.workspace", "com"]
+        );
         assert_eq!(super::scope_prefixes(""), vec![""]);
     }
 
@@ -384,11 +446,7 @@ mod test {
         );
         // Fully package-qualified (middle segment renamed).
         assert_eq!(
-            super::rename_reference_text(
-                "com.utility.Foobar.Baz",
-                "Baz",
-                "Baaz"
-            ),
+            super::rename_reference_text("com.utility.Foobar.Baz", "Baz", "Baaz"),
             "com.utility.Foobar.Baaz"
         );
     }

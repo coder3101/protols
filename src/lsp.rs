@@ -330,23 +330,8 @@ impl ProtoLanguageServer {
         let uri = param.text_document_position_params.text_document.uri;
         let pos = param.text_document_position_params.position;
 
-        let Some(document) = self.state.get_document(&uri) else {
-            error!(uri=%uri, "failed to get document");
-            return Box::pin(async move { Ok(None) });
-        };
-
-        let jump = document.get_jumpable_at_position(pos);
-        let current_package_name = document.package_name();
-
-        let Some(jump) = jump else {
-            error!(uri=%uri, "failed to get jump identifier");
-            return Box::pin(async move { Ok(None) });
-        };
-
         let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
-        let locations = self
-            .state
-            .definition(&ipath, current_package_name.as_ref(), jump);
+        let locations = self.state.definition(&uri, pos, &ipath);
 
         let response = match locations.len() {
             0 => None,

@@ -70,4 +70,3 @@ pub static WELLKNOWN: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::
         docmap_wellknown!("Value"),
     ])
 });
-

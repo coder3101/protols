@@ -7,10 +7,7 @@
 
 use async_lsp::lsp_types::Position;
 
-use crate::{
-    context::Jumpable,
-    model::{ElementKind, SpatialEntry},
-};
+use crate::model::SpatialEntry;
 
 use super::parser::ProtoDocument;
 
@@ -37,22 +34,6 @@ impl ProtoDocument {
             .iter()
             .rev()
             .find(|entry| entry.contains_position(position))
-    }
-
-    /// Resolves the symbol under `position` into a jumpable [`Jumpable`]
-    /// (an import path or an identifier), backed by the spatial index.
-    pub fn get_jumpable_at_position(&self, pos: Position) -> Option<Jumpable> {
-        let SpatialEntry { element_id, .. } = self.find_entry_at_position(pos)?;
-        let element = self.elements.get(*element_id)?;
-
-        match &element.kind {
-            ElementKind::Import { path } => Some(Jumpable::Import(path.clone())),
-            _ => element
-                .inspect_nested_type_reference(pos)
-                .map(ToOwned::to_owned)
-                .or_else(|| (!element.meta.name.is_empty()).then(|| element.meta.name.clone()))
-                .map(Jumpable::Identifier),
-        }
     }
 }
 
@@ -193,52 +174,5 @@ mod test {
             character: 5,
         };
         assert!(state_minimal.hover(&uri, pos_mid).is_none());
-    }
-
-    #[test]
-    fn test_jumpable_at_position() {
-        use crate::context::Jumpable;
-        use crate::document::parser::ProtoParser;
-        use crate::utils::compile_test_query;
-
-        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
-        let contents = include_str!("input/test_goto_definition.proto");
-        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
-        assert!(parsed.is_some());
-        let document = parsed.unwrap();
-
-        // Cursor on the nested `Author` type reference of a field -> identifier.
-        assert_eq!(
-            document.get_jumpable_at_position(Position::new(10, 5)),
-            Some(Jumpable::Identifier("Author".to_owned()))
-        );
-        // Cursor on the `Author` message definition name -> identifier.
-        assert_eq!(
-            document.get_jumpable_at_position(Position::new(5, 15)),
-            Some(Jumpable::Identifier("Author".to_owned()))
-        );
-        // Cursor on empty whitespace -> no jumpable.
-        assert_eq!(document.get_jumpable_at_position(Position::new(0, 0)), None);
-    }
-
-    #[test]
-    fn test_jumpable_import_at_position() {
-        use crate::context::Jumpable;
-        use crate::document::parser::ProtoParser;
-        use crate::utils::compile_test_query;
-
-        let uri: Url = "file://foo/bar/test.proto".parse().unwrap();
-        let contents = "syntax = \"proto3\";\npackage com.test;\nimport \"dep.proto\";\n";
-        let parsed = ProtoParser::new().parse(uri, contents, &compile_test_query());
-        assert!(parsed.is_some());
-        let document = parsed.unwrap();
-
-        // Cursor anywhere on the import statement -> Import path.
-        assert_eq!(
-            document.get_jumpable_at_position(Position::new(2, 8)),
-            Some(Jumpable::Import("dep.proto".to_owned()))
-        );
-        // Cursor on the package name -> no jumpable (package is not a spatial element).
-        assert_eq!(document.get_jumpable_at_position(Position::new(1, 14)), None);
     }
 }
