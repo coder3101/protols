@@ -7,11 +7,30 @@
 use std::fmt;
 use std::fmt::Write;
 
-use async_lsp::lsp_types::Position;
+use async_lsp::lsp_types::{Position, SymbolKind};
 
 use crate::docs;
 
 use super::types::{CardinalityKind, ElementKind, ModelElement, TypeReference};
+
+impl From<&ElementKind> for SymbolKind {
+    /// Maps an internal [`ElementKind`] variant directly to its closest
+    /// semantic LSP [`SymbolKind`].
+    fn from(kind: &ElementKind) -> Self {
+        match kind {
+            ElementKind::Import { .. } => Self::MODULE,
+            ElementKind::Message { .. } => Self::STRUCT,
+            ElementKind::Oneof { .. } => Self::OBJECT,
+            ElementKind::Field { .. }
+            | ElementKind::MapField { .. }
+            | ElementKind::OneofField { .. } => Self::FIELD,
+            ElementKind::Enum { .. } => Self::ENUM,
+            ElementKind::EnumValue { .. } => Self::ENUM_MEMBER,
+            ElementKind::Service { .. } => Self::INTERFACE,
+            ElementKind::Rpc { .. } => Self::METHOD,
+        }
+    }
+}
 
 impl ModelElement {
     const DEPRECATED_BANNER: &'static str = "**`Deprecated`**\n";

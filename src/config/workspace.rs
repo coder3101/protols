@@ -52,7 +52,7 @@ impl WorkspaceProtoConfigs {
             let p = Path::new(&wpath).join(file);
             match std::fs::exists(&p) {
                 Ok(exists) if exists => return Some(p),
-                _ => continue,
+                _ => {}
             }
         }
         None
@@ -128,7 +128,7 @@ impl WorkspaceProtoConfigs {
             }
         }
 
-        ipath.push(w.to_path_buf());
+        ipath.push(w.clone());
         ipath.extend_from_slice(&self.protoc_include_prefix);
         ipath.extend_from_slice(self.fallback_include_path.as_slice());
         Some(ipath)
@@ -145,7 +145,7 @@ impl WorkspaceProtoConfigs {
             if let Ok(cdir) = env::current_dir()
                 && let Some(drive) = cdir.components().next()
             {
-                d = drive.as_os_str().to_string_lossy().to_string()
+                d = drive.as_os_str().to_string_lossy().to_string();
             }
             format!("{d}://")
         } else {

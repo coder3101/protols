@@ -61,28 +61,28 @@ impl ProtoLanguageServer {
         });
 
         // Handling request
-        router.request::<Initialize, _>(|st, params| st.initialize(params));
-        router.request::<Shutdown, _>(|st, params| st.shutdown(params));
+        router.request::<Initialize, _>(ProtoLanguageServer::initialize);
+        router.request::<Shutdown, _>(ProtoLanguageServer::shutdown);
         router.request::<HoverRequest, _>(|st, params| st.hover(params));
-        router.request::<Completion, _>(|st, params| st.completion(params));
-        router.request::<PrepareRenameRequest, _>(|st, params| st.prepare_rename(params));
-        router.request::<Rename, _>(|st, params| st.rename(params));
-        router.request::<References, _>(|st, params| st.references(params));
-        router.request::<GotoDefinition, _>(|st, params| st.definition(params));
+        router.request::<Completion, _>(ProtoLanguageServer::completion);
+        router.request::<PrepareRenameRequest, _>(ProtoLanguageServer::prepare_rename);
+        router.request::<Rename, _>(ProtoLanguageServer::rename);
+        router.request::<References, _>(ProtoLanguageServer::references);
+        router.request::<GotoDefinition, _>(ProtoLanguageServer::definition);
         router.request::<DocumentSymbolRequest, _>(|st, params| st.document_symbol(params));
-        router.request::<WorkspaceSymbolRequest, _>(|st, params| st.workspace_symbol(params));
-        router.request::<Formatting, _>(|st, params| st.formatting(params));
-        router.request::<RangeFormatting, _>(|st, params| st.range_formatting(params));
+        router.request::<WorkspaceSymbolRequest, _>(ProtoLanguageServer::workspace_symbol);
+        router.request::<Formatting, _>(ProtoLanguageServer::formatting);
+        router.request::<RangeFormatting, _>(ProtoLanguageServer::range_formatting);
 
         // Handling notification
-        router.notification::<SetTrace>(|st, params| st.set_trace(params));
-        router.notification::<DidSaveTextDocument>(|st, params| st.did_save(params));
-        router.notification::<DidOpenTextDocument>(|st, params| st.did_open(params));
-        router.notification::<DidChangeTextDocument>(|st, params| st.did_change(params));
-        router.notification::<DidCreateFiles>(|st, params| st.did_create_files(params));
-        router.notification::<DidRenameFiles>(|st, params| st.did_rename_files(params));
-        router.notification::<DidDeleteFiles>(|st, params| st.did_delete_files(params));
-        router.notification::<Exit>(|st, params| st.exit(params));
+        router.notification::<SetTrace>(ProtoLanguageServer::set_trace);
+        router.notification::<DidSaveTextDocument>(ProtoLanguageServer::did_save);
+        router.notification::<DidOpenTextDocument>(ProtoLanguageServer::did_open);
+        router.notification::<DidChangeTextDocument>(ProtoLanguageServer::did_change);
+        router.notification::<DidCreateFiles>(ProtoLanguageServer::did_create_files);
+        router.notification::<DidRenameFiles>(ProtoLanguageServer::did_rename_files);
+        router.notification::<DidDeleteFiles>(ProtoLanguageServer::did_delete_files);
+        router.notification::<Exit>(ProtoLanguageServer::exit);
 
         router
     }

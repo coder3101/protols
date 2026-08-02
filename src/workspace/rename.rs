@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use async_lsp::lsp_types::{Location, Position, ProgressParamsValue, TextEdit, Url};
@@ -28,8 +28,8 @@ impl ProtoLanguageState {
         current_package: &str,
         identifier: &str,
         new_text: &str,
-        workspace: PathBuf,
-        progress_sender: Option<Sender<ProgressParamsValue>>,
+        workspace: &Path,
+        progress_sender: Option<&Sender<ProgressParamsValue>>,
     ) -> HashMap<Url, Vec<TextEdit>> {
         self.parse_all_from_workspace(workspace, progress_sender);
         let (_, identifier) = split_identifier_package(identifier);
@@ -94,8 +94,8 @@ impl ProtoLanguageState {
         &mut self,
         current_package: &str,
         identifier: &str,
-        workspace: PathBuf,
-        progress_sender: Option<Sender<ProgressParamsValue>>,
+        workspace: &Path,
+        progress_sender: Option<&Sender<ProgressParamsValue>>,
     ) -> Option<Vec<Location>> {
         self.parse_all_from_workspace(workspace, progress_sender);
         let (_, identifier) = split_identifier_package(identifier);
@@ -222,7 +222,7 @@ impl ProtoLanguageState {
     pub fn apply_rename_ops(
         &mut self,
         ops: &[RenameOp],
-        workspace: PathBuf,
+        workspace: &Path,
         progress_sender: Option<Sender<ProgressParamsValue>>,
     ) -> Option<HashMap<Url, Vec<TextEdit>>> {
         let mut all: HashMap<Url, Vec<TextEdit>> = HashMap::new();
@@ -231,14 +231,14 @@ impl ProtoLanguageState {
             // Only the first op gets the progress sender; subsequent ops would
             // double-report.
             let sender = progress.take();
-            match self.run_single_rename(op, workspace.clone(), sender) {
+            match self.run_single_rename(op, workspace, sender.as_ref()) {
                 Some(edits) => {
                     for (u, e) in edits {
                         all.entry(u).or_default().extend(e);
                     }
                 }
                 None if i == 0 => return None,
-                None => continue,
+                None => {}
             }
         }
         Some(all)
@@ -247,8 +247,8 @@ impl ProtoLanguageState {
     fn run_single_rename(
         &mut self,
         op: &RenameOp,
-        workspace: PathBuf,
-        progress_sender: Option<Sender<ProgressParamsValue>>,
+        workspace: &Path,
+        progress_sender: Option<&Sender<ProgressParamsValue>>,
     ) -> Option<HashMap<Url, Vec<TextEdit>>> {
         let tree = self.get_tree(&op.uri)?;
         let content = self.get_content(&op.uri);
@@ -484,14 +484,7 @@ mod test {
         let mut state = ProtoLanguageState::new();
         for (uri, content) in files {
             let parsed_uri = uri.parse().unwrap();
-            state.upsert_file(
-                &parsed_uri,
-                (*content).to_owned(),
-                ipath,
-                2,
-                &Config::default(),
-                false,
-            );
+            state.upsert_file(&parsed_uri, content, ipath, 2, &Config::default(), false);
         }
         state
     }
@@ -516,29 +509,29 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default(), false);
+        state.upsert_file(&a_uri, a, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&b_uri, b, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&c_uri, c, &ipath, 2, &Config::default(), false);
 
         assert_yaml_snapshot!(state.rename_fields(
             "com.workspace",
             "Author",
             "Writer",
-            PathBuf::from("src/workspace/input"),
+            &PathBuf::from("src/workspace/input"),
             None
         ));
         assert_yaml_snapshot!(state.rename_fields(
             "com.workspace",
             "Author.Address",
             "Author.Location",
-            PathBuf::from("src/workspace/input"),
+            &PathBuf::from("src/workspace/input"),
             None
         ));
         assert_yaml_snapshot!(state.rename_fields(
             "com.utility",
             "Foobar.Baz",
             "Foobar.Baaz",
-            PathBuf::from("src/workspace/input"),
+            &PathBuf::from("src/workspace/input"),
             None
         ));
     }
@@ -555,20 +548,20 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default(), false);
+        state.upsert_file(&a_uri, a, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&b_uri, b, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&c_uri, c, &ipath, 2, &Config::default(), false);
 
         assert_yaml_snapshot!(state.reference_fields(
             "com.workspace",
             "Author",
-            PathBuf::from("src/workspace/input"),
+            &PathBuf::from("src/workspace/input"),
             None
         ));
         assert_yaml_snapshot!(state.reference_fields(
             "com.workspace",
             "Author.Address",
-            PathBuf::from("src/workspace/input"),
+            &PathBuf::from("src/workspace/input"),
             None
         ));
     }
@@ -582,22 +575,8 @@ mod test {
         let msg = include_str!("input/messages.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(
-            &svc_uri,
-            svc.to_owned(),
-            &ipath,
-            2,
-            &Config::default(),
-            false,
-        );
-        state.upsert_file(
-            &msg_uri,
-            msg.to_owned(),
-            &ipath,
-            2,
-            &Config::default(),
-            false,
-        );
+        state.upsert_file(&svc_uri, svc, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&msg_uri, msg, &ipath, 2, &Config::default(), false);
 
         // Lookup hits the rpc_name node in service.proto.
         let mut locs = state.find_rpc_decls("GetBook");
@@ -920,7 +899,7 @@ mod test {
         };
         let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, true);
         let edits = state
-            .apply_rename_ops(&ops, PathBuf::from("src/workspace/input"), None)
+            .apply_rename_ops(&ops, &PathBuf::from("src/workspace/input"), None)
             .expect("primary rename should not fail");
 
         // Sort within each file so the snapshot is order-independent across

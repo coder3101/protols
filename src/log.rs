@@ -1,4 +1,5 @@
 use async_lsp::lsp_types::{LogMessageParams, MessageType, TraceValue};
+use std::fmt::Write;
 use tokio::sync::mpsc;
 use tracing::{
     Level, Subscriber,
@@ -26,19 +27,17 @@ impl Visit for MessageVisitor {
         if field.name() == "message" {
             self.message.push_str(value);
         } else {
-            self.fields
-                .push_str(&format!(" {}={}", field.name(), value));
+            let _ = write!(self.fields, " {}={value}", field.name());
         }
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
             if self.message.is_empty() {
-                self.message = format!("{:?}", value);
+                self.message = format!("{value:?}");
             }
         } else {
-            self.fields
-                .push_str(&format!(" {}={:?}", field.name(), value));
+            let _ = write!(self.fields, " {}={value:?}", field.name());
         }
     }
 }
@@ -75,13 +74,12 @@ impl<S: Subscriber> Layer<S> for ClientLogger {
             format!("{} | fields:{}", visitor.message, visitor.fields)
         };
 
-        let message = format!("[{}] {}", target, full_text);
+        let message = format!("[{target}] {full_text}");
 
         let typ = match *metadata.level() {
             tracing::Level::ERROR => MessageType::ERROR,
             tracing::Level::WARN => MessageType::WARNING,
             tracing::Level::INFO => MessageType::INFO,
-            tracing::Level::DEBUG => MessageType::LOG,
             _ => MessageType::LOG,
         };
 
@@ -108,7 +106,7 @@ pub fn install(tx: mpsc::Sender<LogMessageParams>) -> (LogReloadHandle, WorkerGu
     let lsp_layer = ClientLogger { tx };
 
     let dir = std::env::temp_dir();
-    eprintln!("file logging at directory: {dir:?}");
+    eprintln!("file logging at directory: {}", dir.display());
     let file_appender = tracing_appender::rolling::daily(dir, "protols.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
@@ -150,7 +148,7 @@ pub fn update_level(handle: &LogReloadHandle, value: TraceValue) {
 
     // Construct directives: "warn" for the whole world, "pkg=level" for us
     let global_directive = Level::WARN.into();
-    let pkg_directive = format!("{}={}", pkg_name, level)
+    let pkg_directive = format!("{pkg_name}={level}")
         .parse::<Directive>()
         .expect("Failed to parse log directive");
 
@@ -190,10 +188,10 @@ mod tests {
 
         assert!(msg.message.contains(MESSAGE));
 
-        let expected_field = format!("{}={}", field_name, field_value);
+        let expected_field = format!("{field_name}={field_value}");
         assert!(msg.message.contains(&expected_field));
 
-        assert!(msg.message.contains(&format!("[{}]", TARGET)));
+        assert!(msg.message.contains(&format!("[{TARGET}]")));
     }
 
     #[test]

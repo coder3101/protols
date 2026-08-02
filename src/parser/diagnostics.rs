@@ -18,11 +18,7 @@ impl ParsedTree {
             .collect()
     }
 
-    pub fn collect_import_diagnostics(
-        &self,
-        content: &[u8],
-        import: Vec<String>,
-    ) -> Vec<Diagnostic> {
+    pub fn collect_import_diagnostics(&self, content: &[u8], import: &[&str]) -> Vec<Diagnostic> {
         self.get_import_path_range(content, import)
             .into_iter()
             .map(|r| Diagnostic {

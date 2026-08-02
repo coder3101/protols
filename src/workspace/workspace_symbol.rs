@@ -24,9 +24,9 @@ mod test {
         let c = include_str!("input/c.proto");
 
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
-        state.upsert_file(&a_uri, a.to_owned(), &ipath, 3, &Config::default(), false);
-        state.upsert_file(&b_uri, b.to_owned(), &ipath, 2, &Config::default(), false);
-        state.upsert_file(&c_uri, c.to_owned(), &ipath, 2, &Config::default(), false);
+        state.upsert_file(&a_uri, a, &ipath, 3, &Config::default(), false);
+        state.upsert_file(&b_uri, b, &ipath, 2, &Config::default(), false);
+        state.upsert_file(&c_uri, c, &ipath, 2, &Config::default(), false);
 
         // Test empty query - should return all symbols
         let all_symbols = state.find_workspace_symbols("");
@@ -36,11 +36,11 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_1),
-                "URI {} should contain {}", uri_str, base_uri_1
+                "URI {uri_str} should contain {base_uri_1}"
             );
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
 
         })});
 
@@ -52,11 +52,11 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_2),
-                "URI {} should contain {}", uri_str, base_uri_2
+                "URI {uri_str} should contain {base_uri_2}"
             );
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
         })});
 
         // Test query for "address" - should match Address
@@ -67,12 +67,12 @@ mod test {
 
             assert!(
                 uri_str.contains(&base_uri_3),
-                "URI {} should contain {}", uri_str, base_uri_3
+                "URI {uri_str} should contain {base_uri_3}"
             );
 
 
             let file_name = uri_str.split('/').next_back().unwrap();
-            format!("file://<redacted>/src/workspace/input/{}", file_name)
+            format!("file://<redacted>/src/workspace/input/{file_name}")
         })});
 
         // Test query that should not match anything

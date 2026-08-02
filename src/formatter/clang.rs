@@ -59,8 +59,8 @@ impl Replacement<'_> {
         let character = text_after_newline.encode_utf16().count();
 
         Some(Position {
-            line: line as u32,
-            character: character as u32,
+            line: u32::try_from(line).ok()?,
+            character: u32::try_from(character).ok()?,
         })
     }
 
@@ -104,7 +104,7 @@ impl ClangFormatter {
         Some(c)
     }
 
-    fn output_to_textedit(&self, output: &str, content: &str) -> Option<Vec<TextEdit>> {
+    fn output_to_textedit(output: &str, content: &str) -> Option<Vec<TextEdit>> {
         let r = Replacements::from_str(output).ok()?;
         let edits = r
             .replacements
@@ -128,7 +128,7 @@ impl ProtoFormatter for ClangFormatter {
             );
             return None;
         }
-        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 
     fn format_document_range(
@@ -153,7 +153,7 @@ impl ProtoFormatter for ClangFormatter {
             );
             return None;
         }
-        self.output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
+        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 }
 
@@ -185,7 +185,7 @@ mod test {
         for i in pos {
             with_settings!({description => c, info => &i}, {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
-            })
+            });
         }
     }
 
@@ -199,7 +199,7 @@ mod test {
         for i in pos {
             with_settings!({description => c, info => &i}, {
                 assert_yaml_snapshot!(Replacement::offset_to_position(i, c));
-            })
+            });
         }
     }
 
@@ -220,12 +220,11 @@ mod test {
             .find(target)
             .expect("Could not find target in content");
         let xml_output = format!(
-            r#"<?xml version='1.0'?>
+            r"<?xml version='1.0'?>
 <replacements xml:space='preserve' incomplete_format='false'>
-<replacement offset='{}' length='1'>
+<replacement offset='{offset}' length='1'>
   // </replacement>
-</replacements>"#,
-            offset
+</replacements>"
         );
 
         let r = Replacements::from_str(&xml_output).unwrap();

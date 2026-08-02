@@ -71,7 +71,7 @@ impl Cli {
     ///
     /// This method collects all values from the `--include-paths` flags (including
     /// multiple occurrences and comma-separated values) and converts them into
-    /// a vector of [std::path::PathBuf]. Returns an empty vector if no paths are provided.
+    /// a vector of [`std::path::PathBuf`]. Returns an empty vector if no paths are provided.
     pub fn get_include_paths(&self) -> Vec<std::path::PathBuf> {
         self.include_paths
             .as_ref()

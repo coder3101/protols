@@ -134,13 +134,12 @@ impl ParsedTree {
     }
 
     fn nodes_within<'a>(
-        &self,
         n: Node<'a>,
         identifier: &str,
         content: impl AsRef<[u8]>,
     ) -> Option<Vec<Node<'a>>> {
         n.parent().map(|p| {
-            self.find_all_nodes_from(p, NodeKind::is_field_name)
+            Self::find_all_nodes_from(p, NodeKind::is_field_name)
                 .into_iter()
                 .filter(|i| i.utf8_text(content.as_ref()).expect("utf-8 parse error") == identifier)
                 .collect()
@@ -164,14 +163,14 @@ impl ParsedTree {
         let mut otext = nodes.first()?.utf8_text(content.as_ref()).ok()?.to_owned();
         while nodes.len() > i {
             let id = nodes[i].utf8_text(content.as_ref()).ok()?;
-            if let Some(inodes) = self.nodes_within(nodes[i], &otext, content.as_ref()) {
+            if let Some(inodes) = Self::nodes_within(nodes[i], &otext, content.as_ref()) {
                 res.extend(inodes.into_iter().map(|n| Location {
                     uri: self.uri.clone(),
                     range: to_lsp_range(n),
-                }))
+                }));
             }
             otext = format!("{id}.{otext}");
-            i += 1
+            i += 1;
         }
         Some((res, otext))
     }
@@ -218,17 +217,17 @@ impl ParsedTree {
         while nodes.len() > i {
             let id = nodes[i].utf8_text(content.as_ref()).ok()?;
 
-            if let Some(inodes) = self.nodes_within(nodes[i], &otext, content.as_ref()) {
+            if let Some(inodes) = Self::nodes_within(nodes[i], &otext, content.as_ref()) {
                 v.extend(inodes.into_iter().map(|n| TextEdit {
                     range: to_lsp_range(n),
-                    new_text: ntext.to_owned(),
+                    new_text: ntext.clone(),
                 }));
             }
 
             otext = format!("{id}.{otext}");
             ntext = format!("{id}.{ntext}");
 
-            i += 1
+            i += 1;
         }
 
         Some((v, otext, ntext))

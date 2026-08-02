@@ -53,7 +53,7 @@ impl ParsedTree {
         let n = self.get_node_at_position(pos)?;
 
         // If node is import path. return the whole path, removing the quotes
-        if n.parent().filter(NodeKind::is_import_path).is_some() {
+        if n.parent().as_ref().is_some_and(NodeKind::is_import_path) {
             return Some(Jumpable::Import(
                 n.utf8_text(content)
                     .expect("utf-8 parse error")
@@ -79,7 +79,7 @@ impl ParsedTree {
         while let Some(p) = n.parent() {
             if NodeKind::is_message(&p) {
                 for i in 0..p.child_count() {
-                    let t = p.child(i as u32).unwrap();
+                    let t = p.child(u32::try_from(i).unwrap()).unwrap();
                     if NodeKind::is_message_name(&t) {
                         nodes.push(t);
                     }
@@ -108,19 +108,19 @@ impl ParsedTree {
     }
 
     pub fn find_all_nodes(&self, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
-        self.find_all_nodes_from(self.tree.root_node(), f)
+        Self::find_all_nodes_from(self.tree.root_node(), f)
     }
 
-    pub fn find_all_nodes_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+    pub fn find_all_nodes_from(n: Node<'_>, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
         let mut cursor = n.walk();
         Self::walk_and_filter(&mut cursor, f, false)
     }
 
     pub fn find_first_node(&self, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
-        self.find_node_from(self.tree.root_node(), f)
+        Self::find_node_from(self.tree.root_node(), f)
     }
 
-    pub fn find_node_from<'a>(&self, n: Node<'a>, f: fn(&Node) -> bool) -> Vec<Node<'a>> {
+    pub fn find_node_from(n: Node<'_>, f: fn(&Node) -> bool) -> Vec<Node<'_>> {
         let mut cursor = n.walk();
         Self::walk_and_filter(&mut cursor, f, true)
     }
@@ -149,7 +149,7 @@ impl ParsedTree {
             .collect()
     }
 
-    pub fn get_import_path_range(&self, content: &[u8], import: Vec<String>) -> Vec<Range> {
+    pub fn get_import_path_range(&self, content: &[u8], import: &[&str]) -> Vec<Range> {
         self.get_import_node()
             .into_iter()
             .filter(|n| {
@@ -157,7 +157,7 @@ impl ParsedTree {
                     .utf8_text(content)
                     .expect("utf8-parse error")
                     .trim_matches('"');
-                import.iter().any(|i| i == t)
+                import.contains(&t)
             })
             .map(to_lsp_range)
             .collect()
