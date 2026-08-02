@@ -33,7 +33,7 @@ The Neovim instance in the Dev Container is pre-configured to detect the
 
 ### 3. Verify Connection
 To ensure the debugger is working and the server is responding:
-1. Set a breakpoint in the Rust code (e.g., in `src/parser/docsymbol.rs`).
+1. Set a breakpoint in the Rust code (e.g., in `src/document/docsymbol.rs`).
 2. In Neovim, trigger an LSP request, such as fetching document symbols:
    ```vim
    :lua vim.lsp.buf.document_symbol()

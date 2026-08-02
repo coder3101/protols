@@ -1,0 +1,14 @@
+---
+source: src/state/hover.rs
+expression: "state.hover(&uri, Position { line: 3, character: 3 })"
+---
+contents:
+  kind: markdown
+  value: "`string`\n\n---\n\n**Built-in Type**\n\nA string of text.\n\n**Details:**\n\n- **Wire format**: Length-delimited.\n- **Encoding**: Must always contain UTF-8 encoded or 7-bit ASCII text. Use `bytes` if you need to store arbitrary binary data or other encodings.\n- **Capacity**: Stores at most 4 GiB of text.\n- **Go type**: `string`\n- **C++ type**: `std::string`\n- **Rust type**: `::std::string::String`\n"
+range:
+  start:
+    line: 3
+    character: 2
+  end:
+    line: 3
+    character: 8

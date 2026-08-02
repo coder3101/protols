@@ -1,0 +1,22 @@
+---
+source: src/state/rename.rs
+expression: "state.rename_for_fqn(\"com.workspace.GetBookRequest\", \"FetchBookRequest\")"
+---
+"file://input/messages.proto":
+  - range:
+      start:
+        line: 4
+        character: 8
+      end:
+        line: 4
+        character: 22
+    newText: FetchBookRequest
+"file://input/service.proto":
+  - range:
+      start:
+        line: 7
+        character: 16
+      end:
+        line: 7
+        character: 30
+    newText: FetchBookRequest

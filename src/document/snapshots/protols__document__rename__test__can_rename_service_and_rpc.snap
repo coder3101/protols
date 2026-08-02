@@ -1,0 +1,10 @@
+---
+source: src/document/rename.rs
+expression: tree.can_rename(pos_service)
+---
+start:
+  line: 10
+  character: 8
+end:
+  line: 10
+  character: 15

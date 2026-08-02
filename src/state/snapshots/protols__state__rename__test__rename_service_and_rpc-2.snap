@@ -1,0 +1,5 @@
+---
+source: src/state/rename.rs
+expression: "state.rename_for_fqn(\"com.workspace.GetBook\", \"FetchBook\")"
+---
+{}

@@ -1,6 +1,0 @@
----
-source: src/parser/diagnostics.rs
-expression: parsed.unwrap().collect_parse_diagnostics()
-snapshot_kind: text
----
-[]

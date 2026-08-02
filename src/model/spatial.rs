@@ -11,6 +11,40 @@ use crate::{model::TypeReference, utils::is_position_inside_range};
 
 use super::types::{ElementKind, ModelElement, SpatialEntry};
 
+impl ElementKind {
+    /// Returns every type reference embedded in this element kind (field
+    /// types, map key/value types, and RPC request/response types).
+    pub fn type_references(&self) -> Vec<&TypeReference> {
+        match self {
+            ElementKind::Field { type_ref, .. } | ElementKind::OneofField { type_ref, .. } => {
+                vec![type_ref]
+            }
+            ElementKind::MapField {
+                key_type_ref,
+                value_type_ref,
+                ..
+            } => vec![key_type_ref, value_type_ref],
+            ElementKind::Rpc {
+                request_type_ref,
+                response_type_ref,
+                ..
+            } => vec![request_type_ref, response_type_ref],
+            _ => Vec::new(),
+        }
+    }
+}
+
+impl ModelElement {
+    /// Returns the type reference whose geometric bounds contain `position`,
+    /// if any.
+    pub fn type_reference_at(&self, position: Position) -> Option<&TypeReference> {
+        self.kind
+            .type_references()
+            .into_iter()
+            .find(|r| is_position_inside_range(position, r.range))
+    }
+}
+
 impl ModelElement {
     /// Flattens the element's internal name boundaries and type reference
     /// bounds into autonomous geometric intersection entries.

@@ -1,0 +1,6 @@
+---
+source: src/document/tree.rs
+expression: imports
+---
+- foo/bar.proto
+- baz/bar.proto

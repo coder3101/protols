@@ -425,7 +425,7 @@ pub enum ElementKind {
 }
 
 /// A normalized, index-backed semantic graph node representing a single
-/// declared entity within a protobuf abstract syntax tree.
+/// declared entity within a protobuf abstract syntax document.
 ///
 /// Instead of relying on heavy runtime pointer networks or heap-allocated
 /// reference counting pointers (`Rc`/`Arc`), this model utilizes flat, safe
@@ -436,7 +436,7 @@ pub enum ElementKind {
 #[derive(Debug, Clone)]
 pub struct ModelElement {
     /// The unique sequential identifier and position index of this specific
-    /// element within the master flat vector registry of the parsed tree.
+    /// element within the master flat vector registry of the parsed document.
     pub id: usize,
 
     /// The unique numerical identifier of the parent container enclosing this

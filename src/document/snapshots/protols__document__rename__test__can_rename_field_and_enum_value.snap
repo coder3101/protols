@@ -1,0 +1,10 @@
+---
+source: src/document/rename.rs
+expression: parsed.can_rename(pos_type_ref)
+---
+start:
+  line: 15
+  character: 4
+end:
+  line: 15
+  character: 10

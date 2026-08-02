@@ -1,0 +1,13 @@
+---
+source: src/state/rename.rs
+expression: "state.rename_for_fqn(\"com.single.Book.title\", \"name\")"
+---
+"file://input/single.proto":
+  - range:
+      start:
+        line: 3
+        character: 22
+      end:
+        line: 3
+        character: 27
+    newText: name

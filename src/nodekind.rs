@@ -127,8 +127,8 @@ mod test {
 
     #[test]
     fn test_is_identifier() {
-        let tree = parse_proto("message Foo { string name = 1; }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo { string name = 1; }");
+        let mut cursor = document.root_node().walk();
         // Find the "name" identifier node (child of field)
         let mut found = false;
         loop {
@@ -151,8 +151,8 @@ mod test {
 
     #[test]
     fn test_is_message_name() {
-        let tree = parse_proto("message Foo {}");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo {}");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "message_name" {
@@ -169,8 +169,8 @@ mod test {
 
     #[test]
     fn test_is_enum_name() {
-        let tree = parse_proto("enum Color { RED = 0; }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("enum Color { RED = 0; }");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "enum_name" {
@@ -187,8 +187,8 @@ mod test {
 
     #[test]
     fn test_is_field_name() {
-        let tree = parse_proto("message Foo { string bar = 1; }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo { string bar = 1; }");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "message_or_enum_type" {
@@ -205,8 +205,8 @@ mod test {
 
     #[test]
     fn test_is_rpc_name() {
-        let tree = parse_proto("service S { rpc Foo(Empty) returns (Empty); }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("service S { rpc Foo(Empty) returns (Empty); }");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "rpc_name" {
@@ -223,8 +223,8 @@ mod test {
 
     #[test]
     fn test_service_name_node_kind() {
-        let tree = parse_proto("service MyService {}");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("service MyService {}");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "service_name" {
@@ -241,8 +241,8 @@ mod test {
 
     #[test]
     fn test_is_package_name() {
-        let tree = parse_proto("package foo.bar;");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("package foo.bar;");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "full_ident" {
@@ -259,8 +259,8 @@ mod test {
 
     #[test]
     fn test_is_import_path() {
-        let tree = parse_proto("import \"foo/bar.proto\";");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("import \"foo/bar.proto\";");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "import" {
@@ -277,8 +277,8 @@ mod test {
 
     #[test]
     fn test_is_error() {
-        let tree = parse_proto("message Foo { invalid_syntax }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo { invalid_syntax }");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "ERROR" {
@@ -295,8 +295,8 @@ mod test {
 
     #[test]
     fn test_is_message() {
-        let tree = parse_proto("message Foo {}");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo {}");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "message" {
@@ -313,8 +313,8 @@ mod test {
 
     #[test]
     fn test_is_userdefined() {
-        let tree = parse_proto("message Foo { enum Bar { X = 0; } }");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo { enum Bar { X = 0; } }");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             if n.kind() == "message_name" || n.kind() == "enum_name" {
@@ -333,10 +333,10 @@ mod test {
 
     #[test]
     fn test_is_renameable() {
-        let tree = parse_proto(
+        let document = parse_proto(
             "message Foo { string bar = 1; } enum E { X = 0; } service S { rpc F(Empty) returns (Empty); }",
         );
-        let mut cursor = tree.root_node().walk();
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             match n.kind() {
@@ -375,10 +375,10 @@ mod test {
 
     #[test]
     fn test_is_field_decl_parent() {
-        let tree = parse_proto(
+        let document = parse_proto(
             "message Foo { string a = 1; map<string,int> m = 2; oneof o { string b = 3; } } enum E { X = 0; }",
         );
-        let mut cursor = tree.root_node().walk();
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             match n.kind() {
@@ -400,10 +400,10 @@ mod test {
 
     #[test]
     fn test_is_actionable() {
-        let tree = parse_proto(
+        let document = parse_proto(
             "message Foo { string bar = 1; } service S { rpc F(Empty) returns (Empty); }",
         );
-        let mut cursor = tree.root_node().walk();
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             match n.kind() {
@@ -430,8 +430,8 @@ mod test {
 
     #[test]
     fn test_to_symbolkind() {
-        let tree = parse_proto("message Foo {} enum Bar { X = 0; } syntax = \"proto3\";");
-        let mut cursor = tree.root_node().walk();
+        let document = parse_proto("message Foo {} enum Bar { X = 0; } syntax = \"proto3\";");
+        let mut cursor = document.root_node().walk();
         loop {
             let n = cursor.node();
             match n.kind() {

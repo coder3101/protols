@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&ipath, \"com.workspace\",\nJumpable::Identifier(\"GetBookResponse.title\".to_owned()))"
+---
+- uri: "file://input/messages.proto"
+  range:
+    start:
+      line: 6
+      character: 11
+    end:
+      line: 6
+      character: 16

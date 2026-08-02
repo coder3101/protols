@@ -1,0 +1,14 @@
+---
+source: src/state/hover.rs
+expression: "state.hover(&a_uri, Position { line: 11, character: 6 })"
+---
+contents:
+  kind: markdown
+  value: "```protobuf\ncom.workspace.Author\nmessage Author\n```\n\n---\nA author is a author"
+range:
+  start:
+    line: 11
+    character: 3
+  end:
+    line: 11
+    character: 9

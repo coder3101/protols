@@ -48,8 +48,7 @@ impl ModelElement {
     /// accumulated leading comments.
     pub fn to_hover_markdown(&self, position: Position) -> Option<String> {
         if let Some(referenced_type) = self.inspect_nested_type_reference(position) {
-            // Returns `None` for user-defined types. This should be fixed at
-            // Phase 3 of https://github.com/coder3101/protols/issues/130
+            // Returns `None` for user-defined types.
             return docs::BUILTIN
                 .get(referenced_type)
                 .or_else(|| crate::docs::WELLKNOWN.get(referenced_type))

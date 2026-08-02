@@ -1,7 +1,6 @@
 use async_lsp::{
-    ClientSocket, LanguageClient,
+    ClientSocket,
     lsp_types::{
-        NumberOrString, ProgressParams, ProgressParamsValue,
         notification::{
             DidChangeTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
             DidRenameFiles, DidSaveTextDocument, Exit, SetTrace,
@@ -17,11 +16,9 @@ use async_lsp::{
 use std::{
     ops::ControlFlow,
     path::PathBuf,
-    sync::{mpsc, mpsc::Sender},
-    thread,
 };
 
-use crate::{config::workspace::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
+use crate::{config::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
 
 pub struct TickEvent;
 pub struct ProtoLanguageServer {
@@ -85,23 +82,5 @@ impl ProtoLanguageServer {
         router.notification::<Exit>(ProtoLanguageServer::exit);
 
         router
-    }
-
-    pub fn with_report_progress(&self, token: NumberOrString) -> Sender<ProgressParamsValue> {
-        let (tx, rx) = mpsc::channel();
-        let mut socket = self.client.clone();
-
-        thread::spawn(move || {
-            while let Ok(value) = rx.recv() {
-                if let Err(e) = socket.progress(ProgressParams {
-                    token: token.clone(),
-                    value,
-                }) {
-                    tracing::error!(error=%e, "failed to report parse progress");
-                }
-            }
-        });
-
-        tx
     }
 }

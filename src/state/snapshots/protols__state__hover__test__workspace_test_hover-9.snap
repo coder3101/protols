@@ -1,0 +1,14 @@
+---
+source: src/state/hover.rs
+expression: "state.hover(&x_uri, Position { line: 10, character: 4 })"
+---
+contents:
+  kind: markdown
+  value: "```protobuf\ncom.inner.secret.SomeSecret\nmessage SomeSecret\n```\n\n---\nSomeSecret is a real secret with hidden string"
+range:
+  start:
+    line: 10
+    character: 3
+  end:
+    line: 10
+    character: 20

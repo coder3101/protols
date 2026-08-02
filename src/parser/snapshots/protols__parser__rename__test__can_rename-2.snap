@@ -1,5 +1,0 @@
----
-source: src/parser/rename.rs
-expression: tree.can_rename(&pos_non_rename)
----
-~

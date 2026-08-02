@@ -1,0 +1,12 @@
+---
+source: src/state/definition.rs
+expression: "state.definition(&ipath, \"com.workspace\",\nJumpable::Identifier(\"Library\".to_owned()))"
+---
+- uri: "file://input/service.proto"
+  range:
+    start:
+      line: 6
+      character: 8
+    end:
+      line: 6
+      character: 15

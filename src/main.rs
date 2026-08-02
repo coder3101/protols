@@ -22,13 +22,12 @@ mod log;
 mod lsp;
 mod model;
 mod nodekind;
-mod parser;
+mod document;
 mod protoc;
 mod server;
 mod state;
 mod transport;
 mod utils;
-mod workspace;
 
 const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH");
 
