@@ -205,12 +205,21 @@ impl ProtoLanguageState {
     /// references to types nested underneath it (e.g. renaming `Author` to
     /// `Writer` also updates `Author.Address` → `Writer.Address`), since the
     /// nested qualification shifts with the enclosing message.
+    ///
+    /// Vendored well-known (`google/protobuf/...`) documents are never edited —
+    /// renaming is confined to user-authored files. Callers may additionally
+    /// restrict the result to a specific workspace.
     pub fn rename_for_fqn(&self, target_fqn: &str, new_name: &str) -> BTreeMap<Url, Vec<TextEdit>> {
         let old_simple = trailing_segment(target_fqn);
         let nested_prefix = format!("{target_fqn}.");
         let mut edits: BTreeMap<Url, Vec<TextEdit>> = BTreeMap::new();
 
         for document in self.get_documents() {
+            // Never rewrite vendored well-known documents.
+            if is_external_document(&document.uri) {
+                continue;
+            }
+
             for element in &document.elements {
                 if element.kind.fqn() == Some(target_fqn) {
                     edits
@@ -281,6 +290,12 @@ fn scope_prefixes(scope: &str) -> Vec<&str> {
         }
     }
     prefixes
+}
+
+/// Returns `true` for documents that should never be edited: vendored
+/// well-known types supplied under a `google/protobuf/` path.
+fn is_external_document(uri: &Url) -> bool {
+    uri.path().contains("google/protobuf/")
 }
 
 /// Rewrites the segment of a type reference that names the renamed type to
@@ -463,6 +478,46 @@ mod test {
         assert_eq!(
             fqns(&state, "com.workspace", ".com.utility.Foobar.Baz"),
             vec!["com.utility.Foobar.Baz"]
+        );
+    }
+
+    #[test]
+    fn test_rename_never_touches_vendored_wellknown() {
+        let mut state = ProtoLanguageState::new();
+
+        let ipath: &[PathBuf] = &[];
+        // A vendored well-known file, e.g. grpc_tools ships a copy of
+        // google/protobuf/timestamp.proto in the include path.
+        let vendored_uri: Url = "file:///vendor/google/protobuf/timestamp.proto"
+            .parse()
+            .unwrap();
+        let vendored = concat!(
+            "syntax = \"proto3\";\n",
+            "package google.protobuf;\n",
+            "message Timestamp { int64 seconds = 1; int32 nanos = 2; }\n",
+        );
+        state.upsert_file(&vendored_uri, vendored, ipath, 2, &Config::default(), false);
+
+        // A user file referencing the vendored well-known type.
+        let user_uri: Url = "file:///user/app.proto".parse().unwrap();
+        state.upsert_file(
+            &user_uri,
+            concat!(
+                "syntax = \"proto3\";\n",
+                "package com.app;\n",
+                "message Event { google.protobuf.Timestamp t = 1; }\n",
+            ),
+            ipath,
+            2,
+            &Config::default(),
+            false,
+        );
+
+        // Renaming a vendored well-known type must not edit the vendored file.
+        let edits = state.rename_for_fqn("google.protobuf.Timestamp", "Instant");
+        assert!(
+            !edits.contains_key(&vendored_uri),
+            "must never edit the vendored google/protobuf file"
         );
     }
 }

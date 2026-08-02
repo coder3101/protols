@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::{fs::read_to_string, path::PathBuf};
 use tracing::{error, info, warn};
@@ -284,6 +285,25 @@ impl ProtoLanguageServer {
             error!(uri=%decl_uri, "failed to apply primary rename");
             return Box::pin(async move { Ok(None) });
         };
+
+        // Only produce edits inside the current workspace. Anything outside it
+        // (e.g. vendored dependency files) is dropped, so renaming never leaks
+        // into external code.
+        let workspace_root = self
+            .configs
+            .get_workspace_for_uri(&uri)
+            .and_then(|workspace| workspace.to_file_path().ok());
+        let all_edits: HashMap<_, _> = all_edits
+            .into_iter()
+            .filter(|(edit_uri, _)| {
+                workspace_root.as_ref().is_none_or(|root| {
+                    edit_uri
+                        .to_file_path()
+                        .ok()
+                        .is_some_and(|p| p.starts_with(root))
+                })
+            })
+            .collect();
 
         let response = if all_edits.is_empty() {
             None
