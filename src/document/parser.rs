@@ -34,9 +34,9 @@ impl ProtoDocument {
     ///
     /// # Returns
     ///
-    /// Returns `Some(ParsedTree)` housing the fully populated, search-ready
-    /// graph cache layer, or `None` if the Tree-sitter runtime engine fails to
-    /// initialize or parse the source.
+    /// Returns [`Some(ProtoDocument)`][ProtoDocument] housing the fully
+    /// populated, search-ready graph cache layer, or [`None`] if the
+    /// Tree-sitter runtime engine fails to initialize or parse the source.
     pub fn try_from_input(
         uri: Url,
         source: &[u8],
