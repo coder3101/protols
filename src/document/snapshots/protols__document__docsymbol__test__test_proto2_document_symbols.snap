@@ -11,8 +11,8 @@ expression: symbols
       line: 6
       character: 0
     end:
-      line: 34
-      character: 3
+      line: 35
+      character: 1
   selectionRange:
     start:
       line: 7
