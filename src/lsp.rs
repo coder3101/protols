@@ -296,12 +296,9 @@ impl ProtoLanguageServer {
         let all_edits: HashMap<_, _> = all_edits
             .into_iter()
             .filter(|(edit_uri, _)| {
-                workspace_root.as_ref().is_none_or(|root| {
-                    edit_uri
-                        .to_file_path()
-                        .ok()
-                        .is_some_and(|p| p.starts_with(root))
-                })
+                workspace_root
+                    .as_ref()
+                    .is_none_or(|root| edit_uri.to_file_path().is_ok_and(|p| p.starts_with(root)))
             })
             .collect();
 
