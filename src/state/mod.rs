@@ -4,6 +4,7 @@ mod rename;
 mod resolve;
 mod workspace_symbol;
 
+use futures::future::Shared;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -15,6 +16,7 @@ use async_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, Location, OneOf, ProgressParamsValue,
     PublishDiagnosticsParams, Range, SymbolKind, SymbolTag, Url, WorkspaceSymbol,
 };
+use tokio::task::JoinHandle;
 use tree_sitter::{Query, QueryError};
 use walkdir::WalkDir;
 
@@ -25,12 +27,29 @@ use crate::{
     protoc::collect_diagnostics,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DocumentVersion(pub i32);
+
+#[derive(Clone)]
+pub enum CacheEntry {
+    Ready {
+        version: DocumentVersion,
+        document: ProtoDocument,
+    },
+    Pending {
+        version: DocumentVersion,
+        future: Shared<JoinHandle<Arc<ProtoDocument>>>,
+    },
+    Dirty,
+}
+
 pub struct ProtoLanguageState {
+    pub cache: Arc<RwLock<HashMap<Url, CacheEntry>>>,
     sources: Arc<RwLock<HashMap<Url, String>>>,
     documents: Arc<RwLock<HashMap<Url, ProtoDocument>>>,
     parser: Arc<Mutex<ProtoParser>>,
     parsed_workspaces: Arc<RwLock<HashSet<String>>>,
-    metamodel_query: Query,
+    pub metamodel_query: Arc<Query>,
 }
 
 impl ProtoLanguageState {
@@ -48,11 +67,12 @@ impl ProtoLanguageState {
             .expect("Tree-sitter query compilation failed");
 
         Self {
+            cache: Arc::default(),
             sources: Arc::default(),
             documents: Arc::default(),
             parser: Arc::new(Mutex::new(ProtoParser::new())),
             parsed_workspaces: Arc::new(RwLock::new(HashSet::new())),
-            metamodel_query,
+            metamodel_query: Arc::new(metamodel_query),
         }
     }
 

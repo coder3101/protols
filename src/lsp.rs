@@ -153,11 +153,12 @@ impl ProtoLanguageServer {
     ) -> BoxFuture<'static, Result<(), ResponseError>> {
         info!("Received shutdown request");
         self.shutdown_received = true;
+        self.shutdown_cancel_token.cancel();
         Box::pin(async move { Ok(()) })
     }
 
     pub(super) fn hover(
-        &self,
+        &mut self,
         param: HoverParams,
     ) -> BoxFuture<'static, Result<Option<Hover>, ResponseError>> {
         let uri = param.text_document_position_params.text_document.uri;
@@ -360,7 +361,7 @@ impl ProtoLanguageServer {
     }
 
     pub(super) fn document_symbol(
-        &self,
+        &mut self,
         params: DocumentSymbolParams,
     ) -> BoxFuture<'static, Result<Option<DocumentSymbolResponse>, ResponseError>> {
         let uri = params.text_document.uri;

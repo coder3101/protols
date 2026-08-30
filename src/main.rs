@@ -26,6 +26,7 @@ mod server;
 mod state;
 mod transport;
 mod utils;
+mod workspace_symbol;
 
 const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH");
 
