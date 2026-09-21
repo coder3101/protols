@@ -1,5 +1,6 @@
 ---
 source: src/document/docsymbol.rs
+assertion_line: 191
 expression: symbols
 ---
 - name: InventoryService
@@ -265,7 +266,7 @@ expression: symbols
               character: 4
             end:
               line: 66
-              character: 27
+              character: 28
           selectionRange:
             start:
               line: 66
@@ -283,7 +284,7 @@ expression: symbols
               character: 4
             end:
               line: 67
-              character: 25
+              character: 26
           selectionRange:
             start:
               line: 67
