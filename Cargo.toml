@@ -19,7 +19,7 @@ tokio-util = { version = "0.7", features = ["compat"] }
 tower = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-tree-sitter = "0.26"
+tree-sitter = "0.27"
 tracing-appender = "0.2"
 tree-sitter-proto = "0.6"
 walkdir = "2.5"
