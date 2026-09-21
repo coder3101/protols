@@ -138,6 +138,24 @@ impl WorkspaceProtoConfigs {
         self.workspaces.iter().collect()
     }
 
+    pub fn get_outermost_workspaces(&self) -> HashSet<&Url> {
+        let mut workspace_urls: Vec<&Url> = self.workspaces.iter().collect();
+        workspace_urls.sort();
+        let workspace_urls = workspace_urls;
+
+        let mut outermost = HashSet::with_capacity(workspace_urls.len());
+        let mut last_added: Option<&Url> = None;
+
+        for url in workspace_urls {
+            if !last_added.is_some_and(|outer| url.as_str().starts_with(outer.as_str())) {
+                outermost.insert(url);
+                last_added = Some(url);
+            }
+        }
+
+        outermost
+    }
+
     pub fn no_workspace_mode(&mut self) {
         let wr = ProtolsConfig::default();
         let rp = if cfg!(target_os = "windows") {

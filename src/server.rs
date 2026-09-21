@@ -3,7 +3,7 @@ use async_lsp::{
     lsp_types::{
         notification::{
             DidChangeTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
-            DidRenameFiles, DidSaveTextDocument, Exit, SetTrace,
+            DidRenameFiles, DidSaveTextDocument, Exit, Initialized, SetTrace,
         },
         request::{
             Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
@@ -14,8 +14,11 @@ use async_lsp::{
     router::Router,
 };
 use std::{ops::ControlFlow, path::PathBuf};
+use tokio_util::sync::CancellationToken;
 
 use crate::{config::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
+
+mod lifecycle;
 
 pub struct TickEvent;
 pub struct ProtoLanguageServer {
@@ -25,6 +28,7 @@ pub struct ProtoLanguageServer {
     pub state: ProtoLanguageState,
     pub configs: WorkspaceProtoConfigs,
     pub shutdown_received: bool,
+    pub shutdown_cancel_token: CancellationToken,
 }
 
 impl ProtoLanguageServer {
@@ -41,6 +45,7 @@ impl ProtoLanguageServer {
             state: ProtoLanguageState::new(),
             configs: WorkspaceProtoConfigs::new(cli_include_paths, fallback_include_path),
             shutdown_received: false,
+            shutdown_cancel_token: CancellationToken::new(),
         });
 
         router.event::<TickEvent>(|st, _| {
@@ -55,28 +60,29 @@ impl ProtoLanguageServer {
         });
 
         // Handling request
-        router.request::<Initialize, _>(ProtoLanguageServer::initialize);
-        router.request::<Shutdown, _>(ProtoLanguageServer::shutdown);
-        router.request::<HoverRequest, _>(|st, params| st.hover(params));
-        router.request::<Completion, _>(ProtoLanguageServer::completion);
-        router.request::<PrepareRenameRequest, _>(ProtoLanguageServer::prepare_rename);
-        router.request::<Rename, _>(ProtoLanguageServer::rename);
-        router.request::<References, _>(ProtoLanguageServer::references);
-        router.request::<GotoDefinition, _>(ProtoLanguageServer::definition);
-        router.request::<DocumentSymbolRequest, _>(|st, params| st.document_symbol(params));
-        router.request::<WorkspaceSymbolRequest, _>(ProtoLanguageServer::workspace_symbol);
-        router.request::<Formatting, _>(ProtoLanguageServer::formatting);
-        router.request::<RangeFormatting, _>(ProtoLanguageServer::range_formatting);
+        router.request::<Initialize, _>(Self::initialize);
+        router.request::<Shutdown, _>(Self::shutdown);
+        router.request::<HoverRequest, _>(Self::hover);
+        router.request::<Completion, _>(Self::completion);
+        router.request::<PrepareRenameRequest, _>(Self::prepare_rename);
+        router.request::<Rename, _>(Self::rename);
+        router.request::<References, _>(Self::references);
+        router.request::<GotoDefinition, _>(Self::definition);
+        router.request::<DocumentSymbolRequest, _>(Self::document_symbol);
+        router.request::<WorkspaceSymbolRequest, _>(Self::workspace_symbol);
+        router.request::<Formatting, _>(Self::formatting);
+        router.request::<RangeFormatting, _>(Self::range_formatting);
 
         // Handling notification
-        router.notification::<SetTrace>(ProtoLanguageServer::set_trace);
-        router.notification::<DidSaveTextDocument>(ProtoLanguageServer::did_save);
-        router.notification::<DidOpenTextDocument>(ProtoLanguageServer::did_open);
-        router.notification::<DidChangeTextDocument>(ProtoLanguageServer::did_change);
-        router.notification::<DidCreateFiles>(ProtoLanguageServer::did_create_files);
-        router.notification::<DidRenameFiles>(ProtoLanguageServer::did_rename_files);
-        router.notification::<DidDeleteFiles>(ProtoLanguageServer::did_delete_files);
-        router.notification::<Exit>(ProtoLanguageServer::exit);
+        router.notification::<Initialized>(Self::initialized);
+        router.notification::<SetTrace>(Self::set_trace);
+        router.notification::<DidSaveTextDocument>(Self::did_save);
+        router.notification::<DidOpenTextDocument>(Self::did_open);
+        router.notification::<DidChangeTextDocument>(Self::did_change);
+        router.notification::<DidCreateFiles>(Self::did_create_files);
+        router.notification::<DidRenameFiles>(Self::did_rename_files);
+        router.notification::<DidDeleteFiles>(Self::did_delete_files);
+        router.notification::<Exit>(Self::exit);
 
         router
     }
