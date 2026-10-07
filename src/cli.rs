@@ -89,7 +89,7 @@ mod test {
         // Test with no arguments
         let args = vec!["protols"];
         let cli = Cli::try_parse_from(args).expect("Should parse empty args");
-        assert!(cli.get_include_paths().is_empty());
+        assert_eq!(cli.get_include_paths(), Vec::<std::path::PathBuf>::new());
 
         // Test with include paths
         let args = vec!["protols", "--include-paths=/path1,/path2"];

@@ -4,18 +4,19 @@ use std::{fs::read_to_string, path::PathBuf};
 use tracing::{error, info, warn};
 
 use async_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentRangeFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FileOperationFilter,
-    FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind, OneOf,
-    PrepareRenameResponse, ReferenceParams, RenameFilesParams, RenameOptions, RenameParams,
-    ServerCapabilities, ServerInfo, SetTraceParams, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkDoneProgressOptions,
-    WorkspaceEdit, WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    ClientCapabilities, CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams,
+    CompletionResponse, CreateFilesParams, DeleteFilesParams, DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentFormattingParams,
+    DocumentRangeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, Location,
+    LocationLink, MarkupContent, MarkupKind, OneOf, PrepareRenameResponse, ReferenceParams,
+    RenameFilesParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo, SetTraceParams,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
+    WorkDoneProgressOptions, WorkspaceEdit, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 use async_lsp::{Error, LanguageClient, ResponseError};
 use futures::future::BoxFuture;
@@ -40,6 +41,8 @@ impl ProtoLanguageServer {
         let cversion = version.unwrap_or("<unknown>");
 
         info!("Connected with client {cname} {cversion}");
+
+        self.definition_link_support = supports_definition_links(&params.capabilities);
 
         // Parse initialization options for include paths
         if let Some(init_options) = &params.initialization_options
@@ -329,7 +332,9 @@ impl ProtoLanguageServer {
             return Box::pin(async move { Ok(None) });
         };
 
-        let refs = self.state.references_for_fqn(&target_fqn);
+        let refs = self
+            .state
+            .references_for_fqn(&target_fqn, param.context.include_declaration);
 
         Box::pin(async move {
             if refs.is_empty() {
@@ -348,13 +353,8 @@ impl ProtoLanguageServer {
         let pos = param.text_document_position_params.position;
 
         let ipath = self.configs.get_include_paths(&uri).unwrap_or_default();
-        let locations = self.state.definition(&uri, pos, &ipath);
-
-        let response = match locations.len() {
-            0 => None,
-            1 => Some(GotoDefinitionResponse::Scalar(locations[0].clone())),
-            2.. => Some(GotoDefinitionResponse::Array(locations)),
-        };
+        let links = self.state.definition(&uri, pos, &ipath);
+        let response = definition_response(links, self.definition_link_support);
 
         Box::pin(async move { Ok(response) })
     }
@@ -564,10 +564,44 @@ impl ProtoLanguageServer {
         if self.shutdown_received {
             info!("Received exit notification after shutdown, exiting with code 0");
             std::process::exit(0);
-        } else {
-            warn!("Received exit notification without shutdown, exiting with code 1");
-            std::process::exit(1);
         }
+        warn!("Received exit notification without shutdown, exiting with code 1");
+        std::process::exit(1);
+    }
+}
+
+fn supports_definition_links(capabilities: &ClientCapabilities) -> bool {
+    capabilities
+        .text_document
+        .as_ref()
+        .and_then(|document| document.definition.as_ref())
+        .and_then(|definition| definition.link_support)
+        .unwrap_or(false)
+}
+
+fn definition_response(
+    links: Vec<LocationLink>,
+    link_support: bool,
+) -> Option<GotoDefinitionResponse> {
+    if links.is_empty() {
+        return None;
+    }
+    if link_support {
+        return Some(GotoDefinitionResponse::Link(links));
+    }
+    // Preserve the original target selection and scalar/array shape for clients
+    // that do not advertise textDocument.definition.linkSupport.
+    let mut locations: Vec<Location> = links
+        .into_iter()
+        .map(|link| Location {
+            uri: link.target_uri,
+            range: link.target_selection_range,
+        })
+        .collect();
+    if locations.len() == 1 {
+        Some(GotoDefinitionResponse::Scalar(locations.remove(0)))
+    } else {
+        Some(GotoDefinitionResponse::Array(locations))
     }
 }
 
@@ -598,6 +632,56 @@ fn parse_init_include_paths(init_options: &Value) -> Option<Vec<PathBuf>> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn definition_link_capability_is_opt_in() {
+        for (value, expected) in [
+            (json!({}), false),
+            (json!({"textDocument": {"definition": {}}}), false),
+            (
+                json!({"textDocument": {"definition": {"linkSupport": false}}}),
+                false,
+            ),
+            (
+                json!({"textDocument": {"definition": {"linkSupport": true}}}),
+                true,
+            ),
+        ] {
+            let capabilities = serde_json::from_value(value).unwrap();
+            assert_eq!(supports_definition_links(&capabilities), expected);
+        }
+    }
+
+    #[test]
+    fn definition_response_preserves_links_and_legacy_locations() {
+        use async_lsp::lsp_types::{Position, Range};
+        let link = LocationLink {
+            origin_selection_range: Some(Range::new(Position::new(0, 4), Position::new(0, 20))),
+            target_uri: Url::parse("file:///definitions.proto").unwrap(),
+            target_range: Range::new(Position::new(3, 0), Position::new(7, 1)),
+            target_selection_range: Range::new(Position::new(3, 8), Position::new(3, 15)),
+        };
+        for support in [false, true] {
+            assert!(definition_response(vec![], support).is_none());
+        }
+        for count in [1, 2] {
+            let links = vec![link.clone(); count];
+            assert_eq!(
+                definition_response(links.clone(), true),
+                Some(GotoDefinitionResponse::Link(links.clone()))
+            );
+            let legacy = definition_response(links, false).unwrap();
+            let expected = Location {
+                uri: link.target_uri.clone(),
+                range: link.target_selection_range,
+            };
+            if count == 1 {
+                assert_eq!(legacy, GotoDefinitionResponse::Scalar(expected));
+            } else {
+                assert_eq!(legacy, GotoDefinitionResponse::Array(vec![expected; count]));
+            }
+        }
+    }
 
     #[test]
     fn test_parse_init_include_paths_array() {

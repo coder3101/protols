@@ -2,8 +2,22 @@
 source: src/state/definition.rs
 expression: "state.definition(&b_uri, Position { line: 5, character: 10 }, &ipath)"
 ---
-- uri: "file://input/b.proto"
-  range:
+- originSelectionRange:
+    start:
+      line: 5
+      character: 8
+    end:
+      line: 5
+      character: 14
+  targetUri: "file://input/b.proto"
+  targetRange:
+    start:
+      line: 5
+      character: 0
+    end:
+      line: 14
+      character: 1
+  targetSelectionRange:
     start:
       line: 5
       character: 8

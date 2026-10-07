@@ -106,14 +106,14 @@ mod test {
 
     #[test]
     fn test_parse_protoc_output_empty() {
-        assert!(parse_protoc_output("").is_empty());
+        assert_eq!(parse_protoc_output(""), vec![]);
     }
 
     #[test]
     fn test_parse_protoc_output_malformed_line() {
         let output = "not a valid protoc error line\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, vec![]);
     }
 
     #[test]
@@ -121,14 +121,14 @@ mod test {
         // Missing column number
         let output = "foo.proto:5: Expected field name.\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, vec![]);
     }
 
     #[test]
     fn test_parse_protoc_output_non_numeric_line_col() {
         let output = "foo.proto:abc:def: some message\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, vec![]);
     }
 
     #[test]

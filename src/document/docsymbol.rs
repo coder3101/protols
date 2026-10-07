@@ -218,7 +218,7 @@ mod test {
             .map(|document| document.document_symbols())
             .unwrap_or_default();
 
-        assert!(symbols.is_empty());
+        assert_eq!(symbols, vec![]);
 
         let mut state_minimal = ProtoLanguageState::new();
         state_minimal.upsert_file(
@@ -235,6 +235,6 @@ mod test {
             .map(|document| document.document_symbols())
             .unwrap_or_default();
 
-        assert!(symbols_minimal.is_empty());
+        assert_eq!(symbols_minimal, vec![]);
     }
 }

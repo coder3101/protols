@@ -374,13 +374,12 @@ mod test {
             &ipath,
         );
 
-        assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author"));
-        assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author.Address"));
-        assert_yaml_snapshot!(state.references_for_fqn("com.utility.Foobar.Baz"));
-        assert!(
-            state
-                .references_for_fqn("com.nonexistent.Missing")
-                .is_empty()
+        assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author", true));
+        assert_yaml_snapshot!(state.references_for_fqn("com.workspace.Author.Address", true));
+        assert_yaml_snapshot!(state.references_for_fqn("com.utility.Foobar.Baz", true));
+        assert_eq!(
+            state.references_for_fqn("com.nonexistent.Missing", true),
+            vec![]
         );
     }
 
@@ -451,7 +450,7 @@ mod test {
         assert!(loc.uri.as_str().ends_with("service.proto"));
         assert_eq!(loc.range.start.line, 7);
 
-        assert!(state.find_rpc_decls("DoesNotExist").is_empty());
+        assert_eq!(state.find_rpc_decls("DoesNotExist"), vec![]);
 
         // Convention-following types are uniquely used.
         assert_eq!(state.count_rpc_uses_of_type("GetBookRequest"), 1);

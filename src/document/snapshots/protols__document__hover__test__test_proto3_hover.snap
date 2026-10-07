@@ -10,10 +10,10 @@ expression: results
     range:
       start:
         line: 4
-        character: 0
+        character: 8
       end:
         line: 4
-        character: 35
+        character: 33
 - target: "google/protobuf/timestamp.proto [definition]"
   hover:
     contents:
@@ -22,10 +22,10 @@ expression: results
     range:
       start:
         line: 5
-        character: 0
+        character: 8
       end:
         line: 5
-        character: 41
+        character: 39
 - target: "google/protobuf/duration.proto [definition]"
   hover:
     contents:
@@ -34,10 +34,10 @@ expression: results
     range:
       start:
         line: 6
-        character: 0
+        character: 8
       end:
         line: 6
-        character: 40
+        character: 38
 - target: "InventoryService [definition]"
   hover:
     contents:

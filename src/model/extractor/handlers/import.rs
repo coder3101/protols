@@ -16,12 +16,18 @@ pub(super) fn extract_import(
 ) -> Option<ParsedMatch> {
     let mut path = None;
     let mut range = None;
+    let mut path_range = None;
 
     for QueryCapture { node, index } in query_match.captures.iter().copied() {
         let capture_name = capture_names[index as usize];
 
         match capture_name {
             properties::IMPORT_PATH => {
+                // The string node includes quotes; the clickable range should not.
+                let mut inner = to_lsp_range(node);
+                inner.start.character = inner.start.character.saturating_add(1);
+                inner.end.character = inner.end.character.saturating_sub(1);
+                path_range = Some(inner);
                 let trace_utf8_error = |e: &Utf8Error| {
                     tracing::error!(
                         "extract_import: failed to extract valid UTF-8 text as import path at {:?}. Error: {:?}",
@@ -68,6 +74,6 @@ pub(super) fn extract_import(
     Some(ParsedMatch::Entity {
         kind: ElementKind::Import { path },
         range,
-        selection_range: range,
+        selection_range: path_range?,
     })
 }

@@ -77,6 +77,6 @@ mod test {
 
         // Test query that should not match anything
         let no_match = state.find_workspace_symbols("nonexistent");
-        assert!(no_match.is_empty());
+        assert_eq!(no_match, vec![]);
     }
 }

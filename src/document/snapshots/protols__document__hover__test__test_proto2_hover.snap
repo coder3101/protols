@@ -10,10 +10,10 @@ expression: results
     range:
       start:
         line: 4
-        character: 0
+        character: 8
       end:
         line: 4
-        character: 38
+        character: 36
 - target: "LegacyBook [definition]"
   hover:
     contents:
