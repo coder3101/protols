@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::time::Duration;
 use std::{borrow::Cow, process::Stdio};
 
@@ -8,8 +10,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 pub struct ClangFormatter {
-    pub path: String,
-    working_dir: Option<String>,
+    pub path: OsString,
+    working_dir: Option<PathBuf>,
 }
 
 #[derive(XmlRead, Serialize, PartialEq, Debug)]
@@ -70,10 +72,10 @@ impl Replacement<'_> {
 const CLANG_FORMAT_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl ClangFormatter {
-    pub fn new(cmd: &str, wdir: Option<&str>) -> Self {
+    pub fn new(cmd: OsString, working_dir: Option<PathBuf>) -> Self {
         Self {
-            path: cmd.to_owned(),
-            working_dir: wdir.map(ToOwned::to_owned),
+            path: cmd,
+            working_dir,
         }
     }
 
@@ -96,7 +98,8 @@ impl ClangFormatter {
     ) -> Option<Vec<TextEdit>> {
         let start = r.start.line + 1;
         let end = r.end.line + 1;
-        let extra_args = vec!["--lines".to_string(), format!("{start}:{end}")];
+        let line_arg = format!("{start}:{end}");
+        let extra_args = ["--lines", &line_arg];
 
         let output = self
             .run_clang_format(filename, content, &extra_args)
@@ -111,7 +114,7 @@ impl ClangFormatter {
         &self,
         filename: &str,
         content: &str,
-        extra_args: &[String],
+        extra_args: &[&str],
     ) -> Option<String> {
         let mut c = Command::new(&self.path);
 

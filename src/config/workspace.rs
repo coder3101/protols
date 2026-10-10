@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_lsp::lsp_types::{Url, WorkspaceFolder};
+use futures::StreamExt;
 use pkg_config::Config;
 
 use crate::{config::ProtolsConfig, formatter::clang::ClangFormatter, utils::OutermostPaths};
@@ -46,9 +47,9 @@ impl WorkspaceProtoConfigs {
         }
     }
 
-    async fn get_config_file_path(wpath: &PathBuf) -> Option<PathBuf> {
+    pub(super) async fn get_config_file_path(wroot: &PathBuf) -> Option<PathBuf> {
         for file in CONFIG_FILE_NAMES {
-            let p = Path::new(&wpath).join(file);
+            let p = Path::new(&wroot).join(file);
 
             if tokio::fs::try_exists(&p).await.unwrap_or_default() {
                 return Some(p);
@@ -57,27 +58,10 @@ impl WorkspaceProtoConfigs {
         None
     }
 
-    pub async fn add_workspace_folder(&mut self, wf: &WorkspaceFolder) {
-        let Ok(wpath) = wf.uri.to_file_path() else {
-            return;
-        };
-
-        let wr = if let Some(config_path) = Self::get_config_file_path(&wpath).await
-            && let Ok(content) = tokio::fs::read_to_string(config_path).await
-        {
-            basic_toml::from_str(&content).unwrap_or_default()
-        } else {
-            ProtolsConfig::default()
-        };
-
-        let fmt = ClangFormatter::new(
-            &wr.config.path.clang_format,
-            Some(wpath.to_str().expect("non-utf8 path")),
-        );
-
-        self.workspaces.insert(wf.uri.clone());
-        self.configs.insert(wf.uri.clone(), wr);
-        self.formatters.insert(wf.uri.clone(), Arc::new(fmt));
+    pub fn add_workspace_folder(&mut self, data: ConfiguredWorkspaceFolder) {
+        self.workspaces.insert(data.uri.clone());
+        self.configs.insert(data.uri.clone(), data.config);
+        self.formatters.insert(data.uri, Arc::new(data.formatter));
     }
 
     pub fn remove_workspace_folder(&mut self, wf: &WorkspaceFolder) {
@@ -152,26 +136,26 @@ impl WorkspaceProtoConfigs {
 
     pub fn no_workspace_mode(&mut self) {
         let wr = ProtolsConfig::default();
-        let rp = if cfg!(target_os = "windows") {
-            let mut d = String::from("C");
-            if let Ok(cdir) = env::current_dir()
-                && let Some(drive) = cdir.components().next()
-            {
-                d = drive.as_os_str().to_string_lossy().to_string();
-            }
-            format!("{d}://")
-        } else {
-            String::from("/")
-        };
-        let uri = match Url::from_file_path(&rp) {
+        let root_path = env::current_dir()
+            .ok()
+            .and_then(|cdir| cdir.ancestors().last().map(Path::to_path_buf))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    r"C:\".into()
+                } else {
+                    "/".into()
+                }
+            });
+        let uri = match Url::from_file_path(&root_path) {
             Err(err) => {
-                tracing::error!(?err, "failed to convert path: {rp} to Url");
+                tracing::error!(?err, ?root_path, "failed to convert root path to Url");
                 return;
             }
             Ok(uri) => uri,
         };
 
-        let fmt = ClangFormatter::new(&wr.config.path.clang_format, None);
+        let cmd = wr.config.path.clang_format.clone().into_os_string();
+        let fmt = ClangFormatter::new(cmd, None);
 
         self.workspaces.insert(uri.clone());
         self.configs.insert(uri.clone(), wr);
@@ -194,6 +178,57 @@ impl WorkspaceProtoConfigs {
     }
 }
 
+struct ConfiguredWorkspaceFolder {
+    pub uri: Url,
+    config: ProtolsConfig,
+    formatter: ClangFormatter,
+}
+
+const MAX_CONCURRENT_DISK_SCANS: usize = 4;
+
+pub async fn configure_workspace_folders(
+    folders: &[WorkspaceFolder],
+) -> Vec<ConfiguredWorkspaceFolder> {
+    if folders.is_empty() {
+        return Vec::new();
+    }
+
+    futures::stream::iter(folders)
+        .map(configure_workspace_folder)
+        .buffer_unordered(MAX_CONCURRENT_DISK_SCANS)
+        .filter_map(|res| async move { res })
+        .collect()
+        .await
+}
+
+async fn configure_workspace_folder(wf: &WorkspaceFolder) -> Option<ConfiguredWorkspaceFolder> {
+    let wfpath = wf.uri.to_file_path().ok()?;
+    let config = parse_config_file(&wfpath).await;
+    let cmd = config.config.path.clang_format.clone().into_os_string();
+
+    let formatter = ClangFormatter::new(cmd, Some(wfpath));
+
+    let uri = wf.uri.clone();
+    Some(ConfiguredWorkspaceFolder {
+        uri,
+        config,
+        formatter,
+    })
+}
+
+#[inline]
+async fn parse_config_file(path: &PathBuf) -> ProtolsConfig {
+    let Some(config_path) = WorkspaceProtoConfigs::get_config_file_path(path).await else {
+        return ProtolsConfig::default();
+    };
+
+    let Ok(bytes) = tokio::fs::read(config_path).await else {
+        return ProtolsConfig::default();
+    };
+
+    basic_toml::from_slice(&bytes).unwrap_or_default()
+}
+
 #[cfg(test)]
 mod test {
     use async_lsp::lsp_types::{Url, WorkspaceFolder};
@@ -201,24 +236,35 @@ mod test {
     use std::path::PathBuf;
     use tempfile::tempdir;
 
-    use super::{CONFIG_FILE_NAMES, WorkspaceProtoConfigs};
+    use super::{CONFIG_FILE_NAMES, WorkspaceProtoConfigs, configure_workspace_folders};
 
-    #[test]
-    fn test_get_for_workspace() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_get_for_workspace() {
         let tmpdir = tempdir().expect("failed to create temp directory");
         let tmpdir2 = tempdir().expect("failed to create temp2 directory");
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
+        let folders = vec![
+            WorkspaceFolder {
+                uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+                name: "Test".to_string(),
+            },
+            WorkspaceFolder {
+                uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
+                name: "Test2".to_string(),
+            },
+        ];
+
+        let configured_data = configure_workspace_folders(&folders).await;
+
+        assert_eq!(configured_data.len(), folders.len());
+
         let mut ws = WorkspaceProtoConfigs::new(vec![], None);
-        ws.add_workspace_folder(&WorkspaceFolder {
-            uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-            name: "Test".to_string(),
-        });
-        ws.add_workspace_folder(&WorkspaceFolder {
-            uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
-            name: "Test2".to_string(),
-        });
+
+        for data in configured_data {
+            ws.add_workspace_folder(data);
+        }
 
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let outworkspace =
@@ -237,23 +283,33 @@ mod test {
         assert_yaml_snapshot!(ws.get_config_for_uri(&inworkspace2).unwrap());
     }
 
-    #[test]
-    fn test_get_formatter_for_uri() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_get_formatter_for_uri() {
         let tmpdir = tempdir().expect("failed to create temp directory");
         let tmpdir2 = tempdir().expect("failed to create temp2 directory");
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-        let mut ws = WorkspaceProtoConfigs::new(vec![], None);
-        ws.add_workspace_folder(&WorkspaceFolder {
-            uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-            name: "Test".to_string(),
-        });
+        let folders = vec![
+            WorkspaceFolder {
+                uri: Url::from_directory_path(tmpdir.path()).unwrap(),
+                name: "Test".to_string(),
+            },
+            WorkspaceFolder {
+                uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
+                name: "Test2".to_string(),
+            },
+        ];
 
-        ws.add_workspace_folder(&WorkspaceFolder {
-            uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
-            name: "Test2".to_string(),
-        });
+        let configured_data = configure_workspace_folders(&folders).await;
+
+        assert_eq!(configured_data.len(), folders.len());
+
+        let mut ws = WorkspaceProtoConfigs::new(vec![], None);
+
+        for data in configured_data {
+            ws.add_workspace_folder(data);
+        }
 
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let outworkspace =
@@ -271,19 +327,27 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_loading_different_config_files() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_loading_different_config_files() {
         let tmpdir = tempdir().expect("failed to create temp directory");
 
         for file in CONFIG_FILE_NAMES {
             let f = tmpdir.path().join(file);
             std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
 
-            let mut ws = WorkspaceProtoConfigs::new(vec![], None);
-            ws.add_workspace_folder(&WorkspaceFolder {
+            let folders = vec![WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
                 name: "Test".to_string(),
-            });
+            }];
+
+            let configured_data = configure_workspace_folders(&folders).await;
+
+            assert_eq!(configured_data.len(), folders.len());
+
+            let mut ws = WorkspaceProtoConfigs::new(vec![], None);
+            for data in configured_data {
+                ws.add_workspace_folder(data);
+            }
 
             // check we really loaded the config file
             let workspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
@@ -291,8 +355,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_cli_include_paths() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_cli_include_paths() {
         let tmpdir = tempdir().expect("failed to create temp directory");
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
@@ -302,11 +366,19 @@ mod test {
         // Set CLI include paths
         let cli_paths = vec![absolute_path.clone(), PathBuf::from("relative/path")];
 
-        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
-        ws.add_workspace_folder(&WorkspaceFolder {
+        let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
-        });
+        }];
+
+        let configured_data = configure_workspace_folders(&folders).await;
+
+        assert_eq!(configured_data.len(), folders.len());
+
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
+        for data in configured_data {
+            ws.add_workspace_folder(data);
+        }
 
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();
@@ -319,8 +391,8 @@ mod test {
         assert!(include_paths.contains(&resolved_relative_path));
     }
 
-    #[test]
-    fn test_init_include_paths() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_init_include_paths() {
         let tmpdir = tempdir().expect("failed to create temp directory");
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
@@ -335,12 +407,20 @@ mod test {
             PathBuf::from("relative/init/path"),
         ];
 
-        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
-        ws.set_init_include_paths(init_paths);
-        ws.add_workspace_folder(&WorkspaceFolder {
+        let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
-        });
+        }];
+
+        let configured_data = configure_workspace_folders(&folders).await;
+
+        assert_eq!(configured_data.len(), folders.len());
+
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, None);
+        ws.set_init_include_paths(init_paths);
+        for data in configured_data {
+            ws.add_workspace_folder(data);
+        }
 
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();
@@ -356,8 +436,8 @@ mod test {
         assert!(include_paths.contains(&cli_absolute_path));
     }
 
-    #[test]
-    fn test_fallback_include_path() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_fallback_include_path() {
         let tmpdir = tempdir().expect("failed to create temp directory");
         let f = tmpdir.path().join("protols.toml");
         std::fs::write(f, include_str!("input/protols-valid.toml")).unwrap();
@@ -369,12 +449,20 @@ mod test {
             PathBuf::from("relative/init/path"),
         ];
 
-        let mut ws = WorkspaceProtoConfigs::new(cli_paths, Some("fallback_path".into()));
-        ws.set_init_include_paths(init_paths);
-        ws.add_workspace_folder(&WorkspaceFolder {
+        let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
             name: "Test".to_string(),
-        });
+        }];
+
+        let configured_data = configure_workspace_folders(&folders).await;
+
+        assert_eq!(configured_data.len(), folders.len());
+
+        let mut ws = WorkspaceProtoConfigs::new(cli_paths, Some("fallback_path".into()));
+        ws.set_init_include_paths(init_paths);
+        for data in configured_data {
+            ws.add_workspace_folder(data);
+        }
 
         let inworkspace = Url::from_file_path(tmpdir.path().join("foobar.proto")).unwrap();
         let include_paths = ws.get_include_paths(&inworkspace).unwrap();

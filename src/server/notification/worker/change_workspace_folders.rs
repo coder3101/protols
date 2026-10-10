@@ -4,6 +4,7 @@ use async_lsp::lsp_types::DidChangeWorkspaceFoldersParams;
 use async_lsp::lsp_types::notification::{DidChangeWorkspaceFolders, Notification as N};
 
 use super::Worker;
+use crate::config::configure_workspace_folders;
 use crate::state::ProtoLanguageState;
 use crate::utils::OutermostPaths;
 
@@ -26,6 +27,8 @@ impl Worker {
             finalized.await;
         }
 
+        let configured_folders = configure_workspace_folders(&params.event.added).await;
+
         {
             let mut configs = self.configs.write().await;
 
@@ -33,8 +36,8 @@ impl Worker {
                 configs.remove_workspace_folder(folder);
             }
 
-            for folder in &params.event.added {
-                configs.add_workspace_folder(folder).await;
+            for folder in configured_folders {
+                configs.add_workspace_folder(folder);
             }
         }
 
@@ -54,7 +57,7 @@ impl Worker {
             purge_removed_workspace_folders(&self.state, &removed_paths, &new_outermost).await;
         }
 
-        self.refresh_file_watchers(&new_outermost);
+        self.refresh_file_watchers(&new_outermost).await;
 
         self.run_indexing_pipeline(new_outermost).await;
     }

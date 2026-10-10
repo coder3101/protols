@@ -13,7 +13,7 @@ use crate::utils::OutermostPaths;
 pub(super) const FILE_WATCHER_ID: &str = "protols-proto-file-watcher";
 
 impl Worker {
-    pub(super) fn refresh_file_watchers(&self, paths: &OutermostPaths) {
+    pub(super) async fn refresh_file_watchers(&self, paths: &OutermostPaths) {
         let ClientCapabilitiesSummary {
             supports_watched_files_dynamic_registration,
             supports_relative_patterns,
@@ -49,55 +49,52 @@ impl Worker {
             return;
         }
 
-        let client = self.client.clone();
+        let unregister_params = UnregistrationParams {
+            unregisterations: vec![Unregistration {
+                id: String::from(FILE_WATCHER_ID),
+                method: DidChangeWatchedFiles::METHOD.to_string(),
+            }],
+        };
+        let trace_error = |error: &Error| {
+            tracing::warn!(
+                ?error,
+                "Client failed unregister dynamic file watcher capability."
+            )
+        };
 
-        tokio::spawn(async move {
-            let unregister_params = UnregistrationParams {
-                unregisterations: vec![Unregistration {
-                    id: String::from(FILE_WATCHER_ID),
-                    method: DidChangeWatchedFiles::METHOD.to_string(),
-                }],
-            };
-            let trace_error = |error: &Error| {
-                tracing::warn!(
-                    ?error,
-                    "Client failed unregister dynamic file watcher capability."
-                )
-            };
+        let _ = self
+            .client
+            .request::<UnregisterCapability>(unregister_params)
+            .await
+            .inspect_err(trace_error);
 
-            let _ = client
-                .request::<UnregisterCapability>(unregister_params)
-                .await
-                .inspect_err(trace_error);
+        let watcher_options = DidChangeWatchedFilesRegistrationOptions { watchers };
+        let register_options = serde_json::to_value(watcher_options).unwrap_or_default();
 
-            let watcher_options = DidChangeWatchedFilesRegistrationOptions { watchers };
-            let register_options = serde_json::to_value(watcher_options).unwrap_or_default();
+        let registration_params = RegistrationParams {
+            registrations: vec![Registration {
+                id: String::from(FILE_WATCHER_ID),
+                method: DidChangeWatchedFiles::METHOD.to_string(),
+                register_options: Some(register_options),
+            }],
+        };
 
-            let registration_params = RegistrationParams {
-                registrations: vec![Registration {
-                    id: String::from(FILE_WATCHER_ID),
-                    method: DidChangeWatchedFiles::METHOD.to_string(),
-                    register_options: Some(register_options),
-                }],
-            };
+        let trace_error = |error: &Error| {
+            tracing::error!(
+                ?error,
+                "CRITICAL. Client failed to register dynamic file watcher capability."
+            )
+        };
+        let trace_ok = |_: &()| {
+            tracing::info!(
+                "Dynamic file watchers successfully synchronized with current workspace."
+            )
+        };
 
-            let trace_error = |error: &Error| {
-                tracing::error!(
-                    ?error,
-                    "CRITICAL. Client failed to register dynamic file watcher capability."
-                )
-            };
-            let trace_ok = |_: &()| {
-                tracing::info!(
-                    "Dynamic file watchers successfully synchronized with current workspace."
-                )
-            };
-
-            client
-                .request::<RegisterCapability>(registration_params)
-                .await
-                .inspect_err(trace_error)
-                .inspect(trace_ok);
-        });
+        self.client
+            .request::<RegisterCapability>(registration_params)
+            .await
+            .inspect_err(trace_error)
+            .inspect(trace_ok);
     }
 }

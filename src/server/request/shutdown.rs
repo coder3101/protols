@@ -13,6 +13,6 @@ impl ProtoLanguageServer {
 
         self.shutdown_token.cancel();
 
-        async move { Ok(()) }.boxed()
+        async { Ok(()) }.boxed()
     }
 }

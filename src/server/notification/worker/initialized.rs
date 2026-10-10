@@ -11,7 +11,7 @@ impl Worker {
             return;
         }
 
-        self.refresh_file_watchers(&paths);
+        self.refresh_file_watchers(&paths).await;
 
         self.run_indexing_pipeline(paths).await;
     }

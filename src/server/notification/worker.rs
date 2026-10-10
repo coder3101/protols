@@ -105,6 +105,14 @@ impl Worker {
     }
 
     async fn run_indexing_pipeline(&mut self, paths: OutermostPaths) {
+        self.indexing.cancel_token.cancel();
+        if let Some(finalizer) = self.indexing.finalized.take() {
+            tracing::warn!(
+                "The indexing wasn't cancelled before running the new one. Cancelling..."
+            );
+            let _ = finalizer.await;
+        }
+
         self.indexing.cancel_token = self.shutdown_token.child_token();
         self.state.set_indexing(true);
 

@@ -15,6 +15,7 @@ use serde_json::Value;
 
 use crate::ProtoLanguageServer;
 use crate::config::client::ClientCapabilitiesSummary;
+use crate::config::configure_workspace_folders;
 
 impl ProtoLanguageServer {
     pub(in crate::server) fn initialize(
@@ -26,6 +27,7 @@ impl ProtoLanguageServer {
         self.state.set_client_capabilities((&params).into());
 
         let configs = self.configs.clone();
+        let include_paths = parse_init_include_paths(&params);
         let workspace = Some(build_workspace_capabilities(&params));
         let definition_provider = build_definition_provider(&params);
         let hover_provider = build_hover_provider(&params);
@@ -33,12 +35,13 @@ impl ProtoLanguageServer {
         let rename_provider = build_rename_provider(&params);
 
         async move {
+            let folders = params.workspace_folders.as_deref().unwrap_or_default();
+            let configured_folders = configure_workspace_folders(folders).await;
+
             {
                 let mut config = configs.write().await;
 
-                if let Some(init_options) = &params.initialization_options
-                    && let Some(include_paths) = parse_init_include_paths(init_options)
-                {
+                if !include_paths.is_empty() {
                     tracing::info!(
                         "Setting include paths from initialization options: {:?}",
                         include_paths
@@ -50,9 +53,9 @@ impl ProtoLanguageServer {
                     tracing::info!("Running in no workspace mode");
                     config.no_workspace_mode();
                 } else {
-                    for folder in params.workspace_folders.iter().flatten() {
-                        tracing::info!("Workspace folder: {:?}", folder);
-                        config.add_workspace_folder(folder).await;
+                    for folder in configured_folders {
+                        tracing::info!("Workspace folder: {:?}", folder.uri);
+                        config.add_workspace_folder(folder);
                     }
                 }
             }
@@ -85,45 +88,34 @@ impl ProtoLanguageServer {
         }
         .boxed()
     }
-
-    async fn init_include_paths(&mut self, params: &InitializeParams) {
-        if let Some(init_options) = &params.initialization_options
-            && let Some(include_paths) = parse_init_include_paths(init_options)
-        {
-            tracing::info!(
-                "Setting include paths from initialization options: {:?}",
-                include_paths
-            );
-            self.configs
-                .write()
-                .await
-                .set_init_include_paths(include_paths);
-        }
-    }
 }
 
 /// Parse `include_paths` from initialization options
 #[inline]
-fn parse_init_include_paths(init_options: &Value) -> Option<Vec<PathBuf>> {
-    let mut result = vec![];
-    let paths = init_options["include_paths"].as_array()?;
+fn parse_init_include_paths(params: &InitializeParams) -> Vec<PathBuf> {
+    let Some(paths) = params
+        .initialization_options
+        .as_ref()
+        .and_then(|v| v["include_paths"].as_array())
+    else {
+        return Vec::new();
+    };
 
-    for path_value in paths {
-        if let Some(path) = path_value.as_str() {
-            result.push(PathBuf::from(path));
-        } else {
+    let trace_error = |path_value: &&Value| {
+        if !path_value.is_string() {
             tracing::warn!(
                 "Invalid include path in initialization options: {:?}",
                 path_value
             );
         }
-    }
+    };
 
-    if result.is_empty() {
-        None
-    } else {
-        Some(result)
-    }
+    paths
+        .iter()
+        .inspect(trace_error)
+        .filter_map(Value::as_str)
+        .map(PathBuf::from)
+        .collect()
 }
 
 #[inline]
