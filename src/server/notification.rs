@@ -79,7 +79,7 @@ impl ProtoLanguageServer {
                     "Notification worker crashed unexpectedly",
                 ))));
             }
-            Ok(_) => {}
+            Ok(()) => {}
         }
 
         if N::METHOD != lsp_types::notification::Exit::METHOD {

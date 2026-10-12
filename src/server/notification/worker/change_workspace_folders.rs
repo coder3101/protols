@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use async_lsp::lsp_types::DidChangeWorkspaceFoldersParams;
 use async_lsp::lsp_types::notification::{DidChangeWorkspaceFolders, Notification as N};
 
-use super::Worker;
+use super::{Notification, Worker};
 use crate::config::configure_workspace_folders;
-use crate::state::ProtoLanguageState;
+use crate::server::state::ProtoLanguageState;
 use crate::utils::OutermostPaths;
 
 impl Worker {
@@ -24,7 +24,7 @@ impl Worker {
 
         self.indexing.cancel_token.cancel();
         if let Some(finalized) = self.indexing.finalized.take() {
-            finalized.await;
+            let _ = finalized.await;
         }
 
         let configured_folders = configure_workspace_folders(&params.event.added).await;
@@ -118,5 +118,11 @@ async fn purge_removed_workspace_folders(
                 .iter()
                 .any(|active_outer| file_path.starts_with(active_outer))
         });
+    }
+}
+
+impl From<DidChangeWorkspaceFoldersParams> for Notification {
+    fn from(params: DidChangeWorkspaceFoldersParams) -> Self {
+        Notification::ChangeWorkspaceFolders { params }
     }
 }

@@ -9,7 +9,8 @@ use super::super::progress::{LspProgressChannel, OptionChannelExt};
 use super::Notification;
 use crate::config::WorkspaceProtoConfigs;
 use crate::log::LogReloadHandle;
-use crate::state::{FinalizerToken, ProtoLanguageState};
+use crate::server::state::ProtoLanguageState;
+use crate::server::state::finalizer::FinalizerToken;
 use crate::utils::OutermostPaths;
 
 mod change_document;
@@ -67,9 +68,7 @@ impl Worker {
 
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
-                if worker.shutdown_token.is_cancelled()
-                    && !matches!(event, Notification::Exit { .. })
-                {
+                if worker.shutdown_token.is_cancelled() && !matches!(event, Notification::Exit) {
                     tracing::info!(
                         %event,
                         "Skipping notification handling because shutdown is in progress."
@@ -92,7 +91,7 @@ impl Worker {
                     Notification::ChangeWatchedFiles { params } => {
                         worker.change_watched_files(params).await;
                     }
-                    Notification::SetTrace { params } => worker.set_trace(params),
+                    Notification::SetTrace { params } => worker.set_trace(&params),
                     Notification::Exit => {
                         worker.exit();
                         break;

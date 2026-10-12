@@ -3,7 +3,7 @@ use std::str::FromStr;
 use async_lsp::lsp_types::notification::{DidCreateFiles, Notification as N};
 use async_lsp::lsp_types::{CreateFilesParams, Url};
 
-use crate::state::DocumentsGuardExt;
+use crate::server::state::cache::DocumentsGuardExt;
 
 use super::{Notification, Worker};
 

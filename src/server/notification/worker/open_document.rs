@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use async_lsp::lsp_types::DidOpenTextDocumentParams;
 
-use crate::state::unique_uris::UniqueUris;
-use crate::state::{DocumentVersion, DocumentsGuardExt, SourceEntry};
+use crate::server::state::DocumentVersion;
+use crate::server::state::cache::DocumentsGuardExt;
+use crate::server::state::source::SourceEntry;
+use crate::server::state::unique_uris::UniqueUris;
 
 use super::{Notification, Worker};
 

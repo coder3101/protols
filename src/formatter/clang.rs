@@ -135,14 +135,17 @@ impl ClangFormatter {
             c.args(extra_args);
         }
 
-        let mut child = c.kill_on_drop(true).spawn().ok()?;
+        let process = async {
+            let mut child = c.kill_on_drop(true).spawn()?;
 
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(content.as_bytes()).await.ok()?;
-        }
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(content.as_bytes()).await?;
+            }
 
-        let wait_future = child.wait_with_output();
-        let timeout_result = tokio::time::timeout(CLANG_FORMAT_TIMEOUT, wait_future).await;
+            child.wait_with_output().await
+        };
+
+        let timeout_result = tokio::time::timeout(CLANG_FORMAT_TIMEOUT, process).await;
 
         let output = match timeout_result {
             Ok(Ok(out)) => out,

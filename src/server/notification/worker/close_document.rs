@@ -1,7 +1,7 @@
 use async_lsp::lsp_types::DidCloseTextDocumentParams;
 use async_lsp::lsp_types::notification::{DidCloseTextDocument, Notification as N};
 
-use crate::state::DocumentsGuardExt;
+use crate::server::state::cache::DocumentsGuardExt;
 
 use super::{Notification, Worker};
 
@@ -12,7 +12,7 @@ impl Worker {
         {
             let (mut documents, mut sources) = self.state.write_lock_all().await;
 
-            if documents.set_dirty(&uri) {
+            if !documents.set_dirty(&uri) {
                 tracing::warn!(
                     method = DidCloseTextDocument::METHOD,
                     %uri,

@@ -59,7 +59,7 @@ impl Worker {
             tracing::warn!(
                 ?error,
                 "Client failed unregister dynamic file watcher capability."
-            )
+            );
         };
 
         let _ = self
@@ -83,15 +83,16 @@ impl Worker {
             tracing::error!(
                 ?error,
                 "CRITICAL. Client failed to register dynamic file watcher capability."
-            )
+            );
         };
-        let trace_ok = |_: &()| {
+        let trace_ok = |(): &()| {
             tracing::info!(
                 "Dynamic file watchers successfully synchronized with current workspace."
-            )
+            );
         };
 
-        self.client
+        let _ = self
+            .client
             .request::<RegisterCapability>(registration_params)
             .await
             .inspect_err(trace_error)

@@ -18,10 +18,11 @@ mod docs;
 mod document;
 mod formatter;
 mod log;
+// mod lsp;
 mod model;
 mod protoc;
 mod server;
-mod state;
+// mod state;
 mod transport;
 mod utils;
 

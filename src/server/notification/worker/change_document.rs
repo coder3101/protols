@@ -4,7 +4,9 @@ use async_lsp::lsp_types::DidChangeTextDocumentParams;
 use async_lsp::lsp_types::notification::{DidChangeTextDocument, Notification as N};
 
 use super::{Notification, Worker};
-use crate::state::{DocumentVersion, DocumentsGuardExt, SourceEntry};
+use crate::server::state::DocumentVersion;
+use crate::server::state::cache::DocumentsGuardExt;
+use crate::server::state::source::SourceEntry;
 
 impl Worker {
     pub(super) async fn change_document(&mut self, params: DidChangeTextDocumentParams) {

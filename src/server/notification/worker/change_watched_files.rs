@@ -2,7 +2,7 @@ use async_lsp::lsp_types::notification::{DidChangeWatchedFiles, Notification as 
 use async_lsp::lsp_types::{DidChangeWatchedFilesParams, FileChangeType, FileEvent};
 
 use super::{Notification, Worker};
-use crate::state::DocumentsGuardExt;
+use crate::server::state::cache::DocumentsGuardExt;
 
 impl Worker {
     pub(super) async fn change_watched_files(&mut self, params: DidChangeWatchedFilesParams) {

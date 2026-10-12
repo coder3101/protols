@@ -171,14 +171,14 @@ impl WorkspaceProtoConfigs {
         let include_paths = self
             .workspaces
             .iter()
-            .flat_map(|url| self.get_include_paths(url))
+            .filter_map(|url| self.get_include_paths(url))
             .flatten();
 
         OutermostPaths::from_iter(workspace_paths.chain(include_paths))
     }
 }
 
-struct ConfiguredWorkspaceFolder {
+pub(crate) struct ConfiguredWorkspaceFolder {
     pub uri: Url,
     config: ProtolsConfig,
     formatter: ClangFormatter,

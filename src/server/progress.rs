@@ -70,8 +70,6 @@ impl LspProgressChannel {
             })),
         });
     }
-
-    pub fn end(self) {}
 }
 
 impl Drop for LspProgressChannel {

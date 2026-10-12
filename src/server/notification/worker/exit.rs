@@ -1,5 +1,3 @@
-use async_lsp::lsp_types::notification::Exit;
-
 use super::{Notification, Worker};
 
 impl Worker {
@@ -16,8 +14,8 @@ impl Worker {
     }
 }
 
-impl From<Exit> for Notification {
-    fn from(_params: Exit) -> Self {
+impl From<()> for Notification {
+    fn from(_params: ()) -> Self {
         Notification::Exit
     }
 }

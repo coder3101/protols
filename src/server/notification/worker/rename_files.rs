@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use async_lsp::lsp_types::{RenameFilesParams, Url};
 
-use crate::state::{DocumentsGuardExt, SourceEntry};
-
-use super::Worker;
+use super::{Notification, Worker};
+use crate::server::state::cache::DocumentsGuardExt;
+use crate::server::state::source::SourceEntry;
 
 struct RenameTask {
     old_uri: Url,
@@ -48,5 +48,11 @@ impl Worker {
                 }
             }
         }
+    }
+}
+
+impl From<RenameFilesParams> for Notification {
+    fn from(params: RenameFilesParams) -> Self {
+        Notification::RenameFiles { params }
     }
 }

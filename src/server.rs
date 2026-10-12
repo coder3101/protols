@@ -6,9 +6,9 @@ use async_lsp::{
     ClientSocket,
     lsp_types::{
         notification::{
-            DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidCreateFiles,
-            DidDeleteFiles, DidOpenTextDocument, DidRenameFiles, DidSaveTextDocument, Exit,
-            Initialized, SetTrace,
+            DidChangeTextDocument, DidChangeWatchedFiles, DidChangeWorkspaceFolders,
+            DidCloseTextDocument, DidCreateFiles, DidDeleteFiles, DidOpenTextDocument,
+            DidRenameFiles, DidSaveTextDocument, Exit, Initialized, SetTrace,
         },
         request::{
             Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
@@ -21,14 +21,16 @@ use async_lsp::{
 use tokio::sync::{RwLock, mpsc::Sender};
 use tokio_util::sync::{CancellationToken, DropGuard};
 
-use crate::{config::WorkspaceProtoConfigs, log, state::ProtoLanguageState};
+use crate::{config::WorkspaceProtoConfigs, log};
 
 use notification::Notification;
 use notification::worker::Worker;
+use state::ProtoLanguageState;
 
 mod notification;
 pub(crate) mod progress;
 mod request;
+pub(super) mod state;
 
 pub struct ProtoLanguageServer {
     pub client: ClientSocket,
@@ -60,11 +62,11 @@ impl ProtoLanguageServer {
         );
 
         Self {
-            notification_tx,
+            client,
             state,
             configs,
-            client,
             shutdown_token,
+            notification_tx,
         }
     }
 
@@ -75,7 +77,7 @@ impl ProtoLanguageServer {
         fallback_include_path: Option<PathBuf>,
         shutdown_token: CancellationToken,
     ) -> Router<Self> {
-        let router = Router::new(Self::new(
+        let mut router = Router::new(Self::new(
             client,
             log_handle,
             cli_include_paths,
@@ -93,30 +95,37 @@ impl ProtoLanguageServer {
         router
             .request::<Initialize, _>(Self::initialize)
             .request::<Shutdown, _>(Self::shutdown)
-            .request::<HoverRequest, _>(Self::hover)
-            .request::<Completion, _>(Self::completion)
-            .request::<PrepareRenameRequest, _>(Self::prepare_rename)
-            .request::<Rename, _>(Self::rename)
-            .request::<References, _>(Self::references)
-            .request::<GotoDefinition, _>(Self::definition)
+            // .request::<HoverRequest, _>(Self::hover)
+            // .request::<Completion, _>(Self::completion)
+            // .request::<PrepareRenameRequest, _>(Self::prepare_rename)
+            // .request::<Rename, _>(Self::rename)
+            // .request::<References, _>(Self::references)
+            // .request::<GotoDefinition, _>(Self::definition)
             .request::<DocumentSymbolRequest, _>(Self::document_symbol)
-            .request::<WorkspaceSymbolRequest, _>(Self::workspace_symbol)
+            // .request::<WorkspaceSymbolRequest, _>(Self::workspace_symbol)
             .request::<Formatting, _>(Self::formatting)
             .request::<RangeFormatting, _>(Self::range_formatting);
 
         // Handling notification
         router
-            .notification::<Initialized>(Self::handle_notification)
-            .notification::<SetTrace>(Self::handle_notification)
-            .notification::<DidSaveTextDocument>(Self::handle_notification)
-            .notification::<DidOpenTextDocument>(Self::handle_notification)
-            .notification::<DidChangeTextDocument>(Self::handle_notification)
-            .notification::<DidCloseTextDocument>(Self::handle_notification)
-            .notification::<DidCreateFiles>(Self::handle_notification)
-            .notification::<DidRenameFiles>(Self::handle_notification)
-            .notification::<DidDeleteFiles>(Self::handle_notification)
-            .notification::<DidChangeWatchedFiles>(Self::handle_notification)
-            .notification::<Exit>(Self::handle_notification);
+            .notification::<Initialized>(Self::handle_notification::<Initialized>)
+            .notification::<SetTrace>(Self::handle_notification::<SetTrace>)
+            .notification::<DidSaveTextDocument>(Self::handle_notification::<DidSaveTextDocument>)
+            .notification::<DidOpenTextDocument>(Self::handle_notification::<DidOpenTextDocument>)
+            .notification::<DidChangeTextDocument>(
+                Self::handle_notification::<DidChangeTextDocument>,
+            )
+            .notification::<DidCloseTextDocument>(Self::handle_notification::<DidCloseTextDocument>)
+            .notification::<DidCreateFiles>(Self::handle_notification::<DidCreateFiles>)
+            .notification::<DidRenameFiles>(Self::handle_notification::<DidRenameFiles>)
+            .notification::<DidDeleteFiles>(Self::handle_notification::<DidDeleteFiles>)
+            .notification::<DidChangeWorkspaceFolders>(
+                Self::handle_notification::<DidChangeWorkspaceFolders>,
+            )
+            .notification::<DidChangeWatchedFiles>(
+                Self::handle_notification::<DidChangeWatchedFiles>,
+            )
+            .notification::<Exit>(Self::handle_notification::<Exit>);
 
         router
     }

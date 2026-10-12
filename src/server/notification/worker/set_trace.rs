@@ -4,7 +4,7 @@ use super::{Notification, Worker};
 use crate::log;
 
 impl Worker {
-    pub(super) fn set_trace(&mut self, params: SetTraceParams) {
+    pub(super) fn set_trace(&mut self, params: &SetTraceParams) {
         log::update_level(&self.log_handle, params.value);
     }
 }
