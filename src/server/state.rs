@@ -23,7 +23,7 @@ pub(super) mod unique_uris;
 
 #[derive(Clone)]
 pub(crate) struct ProtoLanguageState {
-    client_capabilities: OnceLock<ClientCapabilitiesSummary>,
+    client_capabilities: Arc<OnceLock<ClientCapabilitiesSummary>>,
     sources: Arc<RwLock<HashMap<Url, SourceEntry>>>,
     documents: Arc<RwLock<HashMap<Url, CacheEntry>>>,
     metamodel_query: Arc<Query>,
@@ -52,11 +52,11 @@ impl ProtoLanguageState {
             .expect("Tree-sitter query compilation failed");
 
         Self {
-            client_capabilities: OnceLock::new(),
+            client_capabilities: Arc::default(),
             sources: Arc::default(),
             documents: Arc::default(),
             metamodel_query: Arc::new(metamodel_query),
-            is_indexing: Arc::new(AtomicBool::new(false)),
+            is_indexing: Arc::default(),
         }
     }
 
