@@ -113,11 +113,10 @@ impl DocumentsGuardExt for RwLockWriteGuard<'_, HashMap<Url, CacheEntry>> {
     }
 
     fn cancel_and_remove(&mut self, uri: &Url) -> Option<CacheEntry> {
-        if let Some(entry) = self.remove(uri) {
-            entry.cancel();
-            Some(entry)
-        } else {
-            None
-        }
+        let entry = self.remove(uri)?;
+
+        entry.cancel();
+
+        Some(entry)
     }
 }

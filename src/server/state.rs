@@ -106,8 +106,7 @@ impl ProtoLanguageState {
         {
             use crate::server::state::cache::DocumentsGuardExt;
 
-            let mut documents = self.documents.write().await;
-            let mut sources = self.sources.write().await;
+            let (mut documents, mut sources) = self.write_lock_all().await;
 
             documents.set_dirty(uri);
             sources.insert(uri.clone(), SourceEntry { version, content });

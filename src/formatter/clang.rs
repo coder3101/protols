@@ -131,9 +131,7 @@ impl ClangFormatter {
             &format!("--assume-filename={filename}"),
         ]);
 
-        if !extra_args.is_empty() {
-            c.args(extra_args);
-        }
+        c.args(extra_args);
 
         let process = async {
             let mut child = c.kill_on_drop(true).spawn()?;

@@ -147,8 +147,8 @@ impl WorkspaceProtoConfigs {
                 }
             });
         let uri = match Url::from_file_path(&root_path) {
-            Err(err) => {
-                tracing::error!(?err, ?root_path, "failed to convert root path to Url");
+            Err(error) => {
+                tracing::error!(?error, ?root_path, "failed to convert root path to Url");
                 return;
             }
             Ok(uri) => uri,
