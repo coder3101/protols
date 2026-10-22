@@ -6,6 +6,7 @@
 //! place we traverse the raw syntax tree directly.
 
 use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
+use tree_sitter::TreeCursor;
 
 use crate::utils::to_lsp_range;
 
@@ -20,45 +21,56 @@ impl ProtoDocument {
 
         loop {
             let node = cursor.node();
-            let mut skip_children = false;
+            let is_missing = node.is_missing();
 
-            if node.is_error() || node.is_missing() {
+            if node.is_error() || is_missing {
                 errors.push(Diagnostic {
                     range: to_lsp_range(node),
                     severity: Some(DiagnosticSeverity::ERROR),
-                    source: Some("protols".to_string()),
-                    message: if node.is_missing() {
+                    source: Some("protols".into()),
+                    message: if is_missing {
                         format!("Missing syntax element: {}", node.kind())
                     } else {
-                        "Syntax error".to_string()
+                        "Syntax error".into()
                     },
                     ..Default::default()
                 });
 
-                skip_children = true;
-            }
-
-            if !skip_children && cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-
-            let mut climbed = false;
-            while cursor.goto_parent() {
-                if cursor.goto_next_sibling() {
-                    climbed = true;
-                    break;
+                if advance_to_next(&mut cursor) {
+                    continue;
                 }
-            }
-            if !climbed {
+
                 break;
             }
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+
+            if advance_to_next(&mut cursor) {
+                continue;
+            }
+
+            break;
         }
 
         errors
     }
+}
+
+/// Advances the cursor to the next node in the traversal, bypassing the current
+/// node's children.
+///
+/// Returns `true` if advanced to a sibling or a parent's sibling, or `false` if
+/// the traversal is complete.
+#[inline]
+fn advance_to_next(cursor: &mut TreeCursor) -> bool {
+    while !cursor.goto_next_sibling() {
+        if !cursor.goto_parent() {
+            return false;
+        }
+    }
+    true
 }
 
 #[cfg(test)]
