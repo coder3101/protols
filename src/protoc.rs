@@ -26,38 +26,36 @@ where
 
     // Add include paths
     for path in include_paths {
-        cmd.arg("-I").arg(path);
+        cmd.arg("--proto_path").arg(path);
     }
 
     // Generate descriptor but discard its output
-    cmd.arg("-o")
-        .arg(if cfg!(windows) { "NUL" } else { "/dev/null" });
-
-    // Add the file to check
-    cmd.arg(file_path);
+    cmd.arg("--descriptor_set_out")
+        .arg(if cfg!(windows) { "NUL" } else { "/dev/null" })
+        // Add the file to check
+        .arg(file_path)
+        .kill_on_drop(true);
 
     // Run protoc and capture output
-    match tokio::time::timeout(PROTOC_TIMEOUT, cmd.kill_on_drop(true).output()).await {
-        Ok(Ok(output)) => {
-            if output.status.success() {
-                Vec::new()
-            } else {
-                let error = String::from_utf8_lossy(&output.stderr);
-                parse_protoc_output(&error)
-            }
-        }
-        Ok(Err(error)) => {
-            tracing::error!(%error, "failed to run protoc");
-            Vec::new()
-        }
-        Err(_elapsed) => {
-            tracing::warn!(
-                timeout_ms = PROTOC_TIMEOUT.as_millis(),
-                "protoc execution timed out and was killed",
-            );
-            Vec::new()
-        }
+    let Ok(cmd_result) = tokio::time::timeout(PROTOC_TIMEOUT, cmd.output()).await else {
+        tracing::warn!(
+            timeout_ms = PROTOC_TIMEOUT.as_millis(),
+            "protoc execution timed out and was killed",
+        );
+        return Vec::new();
+    };
+
+    let Ok(output) =
+        cmd_result.inspect_err(|error| tracing::error!(%error, "failed to run protoc"))
+    else {
+        return Vec::new();
+    };
+
+    if output.status.success() {
+        return Vec::new();
     }
+
+    parse_protoc_output(&String::from_utf8_lossy(&output.stderr))
 }
 
 // Visible for testing
@@ -66,30 +64,38 @@ fn parse_protoc_output(output: &str) -> Vec<Diagnostic> {
 
     for line in output.lines() {
         // Parse protoc error format: file:line:column: message
-        if let Some((file_info, message)) = line.split_once(": ") {
-            let parts: Vec<&str> = file_info.split(':').collect();
-            if parts.len() >= 3
-                && let (Ok(line), Ok(col)) = (parts[1].parse::<u32>(), parts[2].parse::<u32>())
-            {
-                let point = Point {
-                    row: (line - 1) as usize,
-                    column: (col - 1) as usize,
-                };
-                let diagnostic = Diagnostic {
-                    range: Range {
-                        start: to_lsp_position(point),
-                        end: to_lsp_position(Point {
-                            row: point.row,
-                            column: point.column + 1,
-                        }),
-                    },
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    source: Some("protoc".to_string()),
-                    message: message.to_string(),
-                    ..Default::default()
-                };
-                diagnostics.push(diagnostic);
-            }
+        let Some((file_info, message)) = line.split_once(": ") else {
+            continue;
+        };
+
+        let Some((rest, col_str)) = file_info.rsplit_once(':') else {
+            continue;
+        };
+
+        let Some((_file_name, line_str)) = rest.rsplit_once(':') else {
+            continue;
+        };
+
+        if let (Ok(line), Ok(col)) = (line_str.parse::<u32>(), col_str.parse::<u32>()) {
+            let point = Point {
+                row: (line - 1) as usize,
+                column: (col - 1) as usize,
+            };
+
+            let diagnostic = Diagnostic {
+                range: Range {
+                    start: to_lsp_position(point),
+                    end: to_lsp_position(Point {
+                        row: point.row,
+                        column: point.column + 1,
+                    }),
+                },
+                severity: Some(DiagnosticSeverity::ERROR),
+                source: Some("protoc".to_owned()),
+                message: message.to_owned(),
+                ..Default::default()
+            };
+            diagnostics.push(diagnostic);
         }
     }
 
@@ -106,7 +112,7 @@ mod test {
         let diags = parse_protoc_output(output);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].message, "Expected field name.");
-        assert_eq!(diags[0].source, Some("protoc".to_string()));
+        assert_eq!(diags[0].source, Some("protoc".to_owned()));
         assert_eq!(diags[0].severity, Some(DiagnosticSeverity::ERROR));
         assert_eq!(diags[0].range.start.line, 4);
         assert_eq!(diags[0].range.start.character, 2);
@@ -125,14 +131,14 @@ mod test {
 
     #[test]
     fn test_parse_protoc_output_empty() {
-        assert!(parse_protoc_output("").is_empty());
+        assert_eq!(parse_protoc_output(""), [] as [Diagnostic; 0]);
     }
 
     #[test]
     fn test_parse_protoc_output_malformed_line() {
         let output = "not a valid protoc error line\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [Diagnostic; 0]);
     }
 
     #[test]
@@ -140,14 +146,14 @@ mod test {
         // Missing column number
         let output = "foo.proto:5: Expected field name.\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [Diagnostic; 0]);
     }
 
     #[test]
     fn test_parse_protoc_output_non_numeric_line_col() {
         let output = "foo.proto:abc:def: some message\n";
         let diags = parse_protoc_output(output);
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [Diagnostic; 0]);
     }
 
     #[test]
@@ -159,5 +165,22 @@ mod test {
             diags[0].message,
             "'Foo' is not defined. It could be a typo for 'Bar'."
         );
+    }
+
+    #[test]
+    fn test_parse_protoc_output_windows_absolute_path() {
+        let row = 10u32;
+        let col = 5u32;
+        let output =
+            format!("C:\\Users\\Admin\\project\\foo.proto:{row}:{col}: Field type not found.\n");
+        let diags = parse_protoc_output(&output);
+
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].message, "Field type not found.");
+        assert_eq!(diags[0].source, Some("protoc".to_owned()));
+        assert_eq!(diags[0].severity, Some(DiagnosticSeverity::ERROR));
+
+        assert_eq!(diags[0].range.start.line, row - 1);
+        assert_eq!(diags[0].range.start.character, col - 1);
     }
 }

@@ -91,7 +91,7 @@ impl ProtoLanguageServer {
         }
 
         ControlFlow::Break(Err(async_lsp::Error::Protocol(
-            "Received 'exit' notification without a prior 'shutdown' request".to_string(),
+            "Received 'exit' notification without a prior 'shutdown' request".to_owned(),
         )))
     }
 }

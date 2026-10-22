@@ -111,17 +111,17 @@ pub fn clean_proto_comment(raw_text: &str) -> String {
     if let Some(inner) = raw_text.strip_prefix("/*")
         && let Some(uncommented) = inner.strip_suffix("*/")
     {
-        return uncommented.to_string();
+        return uncommented.to_owned();
     }
 
     if let Some(uncommented) = raw_text.strip_prefix("//") {
         return uncommented
             .strip_prefix(' ')
             .unwrap_or(uncommented)
-            .to_string();
+            .to_owned();
     }
 
-    raw_text.to_string()
+    raw_text.to_owned()
 }
 
 pub(crate) async fn wait_for_shutdown_signals() {

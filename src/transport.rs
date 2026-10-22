@@ -138,7 +138,7 @@ async fn create_pipe_transport(path: &str) -> TransportResult<(LspReader, LspWri
 #[cfg(any(windows, test))]
 fn normalize_windows_pipe(path: &str) -> TransportResult<String> {
     let full_path = match path {
-        local if local.starts_with(r"\\.\pipe\") => local.to_string(),
+        local if local.starts_with(r"\\.\pipe\") => local.to_owned(),
 
         unc if unc.starts_with(r"\\") => {
             let mut components = unc.split('\\').skip(2);
@@ -146,7 +146,7 @@ fn normalize_windows_pipe(path: &str) -> TransportResult<String> {
             let pipe_segment = components.next();
 
             if pipe_segment == Some("pipe") {
-                unc.to_string()
+                unc.to_owned()
             } else {
                 return Err(format!(
                     "Invalid UNC pipe path: '{unc}'. Missing or misplaced '\\pipe\\'."
@@ -201,7 +201,7 @@ async fn test_unix_socket_wont_delete_regular_file() {
     let path = file.path().to_str().unwrap();
 
     let cli = Cli {
-        pipe: Some(path.to_string()),
+        pipe: Some(path.to_owned()),
         ..Default::default()
     };
 

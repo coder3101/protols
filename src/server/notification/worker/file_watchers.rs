@@ -52,7 +52,7 @@ impl Worker {
         let unregister_params = UnregistrationParams {
             unregisterations: vec![Unregistration {
                 id: String::from(FILE_WATCHER_ID),
-                method: DidChangeWatchedFiles::METHOD.to_string(),
+                method: DidChangeWatchedFiles::METHOD.to_owned(),
             }],
         };
         let trace_error = |error: &Error| {
@@ -74,7 +74,7 @@ impl Worker {
         let registration_params = RegistrationParams {
             registrations: vec![Registration {
                 id: String::from(FILE_WATCHER_ID),
-                method: DidChangeWatchedFiles::METHOD.to_string(),
+                method: DidChangeWatchedFiles::METHOD.to_owned(),
                 register_options: Some(register_options),
             }],
         };

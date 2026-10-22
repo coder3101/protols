@@ -190,7 +190,7 @@ mod test {
             .await;
         assert_yaml_snapshot!(loc, {"[0].uri" => insta::dynamic_redaction(|c, _| {
             assert!(c.as_str().unwrap().ends_with("c.proto"));
-            "file://<redacted>/c.proto".to_string()
+            "file://<redacted>/c.proto".to_owned()
         })});
     }
 

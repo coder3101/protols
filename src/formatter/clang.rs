@@ -58,13 +58,13 @@ impl Replacement<'_> {
         })
     }
 
-    fn as_text_edit(&self, content: &str) -> Option<TextEdit> {
+    fn try_into_text_edit(self, content: &str) -> Option<TextEdit> {
         Some(TextEdit {
             range: Range {
                 start: Self::offset_to_position(self.offset, content)?,
                 end: Self::offset_to_position(self.offset + self.length, content)?,
             },
-            new_text: self.text.to_string(),
+            new_text: self.text.into_owned(),
         })
     }
 }
@@ -122,19 +122,15 @@ impl ClangFormatter {
             c.current_dir(wd);
         }
 
-        c.stdin(Stdio::piped());
-        c.stdout(Stdio::piped());
-        c.stderr(Stdio::piped());
-
-        c.args([
-            "--output-replacements-xml",
-            &format!("--assume-filename={filename}"),
-        ]);
-
-        c.args(extra_args);
+        c.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .args(["--output-replacements-xml", "--assume-filename", filename])
+            .args(extra_args)
+            .kill_on_drop(true);
 
         let process = async {
-            let mut child = c.kill_on_drop(true).spawn()?;
+            let mut child = c.spawn()?;
 
             if let Some(mut stdin) = child.stdin.take() {
                 stdin.write_all(content.as_bytes()).await?;
@@ -143,35 +139,34 @@ impl ClangFormatter {
             child.wait_with_output().await
         };
 
-        let timeout_result = tokio::time::timeout(CLANG_FORMAT_TIMEOUT, process).await;
-
-        let output = match timeout_result {
-            Ok(Ok(out)) => out,
-            Ok(Err(error)) => {
-                tracing::error!(%error, "failed to run clang-format");
-                return None;
-            }
-            Err(_elapsed) => {
+        let output_result = tokio::time::timeout(CLANG_FORMAT_TIMEOUT, process)
+            .await
+            .inspect_err(|_| {
                 tracing::error!(
                     filename,
                     timeout_ms = CLANG_FORMAT_TIMEOUT.as_millis(),
                     "clang-format execution timed out and was killed"
                 );
-                return None;
-            }
-        };
+            })
+            .ok()?;
 
-        if !output.status.success() {
-            let err_msg = String::from_utf8_lossy(&output.stderr);
+        let output = output_result
+            .inspect_err(|error| tracing::error!(%error, "failed to run clang-format"))
+            .ok()?;
+
+        if output.status.success() {
+            Some(
+                String::from_utf8(output.stdout)
+                    .unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned()),
+            )
+        } else {
             tracing::error!(
                 status = output.status.code(),
-                error = %err_msg,
+                error = %String::from_utf8_lossy(&output.stderr),
                 "failed to execute clang-format"
             );
-            return None;
+            None
         }
-
-        Some(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     fn output_to_textedit(output: &str, content: &str) -> Option<Vec<TextEdit>> {
@@ -179,7 +174,7 @@ impl ClangFormatter {
         let edits = r
             .replacements
             .into_iter()
-            .filter_map(|r| r.as_text_edit(content))
+            .filter_map(|r| r.try_into_text_edit(content))
             .collect();
 
         Some(edits)
@@ -256,14 +251,14 @@ mod test {
 </replacements>"
         );
 
-        let r = Replacements::from_str(&xml_output).unwrap();
+        let mut r = Replacements::from_str(&xml_output).unwrap();
         assert_eq!(r.replacements.len(), 1);
 
-        let replacement = &r.replacements[0];
-        assert_eq!(replacement.offset, 134);
+        let replacement = r.replacements.remove(0);
+        assert_eq!(replacement.offset, offset);
         assert_eq!(replacement.length, 1);
 
-        let text_edit = replacement.as_text_edit(content).unwrap();
+        let text_edit = replacement.try_into_text_edit(content).unwrap();
         // The edit should be at line 1, character 77 (not 119)
         assert_eq!(text_edit.range.start.line, 1);
         assert_eq!(text_edit.range.start.character, 77);

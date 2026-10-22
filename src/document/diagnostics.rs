@@ -10,7 +10,7 @@ impl ProtoDocument {
                 range: r,
                 severity: Some(DiagnosticSeverity::ERROR),
                 source: Some(String::from("protols")),
-                message: "failed to find proto file".to_string(),
+                message: "failed to find proto file".to_owned(),
                 ..Default::default()
             })
             .collect()

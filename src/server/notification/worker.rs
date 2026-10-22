@@ -118,7 +118,7 @@ impl Worker {
         let state = self.state.clone();
         let client = self.client.clone();
         let cancel_token_clone = self.indexing.cancel_token.clone();
-        let progress_token = ProgressToken::String("protobuf-workspace-indexing".to_string());
+        let progress_token = ProgressToken::String("protobuf-workspace-indexing".to_owned());
 
         let task_handle = tokio::spawn(async move {
             let capabilities = state.client_capabilities();

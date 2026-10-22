@@ -248,11 +248,11 @@ mod test {
         let folders = vec![
             WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-                name: "Test".to_string(),
+                name: "Test".to_owned(),
             },
             WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
-                name: "Test2".to_string(),
+                name: "Test2".to_owned(),
             },
         ];
 
@@ -293,11 +293,11 @@ mod test {
         let folders = vec![
             WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-                name: "Test".to_string(),
+                name: "Test".to_owned(),
             },
             WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir2.path()).unwrap(),
-                name: "Test2".to_string(),
+                name: "Test2".to_owned(),
             },
         ];
 
@@ -337,7 +337,7 @@ mod test {
 
             let folders = vec![WorkspaceFolder {
                 uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-                name: "Test".to_string(),
+                name: "Test".to_owned(),
             }];
 
             let configured_data = configure_workspace_folders(&folders).await;
@@ -368,7 +368,7 @@ mod test {
 
         let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-            name: "Test".to_string(),
+            name: "Test".to_owned(),
         }];
 
         let configured_data = configure_workspace_folders(&folders).await;
@@ -409,7 +409,7 @@ mod test {
 
         let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-            name: "Test".to_string(),
+            name: "Test".to_owned(),
         }];
 
         let configured_data = configure_workspace_folders(&folders).await;
@@ -451,7 +451,7 @@ mod test {
 
         let folders = vec![WorkspaceFolder {
             uri: Url::from_directory_path(tmpdir.path()).unwrap(),
-            name: "Test".to_string(),
+            name: "Test".to_owned(),
         }];
 
         let configured_data = configure_workspace_folders(&folders).await;
