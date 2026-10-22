@@ -1,4 +1,7 @@
+use std::path::PathBuf;
+
 use async_lsp::lsp_types::{Position, Range};
+use futures::FutureExt;
 use tree_sitter::{Node, Point};
 
 /// Converts a Tree-sitter [`Point`] into an LSP [`Position`].
@@ -119,6 +122,89 @@ pub fn clean_proto_comment(raw_text: &str) -> String {
     }
 
     raw_text.to_string()
+}
+
+pub(crate) async fn wait_for_shutdown_signals() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("Ctrl+C received");
+    }
+    .boxed();
+
+    let os_signal = async {
+        #[cfg(unix)]
+        {
+            if let Ok(mut stream) =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            {
+                stream.recv().await;
+                tracing::info!("SIGTERM received");
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(mut stream) = tokio::signal::windows::ctrl_close() {
+                stream.recv().await;
+                tracing::info!("Windows console close event received");
+            }
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        futures::future::pending::<()>().await;
+    }
+    .boxed();
+
+    let _ = futures::future::select(ctrl_c, os_signal).await;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OutermostPaths(Vec<PathBuf>);
+
+impl OutermostPaths {
+    pub fn from_iter(paths: impl IntoIterator<Item = PathBuf>) -> Self {
+        let mut raw_paths: Vec<_> = paths.into_iter().collect();
+
+        raw_paths.sort_unstable();
+        raw_paths.dedup();
+
+        let mut outermost = Vec::with_capacity(raw_paths.len());
+        let mut last_added = None;
+
+        for path in &raw_paths {
+            if !last_added.is_some_and(|outer| path.starts_with(outer)) {
+                outermost.push(path.clone());
+                last_added = Some(path);
+            }
+        }
+
+        Self(outermost)
+    }
+
+    pub fn into_inner(self) -> Vec<PathBuf> {
+        self.0
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, PathBuf> {
+        self.0.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl IntoIterator for OutermostPaths {
+    type Item = PathBuf;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 #[cfg(test)]

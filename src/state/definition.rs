@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use async_lsp::lsp_types::{Location, Position, Range, Url};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     model::{ElementKind, SpatialEntry},
@@ -15,8 +16,14 @@ impl ProtoLanguageState {
     /// cursor: an `import` statement jumps to the imported file, while any
     /// other symbol (or a type reference) is resolved to its declaration via
     /// the shared cross-file name resolution engine.
-    pub fn definition(&self, uri: &Url, pos: Position, ipath: &[PathBuf]) -> Vec<Location> {
-        let Some(document) = self.get_document(uri) else {
+    pub async fn definition(
+        &self,
+        uri: &Url,
+        pos: Position,
+        ipath: &[PathBuf],
+        cancel_token: CancellationToken,
+    ) -> Vec<Location> {
+        let Ok(document) = self.get_document(uri, cancel_token.clone()).await else {
             return vec![];
         };
         let Some(SpatialEntry { element_id, .. }) = document.find_entry_at_position(pos) else {
@@ -39,7 +46,7 @@ impl ProtoLanguageState {
             }];
         }
 
-        let Some(fqn) = self.resolve_target_fqn(uri, pos) else {
+        let Some(fqn) = self.resolve_target_fqn(uri, pos, cancel_token).await else {
             return vec![];
         };
         self.declarations_for_fqn(&fqn)
@@ -50,6 +57,7 @@ impl ProtoLanguageState {
 mod test {
     use async_lsp::lsp_types::{Position, Url};
     use std::path::PathBuf;
+    use tokio_util::sync::CancellationToken;
 
     use insta::assert_yaml_snapshot;
 
@@ -105,28 +113,38 @@ mod test {
         assert_yaml_snapshot!(state.resolve_identifier_locations("com.utility", "Baz"));
     }
 
-    #[test]
-    fn test_definition_position_based() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_definition_position_based() {
         let (ipath, a_uri, b_uri, _c_uri, state) = setup_workspace();
 
         // Cursor on the `Author` message declaration name in b.proto.
-        assert_yaml_snapshot!(state.definition(
-            &b_uri,
-            Position {
-                line: 5,
-                character: 10
-            },
-            &ipath
-        ));
+        assert_yaml_snapshot!(
+            state
+                .definition(
+                    &b_uri,
+                    Position {
+                        line: 5,
+                        character: 10
+                    },
+                    &ipath,
+                    CancellationToken::new()
+                )
+                .await
+        );
         // Cursor on the `Author` type reference inside a field in a.proto.
-        assert_yaml_snapshot!(state.definition(
-            &a_uri,
-            Position {
-                line: 11,
-                character: 5
-            },
-            &ipath
-        ));
+        assert_yaml_snapshot!(
+            state
+                .definition(
+                    &a_uri,
+                    Position {
+                        line: 11,
+                        character: 5
+                    },
+                    &ipath,
+                    CancellationToken::new()
+                )
+                .await
+        );
         // Cursor on empty whitespace -> no definition.
         assert!(
             state
@@ -136,14 +154,16 @@ mod test {
                         line: 0,
                         character: 0
                     },
-                    &ipath
+                    &ipath,
+                    CancellationToken::new()
                 )
+                .await
                 .is_empty()
         );
     }
 
-    #[test]
-    fn test_definition_import_position_based() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_definition_import_position_based() {
         let ipath = vec![std::env::current_dir().unwrap().join("src/state/input")];
         let a_uri = "file://input/a.proto".parse().unwrap();
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
@@ -157,14 +177,17 @@ mod test {
         );
 
         // Cursor on the `import "c.proto"` statement -> jump to the file.
-        let loc = state.definition(
-            &a_uri,
-            Position {
-                line: 4,
-                character: 10,
-            },
-            &ipath,
-        );
+        let loc = state
+            .definition(
+                &a_uri,
+                Position {
+                    line: 4,
+                    character: 10,
+                },
+                &ipath,
+                CancellationToken::new(),
+            )
+            .await;
         assert_yaml_snapshot!(loc, {"[0].uri" => insta::dynamic_redaction(|c, _| {
             assert!(c.as_str().unwrap().ends_with("c.proto"));
             "file://<redacted>/c.proto".to_string()

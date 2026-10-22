@@ -1,23 +1,17 @@
-#![allow(clippy::needless_late_init)]
-use std::{
-    borrow::Cow,
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::time::Duration;
+use std::{borrow::Cow, process::Stdio};
 
 use async_lsp::lsp_types::{Position, Range, TextEdit};
 use hard_xml::XmlRead;
 use serde::Serialize;
-use tempfile::{TempDir, tempdir};
-
-use super::ProtoFormatter;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 
 pub struct ClangFormatter {
-    pub path: String,
-    working_dir: Option<String>,
-    temp_dir: TempDir,
+    pub path: OsString,
+    working_dir: Option<PathBuf>,
 }
 
 #[derive(XmlRead, Serialize, PartialEq, Debug)]
@@ -75,33 +69,103 @@ impl Replacement<'_> {
     }
 }
 
+const CLANG_FORMAT_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl ClangFormatter {
-    pub fn new(cmd: &str, wdir: Option<&str>) -> Self {
+    pub fn new(cmd: OsString, working_dir: Option<PathBuf>) -> Self {
         Self {
-            temp_dir: tempdir().expect("faile to creat temp dir"),
-            path: cmd.to_owned(),
-            working_dir: wdir.map(ToOwned::to_owned),
+            path: cmd,
+            working_dir,
         }
     }
 
-    fn get_temp_file_path(&self, content: &str) -> Option<PathBuf> {
-        let p = self.temp_dir.path().join("format-temp.proto");
-        let mut file = File::create(p.clone()).ok()?;
-        file.write_all(content.as_ref()).ok()?;
-        Some(p)
+    /// # Cancellation safety
+    ///
+    /// This method is cancel safe.
+    pub async fn format_document(&self, filename: &str, content: &str) -> Option<Vec<TextEdit>> {
+        let output = self.run_clang_format(filename, content, &[]).await?;
+        Self::output_to_textedit(&output, content)
     }
 
-    fn get_command(&self, f: &str, u: &Path) -> Option<Command> {
-        let mut c = Command::new(self.path.as_str());
+    /// # Cancellation safety
+    ///
+    /// This method is cancel safe.
+    pub async fn format_document_range(
+        &self,
+        r: &Range,
+        filename: &str,
+        content: &str,
+    ) -> Option<Vec<TextEdit>> {
+        let start = r.start.line + 1;
+        let end = r.end.line + 1;
+        let line_arg = format!("{start}:{end}");
+        let extra_args = ["--lines", &line_arg];
+
+        let output = self
+            .run_clang_format(filename, content, &extra_args)
+            .await?;
+        Self::output_to_textedit(&output, content)
+    }
+
+    /// # Cancellation safety
+    ///
+    /// This method is cancel safe.
+    async fn run_clang_format(
+        &self,
+        filename: &str,
+        content: &str,
+        extra_args: &[&str],
+    ) -> Option<String> {
+        let mut c = Command::new(&self.path);
+
         if let Some(wd) = &self.working_dir {
-            c.current_dir(wd.as_str());
+            c.current_dir(wd);
         }
-        c.stdin(File::open(u).ok()?);
-        c.args([
-            "--output-replacements-xml",
-            format!("--assume-filename={f}").as_str(),
-        ]);
-        Some(c)
+
+        c.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .args(["--output-replacements-xml", "--assume-filename", filename])
+            .args(extra_args)
+            .kill_on_drop(true);
+
+        let process = async {
+            let mut child = c.spawn()?;
+
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(content.as_bytes()).await?;
+            }
+
+            child.wait_with_output().await
+        };
+
+        let output_result = tokio::time::timeout(CLANG_FORMAT_TIMEOUT, process)
+            .await
+            .inspect_err(|_| {
+                tracing::error!(
+                    filename,
+                    timeout_ms = CLANG_FORMAT_TIMEOUT.as_millis(),
+                    "clang-format execution timed out and was killed"
+                );
+            })
+            .ok()?;
+
+        let output = output_result
+            .inspect_err(|error| tracing::error!(%error, "failed to run clang-format"))
+            .ok()?;
+
+        if !output.status.success() {
+            tracing::error!(
+                status = output.status.code(),
+                error = %String::from_utf8_lossy(&output.stderr),
+                "failed to execute clang-format"
+            );
+        }
+
+        output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     fn output_to_textedit(output: &str, content: &str) -> Option<Vec<TextEdit>> {
@@ -109,51 +173,10 @@ impl ClangFormatter {
         let edits = r
             .replacements
             .into_iter()
-            .filter_map(|r| r.as_text_edit(content.as_ref()))
+            .filter_map(|r| r.as_text_edit(content))
             .collect();
 
         Some(edits)
-    }
-}
-
-impl ProtoFormatter for ClangFormatter {
-    fn format_document(&self, filename: &str, content: &str) -> Option<Vec<TextEdit>> {
-        let p = self.get_temp_file_path(content)?;
-        let mut cmd = self.get_command(filename, p.as_ref())?;
-        let output = cmd.output().ok()?;
-        if !output.status.success() {
-            tracing::error!(
-                status = output.status.code(),
-                "failed to execute clang-format"
-            );
-            return None;
-        }
-        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
-    }
-
-    fn format_document_range(
-        &self,
-        r: &Range,
-        filename: &str,
-        content: &str,
-    ) -> Option<Vec<TextEdit>> {
-        let p = self.get_temp_file_path(content)?;
-        let start = r.start.line + 1;
-        let end = r.end.line + 1;
-        let output = self
-            .get_command(filename, p.as_ref())?
-            .args(["--lines", format!("{start}:{end}").as_str()])
-            .output()
-            .ok()?;
-
-        if !output.status.success() {
-            tracing::error!(
-                status = output.status.code(),
-                "failed to execute clang-format"
-            );
-            return None;
-        }
-        Self::output_to_textedit(&String::from_utf8_lossy(&output.stdout), content)
     }
 }
 

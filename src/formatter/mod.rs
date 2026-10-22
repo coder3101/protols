@@ -1,15 +1,1 @@
-mod clang;
-
-use async_lsp::lsp_types::{Range, TextEdit};
-
-pub use clang::ClangFormatter;
-
-pub trait ProtoFormatter: Sized {
-    fn format_document(&self, filename: &str, content: &str) -> Option<Vec<TextEdit>>;
-    fn format_document_range(
-        &self,
-        r: &Range,
-        filename: &str,
-        content: &str,
-    ) -> Option<Vec<TextEdit>>;
-}
+pub mod clang;

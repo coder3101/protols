@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 
 use async_lsp::lsp_types::{Location, Position, TextEdit, Url};
+use tokio_util::sync::CancellationToken;
 
 use crate::model::{ModelElement, SpatialEntry, TypeReference};
 use crate::state::ProtoLanguageState;
@@ -93,8 +94,13 @@ impl ProtoLanguageState {
     /// returned. If it rests on a type reference, the segment under the cursor
     /// is resolved to its referenced definition's FQN (so renaming the outer
     /// segment of `Book.Author` targets `Book`, not the nested `Author`).
-    pub fn resolve_target_fqn(&self, uri: &Url, position: Position) -> Option<String> {
-        let document = self.get_document(uri)?;
+    pub async fn resolve_target_fqn(
+        &self,
+        uri: &Url,
+        position: Position,
+        cancel_token: CancellationToken,
+    ) -> Option<String> {
+        let document = self.get_document(uri, cancel_token).await.ok()?;
         let SpatialEntry { element_id, .. } = document.find_entry_at_position(position)?;
         let element = document.elements.get(*element_id)?;
 

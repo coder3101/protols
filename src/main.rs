@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use async_lsp::LanguageClient;
 use async_lsp::client_monitor::ClientProcessMonitorLayer;
 use async_lsp::concurrency::ConcurrencyLayer;
@@ -8,7 +6,8 @@ use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
 use clap::Parser;
 use cli::Cli;
-use server::{ProtoLanguageServer, TickEvent};
+use server::ProtoLanguageServer;
+use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 
 use crate::transport::create_transport;
@@ -19,11 +18,11 @@ mod docs;
 mod document;
 mod formatter;
 mod log;
-mod lsp;
+// mod lsp;
 mod model;
 mod protoc;
 mod server;
-mod state;
+// mod state;
 mod transport;
 mod utils;
 
@@ -33,11 +32,23 @@ const FALLBACK_INCLUDE_PATH: Option<&str> = option_env!("FALLBACK_INCLUDE_PATH")
 async fn main() -> Result<(), transport::TransportError> {
     let cli = Cli::parse();
 
+    let shutdown_token = CancellationToken::new();
+
+    tokio::spawn({
+        let token = shutdown_token.clone();
+        async move {
+            utils::wait_for_shutdown_signals().await;
+            token.cancel();
+        }
+    });
+
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
     let (reload_handle, _log_guard) = log::install(tx);
 
     tracing::info!("server version: {}", env!("CARGO_PKG_VERSION"));
     tracing::info!("CLI include paths: {:?}", &cli.include_paths);
+
+    let shutdown_token_for_server = shutdown_token.child_token();
 
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
         let mut log_client = client.clone();
@@ -59,33 +70,27 @@ async fn main() -> Result<(), transport::TransportError> {
             reload_handle,
             include_paths,
             fallback_include_path,
+            shutdown_token_for_server,
         );
-
-        tokio::spawn({
-            let client = client.clone();
-            async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(1));
-                loop {
-                    interval.tick().await;
-                    if client.emit(TickEvent).is_err() {
-                        break;
-                    }
-                }
-            }
-        });
 
         ServiceBuilder::new()
             .layer(TracingLayer::default())
             .layer(LifecycleLayer::default())
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
-            .layer(ClientProcessMonitorLayer::new(client.clone()))
+            .layer(ClientProcessMonitorLayer::new(client))
             .service(router)
     });
 
     let (input, output) = create_transport(&cli).await?;
 
-    server.run_buffered(input, output).await?;
+    if shutdown_token
+        .run_until_cancelled(server.run_buffered(input, output))
+        .await
+        .is_none()
+    {
+        tracing::info!("Graceful shutdown complete. Exiting...");
+    }
 
     Ok(())
 }
