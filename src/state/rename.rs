@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use async_lsp::lsp_types::{Location, Position, TextEdit, Url};
+use tokio_util::sync::CancellationToken;
 
 use crate::model::ElementKind;
 use crate::state::ProtoLanguageState;
@@ -69,13 +70,14 @@ impl ProtoLanguageState {
     /// `chain_rpc_request_response` gates the rpc/request/response chain: when
     /// `false`, only the primary op is returned. It is wired to the
     /// `[config.rename]` `chain_rpc_request_response` setting.
-    pub fn compute_rename_ops(
+    pub async fn compute_rename_ops(
         &self,
         decl_uri: &Url,
         decl_pos: Position,
         new_name: &str,
         ipath: &[PathBuf],
         chain_rpc_request_response: bool,
+        cancel_token: CancellationToken,
     ) -> Vec<RenameOp> {
         let mut ops = vec![RenameOp {
             uri: decl_uri.clone(),
@@ -83,7 +85,10 @@ impl ProtoLanguageState {
             new_name: new_name.to_owned(),
         }];
         if chain_rpc_request_response {
-            ops.extend(self.compute_chain_siblings(decl_uri, decl_pos, new_name, ipath));
+            ops.extend(
+                self.compute_chain_siblings(decl_uri, decl_pos, new_name, ipath, cancel_token)
+                    .await,
+            );
         }
         ops
     }
@@ -92,10 +97,14 @@ impl ProtoLanguageState {
     /// single map. Returns `None` if the *primary* (first) op fails — in that
     /// case the user's invocation should produce no edit at all. Sibling
     /// failures are silently skipped so the primary always lands.
-    pub fn apply_rename_ops(&mut self, ops: &[RenameOp]) -> Option<HashMap<Url, Vec<TextEdit>>> {
+    pub async fn apply_rename_ops(
+        &mut self,
+        ops: &[RenameOp],
+        cancel_token: CancellationToken,
+    ) -> Option<HashMap<Url, Vec<TextEdit>>> {
         let mut all: HashMap<Url, Vec<TextEdit>> = HashMap::new();
         for (i, op) in ops.iter().enumerate() {
-            match self.run_single_rename(op) {
+            match self.run_single_rename(op, cancel_token.clone()).await {
                 Some(edits) => {
                     for (u, e) in edits {
                         all.entry(u).or_default().extend(e);
@@ -108,49 +117,64 @@ impl ProtoLanguageState {
         Some(all)
     }
 
-    fn run_single_rename(&mut self, op: &RenameOp) -> Option<BTreeMap<Url, Vec<TextEdit>>> {
+    async fn run_single_rename(
+        &mut self,
+        op: &RenameOp,
+        cancel_token: CancellationToken,
+    ) -> Option<BTreeMap<Url, Vec<TextEdit>>> {
         // The workspace is already fully indexed once at startup (see the LSP
         // `initialize` handler), so cross-file rename resolves against the
         // cached metamodel pool without any per-request re-scan.
-        let target_fqn = self.resolve_target_fqn(&op.uri, op.pos)?;
+        let target_fqn = self
+            .resolve_target_fqn(&op.uri, op.pos, cancel_token)
+            .await?;
         Some(self.rename_for_fqn(&target_fqn, &op.new_name))
     }
 
-    fn compute_chain_siblings(
+    async fn compute_chain_siblings(
         &self,
         decl_uri: &Url,
         decl_pos: Position,
         new_name: &str,
         ipath: &[PathBuf],
+        cancel_token: CancellationToken,
     ) -> Vec<RenameOp> {
         if new_name.is_empty() {
             return vec![];
         }
-        let Some(document) = self.get_document(decl_uri) else {
+        let Ok(document) = self.get_document(decl_uri, cancel_token.clone()).await else {
             return vec![];
         };
         let content = self.get_content(decl_uri);
         let bytes = content.as_bytes();
 
         if document.rpc_at_position(decl_pos, bytes).is_some() {
-            return self.chain_from_rpc_cursor(decl_uri, decl_pos, new_name, ipath);
+            return self
+                .chain_from_rpc_cursor(decl_uri, decl_pos, new_name, ipath, cancel_token)
+                .await;
         }
         if document.message_name_at_position(decl_pos, bytes).is_some() {
-            return self.chain_from_message_cursor(decl_uri, decl_pos, new_name, ipath);
+            return self
+                .chain_from_message_cursor(decl_uri, decl_pos, new_name, ipath, cancel_token)
+                .await;
         }
         vec![]
     }
 
     /// Case A: user invoked rename on an `rpc_name`. The primary is the rpc
     /// rename; siblings are the convention-matching request/response messages.
-    fn chain_from_rpc_cursor(
+    async fn chain_from_rpc_cursor(
         &self,
         decl_uri: &Url,
         decl_pos: Position,
         new_name: &str,
         ipath: &[PathBuf],
+        cancel_token: CancellationToken,
     ) -> Vec<RenameOp> {
-        let document = self.get_document(decl_uri).expect("checked by caller");
+        let document = self
+            .get_document(decl_uri, cancel_token.clone())
+            .await
+            .expect("checked by caller");
         let content = self.get_content(decl_uri);
         let (old_rpc_name, request_text, response_text) = document
             .rpc_at_position(decl_pos, content.as_bytes())
@@ -164,7 +188,9 @@ impl ProtoLanguageState {
                 ("Request", request_text.as_str()),
                 ("Response", response_text.as_str()),
             ],
+            cancel_token,
         )
+        .await
     }
 
     /// Case B: user invoked rename on a `message_name` matching the
@@ -176,14 +202,19 @@ impl ProtoLanguageState {
     /// unique one whose request/response slot resolves (via the workspace's
     /// name-resolution rules) to the user's primary message. If zero or more
     /// than one rpc matches, the chain is silently dropped.
-    fn chain_from_message_cursor(
+    async fn chain_from_message_cursor(
         &self,
         decl_uri: &Url,
         decl_pos: Position,
         new_name: &str,
         ipath: &[PathBuf],
+        cancel_token: CancellationToken,
     ) -> Vec<RenameOp> {
-        let document = self.get_document(decl_uri).expect("checked by caller");
+        let cancel_token_clone = cancel_token.clone();
+        let document = self
+            .get_document(decl_uri, cancel_token_clone)
+            .await
+            .expect("checked by caller");
         let content = self.get_content(decl_uri);
         let msg_name = document
             .message_name_at_position(decl_pos, content.as_bytes())
@@ -202,7 +233,8 @@ impl ProtoLanguageState {
         // slot resolves to the user's actual declaration.
         let mut matching: Vec<(Location, String, String)> = vec![];
         for rpc_loc in self.find_rpc_decls(&rpc_base) {
-            let Some(rpc_document) = self.get_document(&rpc_loc.uri) else {
+            let Ok(rpc_document) = self.get_document(&rpc_loc.uri, cancel_token.clone()).await
+            else {
                 continue;
             };
             let rpc_content = self.get_content(&rpc_loc.uri);
@@ -248,27 +280,32 @@ impl ProtoLanguageState {
         } else {
             ("Request", rpc_req.as_str())
         };
-        ops.extend(self.sibling_message_ops(
-            &rpc_loc.uri,
-            &rpc_base,
-            &new_rpc_base,
-            ipath,
-            &[(opposite_suffix, opposite_text)],
-        ));
+        ops.extend(
+            self.sibling_message_ops(
+                &rpc_loc.uri,
+                &rpc_base,
+                &new_rpc_base,
+                ipath,
+                &[(opposite_suffix, opposite_text)],
+                cancel_token,
+            )
+            .await,
+        );
         ops
     }
 
     /// Resolve each `(suffix, type_text)` slot to a message declaration and
     /// build the corresponding rename op, gated on convention + uniqueness.
-    fn sibling_message_ops(
+    async fn sibling_message_ops(
         &self,
         anchor_uri: &Url,
         old_rpc_name: &str,
         new_rpc_name: &str,
         _ipath: &[PathBuf],
         slots: &[(&str, &str)],
+        cancel_token: CancellationToken,
     ) -> Vec<RenameOp> {
-        let Some(anchor_document) = self.get_document(anchor_uri) else {
+        let Ok(anchor_document) = self.get_document(anchor_uri, cancel_token).await else {
             return vec![];
         };
         let anchor_package = anchor_document.package_name().to_owned();
@@ -319,6 +356,7 @@ mod test {
 
     use async_lsp::lsp_types::{Position, Url};
     use insta::assert_yaml_snapshot;
+    use tokio_util::sync::CancellationToken;
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
@@ -384,8 +422,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_resolve_target_fqn() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_resolve_target_fqn() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let state = make_state(
             &[
@@ -399,35 +437,44 @@ mod test {
 
         // Cursor on the `Author` message declaration name in b.proto.
         assert_eq!(
-            state.resolve_target_fqn(
-                &b_uri,
-                Position {
-                    line: 5,
-                    character: 10
-                }
-            ),
+            state
+                .resolve_target_fqn(
+                    &b_uri,
+                    Position {
+                        line: 5,
+                        character: 10
+                    },
+                    CancellationToken::new()
+                )
+                .await,
             Some("com.workspace.Author".to_owned())
         );
         // Cursor on the `Author` type reference inside a field in a.proto.
         assert_eq!(
-            state.resolve_target_fqn(
-                &a_uri,
-                Position {
-                    line: 11,
-                    character: 5
-                }
-            ),
+            state
+                .resolve_target_fqn(
+                    &a_uri,
+                    Position {
+                        line: 11,
+                        character: 5
+                    },
+                    CancellationToken::new()
+                )
+                .await,
             Some("com.workspace.Author".to_owned())
         );
         // Cursor on whitespace -> None.
         assert_eq!(
-            state.resolve_target_fqn(
-                &a_uri,
-                Position {
-                    line: 0,
-                    character: 0
-                }
-            ),
+            state
+                .resolve_target_fqn(
+                    &a_uri,
+                    Position {
+                        line: 0,
+                        character: 0
+                    },
+                    CancellationToken::new()
+                )
+                .await,
             None
         );
     }
@@ -465,8 +512,8 @@ mod test {
         assert_eq!(state.count_rpc_uses_of_type("Unrelated"), 0);
     }
 
-    #[test]
-    fn test_compute_rename_ops_cross_package_collision_blocks_chain() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_cross_package_collision_blocks_chain() {
         // Two services in different packages each declare `rpc GetBook`. Only
         // pkg foo follows the convention; pkg bar uses unrelated message
         // names. Without the per-candidate full-qualified resolution check,
@@ -494,7 +541,16 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&foo_uri, pos, "FetchBookRequest", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &foo_uri,
+                pos,
+                "FetchBookRequest",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
 
         // Primary + foo's rpc + foo's response. bar's GetBook is NOT touched.
         assert_eq!(ops.len(), 3, "expected exactly the foo trio, got {ops:?}");
@@ -506,8 +562,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_compute_rename_ops_chain_from_rpc_cursor() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_chain_from_rpc_cursor() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let svc_uri = "file://input/service.proto".parse().unwrap();
         let state = make_state(
@@ -529,7 +585,16 @@ mod test {
             line: 7,
             character: 10,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &svc_uri,
+                pos,
+                "FetchBook",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
 
         // Primary + Request + Response.
         assert_eq!(
@@ -548,8 +613,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_compute_rename_ops_chain_disabled() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_chain_disabled() {
         // Same setup as `chain_from_rpc_cursor`, but with the chain flag off:
         // the rpc/request/response chain is gated behind the `[config.rename]`
         // `chain_rpc_request_response` setting, so only the primary op fires.
@@ -574,7 +639,16 @@ mod test {
             line: 7,
             character: 10,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, false);
+        let ops = state
+            .compute_rename_ops(
+                &svc_uri,
+                pos,
+                "FetchBook",
+                &ipath,
+                false,
+                CancellationToken::new(),
+            )
+            .await;
 
         assert_eq!(
             ops.len(),
@@ -584,8 +658,8 @@ mod test {
         assert_eq!(ops[0], op("file://input/service.proto", 7, 10, "FetchBook"));
     }
 
-    #[test]
-    fn test_compute_rename_ops_chain_from_request_cursor() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_chain_from_request_cursor() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let msg_uri = "file://input/messages.proto".parse().unwrap();
         let state = make_state(
@@ -607,7 +681,16 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "FetchBookRequest", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &msg_uri,
+                pos,
+                "FetchBookRequest",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
 
         // Primary (request) + rpc + response.
         assert_eq!(
@@ -626,8 +709,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_compute_rename_ops_shared_request_blocks_chain() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_shared_request_blocks_chain() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let msg_uri = "file://input/messages.proto".parse().unwrap();
         let state = make_state(
@@ -650,7 +733,16 @@ mod test {
             line: 10,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "RenamedReq", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &msg_uri,
+                pos,
+                "RenamedReq",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
         assert_eq!(
             ops.len(),
             1,
@@ -662,8 +754,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_compute_rename_ops_new_name_breaks_convention() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_new_name_breaks_convention() {
         let ipath = vec![PathBuf::from("src/state/input")];
         let msg_uri = "file://input/messages.proto".parse().unwrap();
         let state = make_state(
@@ -686,7 +778,16 @@ mod test {
             line: 4,
             character: 12,
         };
-        let ops = state.compute_rename_ops(&msg_uri, pos, "Whatever", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &msg_uri,
+                pos,
+                "Whatever",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
         assert_eq!(
             ops.len(),
             1,
@@ -695,8 +796,8 @@ mod test {
         assert_eq!(ops[0], op("file://input/messages.proto", 4, 12, "Whatever"));
     }
 
-    #[test]
-    fn test_compute_rename_ops_reference_site_pivot_unsupported() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_compute_rename_ops_reference_site_pivot_unsupported() {
         // compute_rename_ops requires the caller to have pivoted to the
         // declaration. As a sanity check, calling it with a cursor on a
         // reference site (not a declaration) yields a primary-only op that
@@ -724,14 +825,23 @@ mod test {
             line: 7,
             character: 20,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "RenamedRequest", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &svc_uri,
+                pos,
+                "RenamedRequest",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
         // Single op (the primary at the reference site) — no chain. This
         // documents the contract: the LSP layer must pivot first.
         assert_eq!(ops.len(), 1, "{ops:?}");
     }
 
-    #[test]
-    fn test_apply_rename_ops_chain_from_rpc_cursor() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_apply_rename_ops_chain_from_rpc_cursor() {
         // End-to-end snapshot of the full `rpc <Name>(<Name>Request) returns
         // (<Name>Response)` convention chain. Renaming `GetBook` →
         // `FetchBook` should fan out into:
@@ -763,9 +873,19 @@ mod test {
             line: 7,
             character: 10,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBook", &ipath, true);
+        let ops = state
+            .compute_rename_ops(
+                &svc_uri,
+                pos,
+                "FetchBook",
+                &ipath,
+                true,
+                CancellationToken::new(),
+            )
+            .await;
         let edits = state
-            .apply_rename_ops(&ops)
+            .apply_rename_ops(&ops, CancellationToken::new())
+            .await
             .expect("primary rename should not fail");
 
         // Sort within each file so the snapshot is order-independent across
@@ -907,8 +1027,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_apply_rename_ops_from_reference_site() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_apply_rename_ops_from_reference_site() {
         // End-to-end: invoking rename on a *reference site* (the `GetBookRequest`
         // type inside the rpc signature) pivots to the declaration and renames
         // both the declaration and the reference.
@@ -934,8 +1054,20 @@ mod test {
             line: 7,
             character: 19,
         };
-        let ops = state.compute_rename_ops(&svc_uri, pos, "FetchBookRequest", &ipath, false);
-        let edits = state.apply_rename_ops(&ops).expect("rename should succeed");
+        let ops = state
+            .compute_rename_ops(
+                &svc_uri,
+                pos,
+                "FetchBookRequest",
+                &ipath,
+                false,
+                CancellationToken::new(),
+            )
+            .await;
+        let edits = state
+            .apply_rename_ops(&ops, CancellationToken::new())
+            .await
+            .expect("rename should succeed");
         let mut normalized: std::collections::BTreeMap<String, Vec<_>> =
             std::collections::BTreeMap::new();
         for (url, mut v) in edits {

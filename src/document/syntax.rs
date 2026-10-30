@@ -6,7 +6,7 @@
 //! place we traverse the raw syntax tree directly.
 
 use async_lsp::lsp_types::{Diagnostic, DiagnosticSeverity};
-use tree_sitter::Node;
+use tree_sitter::TreeCursor;
 
 use crate::utils::to_lsp_range;
 
@@ -17,31 +17,60 @@ impl ProtoDocument {
     /// nodes.
     pub fn collect_parse_diagnostics(&self) -> Vec<Diagnostic> {
         let mut errors = Vec::new();
-        collect_error_nodes(self.tree.root_node(), &mut errors);
+        let mut cursor = self.tree.walk();
+
+        loop {
+            let node = cursor.node();
+            let is_missing = node.is_missing();
+
+            if node.is_error() || is_missing {
+                errors.push(Diagnostic {
+                    range: to_lsp_range(node),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    source: Some("protols".into()),
+                    message: if is_missing {
+                        format!("Missing syntax element: {}", node.kind())
+                    } else {
+                        "Syntax error".into()
+                    },
+                    ..Default::default()
+                });
+
+                if advance_to_next(&mut cursor) {
+                    continue;
+                }
+
+                break;
+            }
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+
+            if advance_to_next(&mut cursor) {
+                continue;
+            }
+
+            break;
+        }
 
         errors
-            .into_iter()
-            .map(|n| Diagnostic {
-                range: to_lsp_range(n),
-                severity: Some(DiagnosticSeverity::ERROR),
-                source: Some("protols".to_string()),
-                message: "Syntax error".to_string(),
-                ..Default::default()
-            })
-            .collect()
     }
 }
 
-fn collect_error_nodes<'a>(n: Node<'a>, out: &mut Vec<Node<'a>>) {
-    // Tree-sitter marks malformed regions with an `ERROR` node; these are the
-    // only raw-tree nodes we still inspect (they are absent from the metamodel).
-    if n.kind() == "ERROR" {
-        out.push(n);
+/// Advances the cursor to the next node in the traversal, bypassing the current
+/// node's children.
+///
+/// Returns `true` if advanced to a sibling or a parent's sibling, or `false` if
+/// the traversal is complete.
+#[inline]
+fn advance_to_next(cursor: &mut TreeCursor) -> bool {
+    while !cursor.goto_next_sibling() {
+        if !cursor.goto_parent() {
+            return false;
+        }
     }
-    let mut cursor = n.walk();
-    for child in n.children(&mut cursor) {
-        collect_error_nodes(child, out);
-    }
+    true
 }
 
 #[cfg(test)]

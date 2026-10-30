@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use async_lsp::lsp_types::{Position, SymbolKind};
 
-use crate::docs;
+use crate::{docs, utils::is_position_inside_range};
 
 use super::types::{CardinalityKind, ElementKind, ModelElement, TypeReference};
 
@@ -215,6 +215,41 @@ impl ModelElement {
         buffer.push_str(Self::CODE_BLOCK_END);
 
         Some(())
+    }
+
+    /// Evaluates if the cursor is positioned strictly over an embedded type
+    /// name token, returning its clean un-prefixed string identifier.
+    ///
+    /// This method maps geometric bounds of `TypeReference` entities (like
+    /// field types, map keys, or RPC signatures), ensuring that cardinality
+    /// tokens or stream modifiers do not affect type-level lookups.
+    pub fn inspect_nested_type_reference(&self, position: Position) -> Option<&str> {
+        match &self.kind {
+            ElementKind::Field { type_ref, .. } | ElementKind::OneofField { type_ref, .. } => {
+                is_position_inside_range(position, type_ref.range).then_some(type_ref.name.as_str())
+            }
+            ElementKind::MapField {
+                key_type_ref,
+                value_type_ref,
+                ..
+            } => is_position_inside_range(position, key_type_ref.range)
+                .then_some(key_type_ref.name.as_str())
+                .or_else(|| {
+                    is_position_inside_range(position, value_type_ref.range)
+                        .then_some(value_type_ref.name.as_str())
+                }),
+            ElementKind::Rpc {
+                request_type_ref,
+                response_type_ref,
+                ..
+            } => is_position_inside_range(position, request_type_ref.range)
+                .then_some(request_type_ref.name.as_str())
+                .or_else(|| {
+                    is_position_inside_range(position, response_type_ref.range)
+                        .then_some(response_type_ref.name.as_str())
+                }),
+            _ => None,
+        }
     }
 }
 

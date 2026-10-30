@@ -31,7 +31,7 @@ pub(super) fn extract_import(
                 };
                 path = node
                     .utf8_text(source)
-                    .map(|raw| raw.trim_matches(['"', '\'']).to_string())
+                    .map(|raw| raw.trim_matches(['"', '\'']).to_owned())
                     .inspect_err(trace_utf8_error)
                     .ok();
             }

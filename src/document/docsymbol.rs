@@ -160,81 +160,85 @@ fn create_document_symbol(element: &ModelElement) -> Option<DocumentSymbol> {
 mod test {
     use async_lsp::lsp_types::{DocumentSymbol, Url};
     use insta::assert_yaml_snapshot;
+    use tokio_util::sync::CancellationToken;
 
-    use crate::config::Config;
-    use crate::state::ProtoLanguageState;
+    use crate::server::state::{DocumentVersion, ProtoLanguageState};
 
-    fn run_symbols_test(contents: &str, file_name: &str) -> Vec<DocumentSymbol> {
+    async fn run_symbols_test(contents: &str, file_name: &str) -> Vec<DocumentSymbol> {
         let uri = Url::parse(&format!("file:///virtual/{file_name}")).unwrap();
-        let ipath = vec![];
 
-        let mut state = ProtoLanguageState::new();
-        state.upsert_file(&uri, contents, &ipath, 3, &Config::default(), false);
+        let state = ProtoLanguageState::new();
+        state
+            .add_dirty_file_for_test(&uri, contents, DocumentVersion(1))
+            .await;
 
         state
-            .get_document(&uri)
+            .get_document(&uri, CancellationToken::new())
+            .await
             .map(|document| document.document_symbols())
-            .unwrap_or_default()
+            .unwrap()
     }
 
-    #[test]
-    fn test_proto2_document_symbols() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_proto2_document_symbols() {
         let contents = include_str!("input/syntax_variants/test_proto2.proto");
-        let symbols = run_symbols_test(contents, "test_proto2.proto");
+        let symbols = run_symbols_test(contents, "test_proto2.proto").await;
         assert_yaml_snapshot!("test_proto2_document_symbols", symbols);
     }
 
-    #[test]
-    fn test_proto3_document_symbols() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_proto3_document_symbols() {
         let contents = include_str!("input/syntax_variants/test_proto3.proto");
-        let symbols = run_symbols_test(contents, "test_proto3.proto");
+        let symbols = run_symbols_test(contents, "test_proto3.proto").await;
         assert_yaml_snapshot!("test_proto3_document_symbols", symbols);
     }
 
-    #[test]
-    fn test_editions_document_symbols() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_editions_document_symbols() {
         let contents = include_str!("input/syntax_variants/test_editions.proto");
-        let symbols = run_symbols_test(contents, "test_editions.proto");
+        let symbols = run_symbols_test(contents, "test_editions.proto").await;
         assert_yaml_snapshot!("test_editions_document_symbols", symbols);
     }
 
-    #[test]
-    fn test_package_duplicate_document_symbols() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_package_duplicate_document_symbols() {
         let contents = include_str!("input/syntax_variants/test_package_duplicate.proto");
-        let symbols = run_symbols_test(contents, "test_package_duplicate.proto");
+        let symbols = run_symbols_test(contents, "test_package_duplicate.proto").await;
         assert_yaml_snapshot!("test_package_duplicate_document_symbols", symbols);
     }
 
-    #[test]
-    fn test_document_symbols_on_empty_and_minimal_file_safety() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_document_symbols_on_empty_and_minimal_file_safety() {
         let uri = Url::parse("file:///virtual/empty_test.proto").unwrap();
-        let ipath = vec![];
 
-        let mut state = ProtoLanguageState::new();
-        state.upsert_file(&uri, "", &ipath, 3, &Config::default(), false);
+        let state = ProtoLanguageState::new();
+        state
+            .add_dirty_file_for_test(&uri, "", DocumentVersion(1))
+            .await;
 
         let symbols = state
-            .get_document(&uri)
+            .get_document(&uri, CancellationToken::new())
+            .await
             .map(|document| document.document_symbols())
             .unwrap_or_default();
 
-        assert!(symbols.is_empty());
+        assert_eq!(symbols, [] as [DocumentSymbol; 0]);
 
-        let mut state_minimal = ProtoLanguageState::new();
-        state_minimal.upsert_file(
-            &uri,
-            "syntax = \"proto3\";\npackage com.test;",
-            &ipath,
-            3,
-            &Config::default(),
-            false,
-        );
+        let state_minimal = ProtoLanguageState::new();
+        state_minimal
+            .add_dirty_file_for_test(
+                &uri,
+                "syntax = \"proto3\";\npackage com.test;",
+                DocumentVersion(2),
+            )
+            .await;
 
         let symbols_minimal = state_minimal
-            .get_document(&uri)
+            .get_document(&uri, CancellationToken::new())
+            .await
             .map(|document| document.document_symbols())
             .unwrap_or_default();
 
-        assert!(symbols_minimal.is_empty());
+        assert_eq!(symbols_minimal, [] as [DocumentSymbol; 0]);
     }
 }

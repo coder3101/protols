@@ -1,8 +1,12 @@
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+pub(super) mod client;
 mod workspace;
 
 pub use workspace::WorkspaceProtoConfigs;
-
-use serde::{Deserialize, Serialize};
+pub use workspace::configure_workspace_folders;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
@@ -21,15 +25,15 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PathConfig {
-    pub clang_format: String,
-    pub protoc: String,
+    pub clang_format: PathBuf,
+    pub protoc: PathBuf,
 }
 
 impl Default for PathConfig {
     fn default() -> Self {
         Self {
-            clang_format: default_clang_format_path(),
-            protoc: default_protoc_path(),
+            clang_format: "clang-format".into(),
+            protoc: "protoc".into(),
         }
     }
 }
@@ -43,12 +47,4 @@ pub struct RenameConfig {
     /// since not every codebase follows the `<Rpc>Request`/`Response` naming
     /// convention.
     pub chain_rpc_request_response: bool,
-}
-
-fn default_clang_format_path() -> String {
-    "clang-format".to_string()
-}
-
-fn default_protoc_path() -> String {
-    "protoc".to_string()
 }

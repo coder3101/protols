@@ -114,7 +114,7 @@ fn build_fqn(
 
     match parent_fqn {
         Some(fqn) => format!("{fqn}.{entity_name}"),
-        None if package_name.is_empty() => entity_name.to_string(),
+        None if package_name.is_empty() => entity_name.to_owned(),
         None => format!("{package_name}.{entity_name}"),
     }
 }
@@ -228,7 +228,7 @@ impl ParsedMatch {
                         Vec::new()
                     };
 
-                let name = kind.fqn().unwrap_or_default().to_string();
+                let name = kind.fqn().unwrap_or_default().to_owned();
 
                 let full_fqn = build_fqn(context_stack, elements, &name, package_name);
                 kind.set_fqn(full_fqn);

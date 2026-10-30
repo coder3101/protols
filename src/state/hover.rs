@@ -1,7 +1,8 @@
 use async_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Position, Url};
+use tokio_util::sync::CancellationToken;
 
 use crate::model::{ElementKind, ModelElement, SpatialEntry};
-use crate::state::ProtoLanguageState;
+use crate::state::{CoreError, ProtoLanguageState};
 use crate::utils::is_position_inside_range;
 
 impl ProtoLanguageState {
@@ -12,8 +13,13 @@ impl ProtoLanguageState {
     ///
     /// Returns `Some(Hover)` containing the unified markdown payload, or `None`
     /// if the token carries no hoverable metadata.
-    pub fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
-        let current_document = self.get_document(uri)?;
+    pub async fn hover(
+        &self,
+        uri: &Url,
+        position: Position,
+        cancel_token: CancellationToken,
+    ) -> Result<Option<Hover>, CoreError> {
+        let current_document = self.get_document(uri, cancel_token).await?;
 
         let SpatialEntry { element_id, range } =
             current_document.find_entry_at_position(position).copied()?;
@@ -86,11 +92,13 @@ impl ModelElement {
 mod test {
     use async_lsp::lsp_types::Position;
     use insta::assert_yaml_snapshot;
+    use tokio_util::sync::CancellationToken;
 
     use crate::config::Config;
     use crate::state::ProtoLanguageState;
-    #[test]
-    fn workspace_test_hover() {
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn workspace_test_hover() {
         let ipath = vec![std::env::current_dir().unwrap().join("src/state/input")];
         let a_uri = "file://input/a.proto".parse().unwrap();
         let b_uri = "file://input/b.proto".parse().unwrap();
@@ -108,74 +116,128 @@ mod test {
         state.upsert_file(&c_uri, c, &ipath, 2, &Config::default(), false);
         state.upsert_file(&x_uri, x, &ipath, 2, &Config::default(), false);
 
-        assert_yaml_snapshot!(state.hover(
-            &a_uri,
-            Position {
-                line: 15,
-                character: 10
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &a_uri,
-            Position {
-                line: 11,
-                character: 6
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &b_uri,
-            Position {
-                line: 10,
-                character: 7
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &a_uri,
-            Position {
-                line: 12,
-                character: 14
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &a_uri,
-            Position {
-                line: 13,
-                character: 16
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &c_uri,
-            Position {
-                line: 12,
-                character: 5
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &a_uri,
-            Position {
-                line: 14,
-                character: 10
-            }
-        ));
-        assert_yaml_snapshot!(state.hover(
-            &x_uri,
-            Position {
-                line: 9,
-                character: 18
-            }
-        ));
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &a_uri,
+                    Position {
+                        line: 15,
+                        character: 10
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &a_uri,
+                    Position {
+                        line: 11,
+                        character: 6
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &b_uri,
+                    Position {
+                        line: 10,
+                        character: 7
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &a_uri,
+                    Position {
+                        line: 12,
+                        character: 14
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &a_uri,
+                    Position {
+                        line: 13,
+                        character: 16
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &c_uri,
+                    Position {
+                        line: 12,
+                        character: 5
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &a_uri,
+                    Position {
+                        line: 14,
+                        character: 10
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &x_uri,
+                    Position {
+                        line: 9,
+                        character: 18
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
         // relative path hover
-        assert_yaml_snapshot!(state.hover(
-            &x_uri,
-            Position {
-                line: 10,
-                character: 4
-            }
-        ));
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &x_uri,
+                    Position {
+                        line: 10,
+                        character: 4
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
     }
 
-    #[test]
-    fn test_hover_builtin_and_wellknown() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_hover_builtin_and_wellknown() {
         let ipath = vec![];
         let uri = "file:///hover.proto".parse().unwrap();
         let mut state: ProtoLanguageState = ProtoLanguageState::new();
@@ -196,28 +258,46 @@ mod test {
         );
 
         // Hover over the builtin `string` type.
-        assert_yaml_snapshot!(state.hover(
-            &uri,
-            Position {
-                line: 3,
-                character: 3
-            }
-        ));
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &uri,
+                    Position {
+                        line: 3,
+                        character: 3
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
         // Hover over the field name `title`.
-        assert_yaml_snapshot!(state.hover(
-            &uri,
-            Position {
-                line: 3,
-                character: 11
-            }
-        ));
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &uri,
+                    Position {
+                        line: 3,
+                        character: 11
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
         // Hover over the well-known `google.protobuf.Any` type.
-        assert_yaml_snapshot!(state.hover(
-            &uri,
-            Position {
-                line: 4,
-                character: 3
-            }
-        ));
+        assert_yaml_snapshot!(
+            state
+                .hover(
+                    &uri,
+                    Position {
+                        line: 4,
+                        character: 3
+                    },
+                    CancellationToken::new()
+                )
+                .await
+                .unwrap()
+        );
     }
 }

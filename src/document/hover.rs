@@ -42,6 +42,7 @@ mod test {
     use async_lsp::lsp_types::{Hover, Position, Url};
     use insta::assert_yaml_snapshot;
     use serde::Serialize;
+    use tokio_util::sync::CancellationToken;
 
     use crate::config::Config;
     use crate::model::ElementKind;
@@ -53,7 +54,7 @@ mod test {
         hover: Hover,
     }
 
-    fn run_hover_test(contents: &str, file_name: &str) -> Vec<HoverSnapshotEntry> {
+    async fn run_hover_test(contents: &str, file_name: &str) -> Vec<HoverSnapshotEntry> {
         let uri = Url::parse(&format!("file:///virtual/{file_name}")).unwrap();
         let ipath = vec![];
 
@@ -62,7 +63,11 @@ mod test {
 
         let mut hover_results = Vec::new();
 
-        if let Some(parsed_document) = state.get_document(&uri) {
+        if let Some(parsed_document) = state
+            .get_document(&uri, CancellationToken::new())
+            .await
+            .ok()
+        {
             let mut tested_positions = std::collections::HashSet::new();
 
             for element in &parsed_document.elements {
@@ -97,7 +102,8 @@ mod test {
                         continue;
                     }
 
-                    if let Some(hover_result) = state.hover(&uri, pos) {
+                    if let Ok(Some(hover)) = state.hover(&uri, pos, CancellationToken::new()).await
+                    {
                         let display_name = Some(element.meta.name.as_str())
                             .filter(|s| !s.is_empty())
                             .unwrap_or(match &element.kind {
@@ -107,7 +113,7 @@ mod test {
 
                         hover_results.push(HoverSnapshotEntry {
                             target: format!("{display_name} [{context}]"),
-                            hover: hover_result,
+                            hover,
                         });
                     }
                 }
@@ -117,36 +123,36 @@ mod test {
         hover_results
     }
 
-    #[test]
-    fn test_proto2_hover() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_proto2_hover() {
         let contents = include_str!("input/syntax_variants/test_proto2.proto");
-        let results = run_hover_test(contents, "test_proto2.proto");
+        let results = run_hover_test(contents, "test_proto2.proto").await;
         assert_yaml_snapshot!("test_proto2_hover", results);
     }
 
-    #[test]
-    fn test_proto3_hover() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_proto3_hover() {
         let contents = include_str!("input/syntax_variants/test_proto3.proto");
-        let results = run_hover_test(contents, "test_proto3.proto");
+        let results = run_hover_test(contents, "test_proto3.proto").await;
         assert_yaml_snapshot!("test_proto3_hover", results);
     }
 
-    #[test]
-    fn test_editions_hover() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_editions_hover() {
         let contents = include_str!("input/syntax_variants/test_editions.proto");
-        let results = run_hover_test(contents, "test_editions.proto");
+        let results = run_hover_test(contents, "test_editions.proto").await;
         assert_yaml_snapshot!("test_editions_hover", results);
     }
 
-    #[test]
-    fn test_package_duplicate_hover() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_package_duplicate_hover() {
         let contents = include_str!("input/syntax_variants/test_package_duplicate.proto");
-        let results = run_hover_test(contents, "test_package_duplicate.proto");
+        let results = run_hover_test(contents, "test_package_duplicate.proto").await;
         assert_yaml_snapshot!("test_package_duplicate_hover", results);
     }
 
-    #[test]
-    fn test_hover_on_empty_and_minimal_file_safety() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_hover_on_empty_and_minimal_file_safety() {
         let uri = Url::parse("file:///virtual/empty_test.proto").unwrap();
         let ipath = vec![];
 
@@ -157,7 +163,13 @@ mod test {
             line: 0,
             character: 0,
         };
-        assert!(state.hover(&uri, pos).is_none());
+        assert!(
+            state
+                .hover(&uri, pos, CancellationToken::new())
+                .await
+                .ok()
+                .is_none()
+        );
 
         let mut state_minimal = ProtoLanguageState::new();
         state_minimal.upsert_file(
@@ -173,6 +185,12 @@ mod test {
             line: 1,
             character: 5,
         };
-        assert!(state_minimal.hover(&uri, pos_mid).is_none());
+        assert!(
+            state_minimal
+                .hover(&uri, pos_mid, CancellationToken::new())
+                .await
+                .ok()
+                .is_none()
+        );
     }
 }
